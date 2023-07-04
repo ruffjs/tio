@@ -67,6 +67,7 @@ tio 集成了其 `v5` 版本，以提供更强的功能性和性能（水平扩�
 - 运行 `go run cmd/tio/main.go`
 - 访问 `http://127.0.0.1:9000/` 打开调试管理后台
 - 访问 `http://127.0.0.1:9000/docs` 查看 API 文档
+- 开发示例可参考 [Light Demo](demos/light/README.md)
 
 ## 构建
 

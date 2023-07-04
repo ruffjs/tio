@@ -9,6 +9,7 @@ require (
 	github.com/go-openapi/spec v0.20.7
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/kpango/glg v1.6.13
+	github.com/manifoldco/promptui v0.9.0
 	github.com/mochi-co/mqtt/v2 v2.2.11
 	github.com/panjf2000/ants/v2 v2.7.5
 	github.com/pkg/errors v0.9.1
@@ -22,6 +23,7 @@ require (
 )
 
 require (
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
