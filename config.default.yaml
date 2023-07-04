@@ -1,0 +1,48 @@
+api:
+  port: 9000
+  basicAuth:
+    name: admin
+    password: public
+
+db:
+  type: sqlite
+  sqlite:
+    filePath: tio.sqlite
+    showSql: true
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    user: tio
+    password: public
+    db: tio
+    charset: utf8
+    timezone: Asia%2FShanghai
+    maxIdleConns: 4
+    maxOpenConns: 50
+    connMaxLifetime: 60
+    showSql: true
+
+connector:
+  type: embed
+  mqttClient:
+    clientId: $tio
+    host: localhost
+    port: 1883
+    user: $tio
+    password: public
+    cleanSession: false
+  mqttBroker:
+    tcpPort: 1883
+    wsPort: 8083
+    superUsers:
+      - name: $tio
+        password: public
+      - name: $biz
+        password: public
+  emqx:
+    apiPrefix: http://localhost:18083
+    apiUser: admin
+    apiPassword: public
+
+log:
+  level: debug

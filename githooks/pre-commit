@@ -1,0 +1,39 @@
+#!/bin/sh
+
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+
+if [[ "$STAGED_GO_FILES" = "" ]]; then
+  exit 0
+fi
+
+PASS=true
+
+go vet ./...
+if [ $? -ne 0 ]; then
+  PASS=false
+  echo "go vet failed"
+fi
+
+for FILE in $STAGED_GO_FILES; do
+  if [[ $FILE == "vendor"* ]]; then
+    continue
+  fi
+
+  # format
+  UNFORMATTED=$(gofmt -l $FILE)
+  if [[ "$UNFORMATTED" != "" ]]; then
+    gofmt -w $PWD/$UNFORMATTED
+    if [[ $? != 0 ]]; then
+      PASS=false
+    fi
+    git add $FILE
+  fi
+
+done
+
+if ! $PASS; then
+  printf "\033[31mpre-commit check failed \033[0m\n"
+  exit 1
+fi
+
+exit 0

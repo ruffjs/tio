@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+svc=tio
+
+systemctl stop ${svc}.service
+systemctl disable ${svc}.service
+
+exit 0

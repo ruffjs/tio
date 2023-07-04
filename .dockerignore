@@ -1,0 +1,6 @@
+.vscode
+.idea
+./dist
+./web/node_modules
+./web/src
+*.sqlite

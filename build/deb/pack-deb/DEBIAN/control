@@ -1,0 +1,10 @@
+Package: tio
+Version: {version}
+Section: utils
+Priority: optional
+Depends: 
+Suggests: 
+Architecture: amd64
+Maintainer: ruffjs
+Provides: ruffjs
+Description: a tiny iothub core

@@ -1,0 +1,14 @@
+[Unit]
+Description=tio
+Documentation=
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=3
+WorkingDirectory=/opt/tio
+ExecStart=/opt/tio/tio
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+version: "3"
+
+services:
+  tio:
+    container_name: tio
+    restart: always
+    image: tio:${TIO_VERSION}
+    volumes:
+      - ../config.yaml:/user/app/tio/config.yaml
+    ports:
+      - 9090:9090
+  emqx:
+    container_name: emqx2
+    image: emqx/emqx:${EMQX_VERSION}
+    restart: always
+    ports:
+      - 1883:1883
+      - 8083:8083
+      - 8084:8084
+      - 8883:8883
+      - 18083:18083
+    #    volumes:
+    #      - ./vol-emqx-data:/opt/emqx/data
+    healthcheck:
+      test: [ "CMD", "/opt/emqx/bin/emqx_ctl", "status" ]
+      interval: 5s
+      timeout: 25s
+      retries: 5

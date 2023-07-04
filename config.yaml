@@ -1,0 +1,72 @@
+api:
+  # Http rest api port
+  port: 9000
+  # Basic authentication for http api
+  # If there is no configuration, there is no authentication
+  basicAuth:
+    name: admin
+    password: public
+
+db:
+  type: sqlite            # sqlite or mysql
+  sqlite:
+    filePath: tio.sqlite  # filepath or ":memory:"
+    showSql: true         # print log for sql
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    user: tio
+    password: public
+    db: tio
+    charset: utf8
+    timezone: Asia%2FShanghai
+    maxIdleConns: 4
+    maxOpenConns: 50
+    connMaxLifetime: 60
+    showSql: true       # print log for sql
+
+connector:
+  # Currently, supported:
+  # - emqx -- emqx mqtt broker
+  # - embed -- embedded mqtt broker
+  type: embed
+
+  # Configuration for tio to connect mqtt broker
+  mqttClient:
+    clientId: $tio
+    host: localhost
+    port: 1883
+    user: $tio
+    password: public
+    # If there is no special reason, please set it to false (default is false),
+    # so that mqtt messages will not be missed for tio during tio restart.
+    cleanSession: false
+
+  # If connector.type is embed,
+  # a mqtt broker server will be launched using the following configuration
+  # Only the tcp protocol is enabled by default,
+  # and if the ssl, wss ports are not configured, they will not be enabled.
+  mqttBroker:
+    tcpPort: 1883           # default is 1883s4
+    # tcpSslPort: 8883        # tcp SSL/TLS, default is 0 means it is disabled
+    wsPort: 8083            # mqtt over websocket, default is 8083
+    # wssPort: 8084           # mqtt over websocket(SSL/TLS), default is 0 means it is disabled
+    # If tcpSslPort or wssPort has configured, certFile and keyFile must also be configured
+    # require X509 PEM encoded file
+    # certFile: "./cert-key.pem"
+    # keyFile: "./cert.pem"
+
+    # Users can publish and subscribe all topics
+    superUsers:
+      - name: $tio
+        password: public
+      - name: $biz
+        password: public
+
+  emqx:
+    apiPrefix: http://localhost:18083
+    apiUser: admin
+    apiPassword: public
+
+log:
+  level: debug # debug info warn error fatal

@@ -1,0 +1,10 @@
+#! /bin/sh
+
+# set -x
+
+svc=tio
+
+# Stop service 
+systemctl is-active --quiet ${svc} >/dev/null 2>&1 && echo "Service is running, stopping..." && systemctl stop ${svc}.service
+
+exit 0

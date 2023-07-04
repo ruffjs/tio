@@ -1,0 +1,16 @@
+#!/bin/sh
+
+commit_msg=$(cat $1)
+
+msg_re="^(revert: )?(feat|fix|polish|docs|style|refactor|perf|test|workflow|ci|chore|types)(\(.+\))?: .{1,50}"
+
+if [[ ! $commit_msg =~ $msg_re ]]; then
+  echo "\n\033[31mInvalid commit message\033[0m\
+    \nShould math \"${msg_re}\" \
+    \n\nExample:
+    \nfeat(shadow): add 'comments' option\
+    \nfix(connector): protocol option wrong
+    \n\nRef: https://github.com/vuejs/vue/blob/dev/.github/COMMIT_CONVENTION.md"
+
+  exit 1
+fi
