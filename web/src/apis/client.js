@@ -25,7 +25,7 @@ const log = (res, error) => {
 };
 const client = axios.create({
   baseURL: "/",
-  timeout: "20",
+  timeout: 20 * 1000,
   timeoutErrorMessage: "Request tio api timeout",
 });
 client.interceptors.request.use(

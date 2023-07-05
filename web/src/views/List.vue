@@ -1,19 +1,19 @@
 <template>
-  <div
-    class="list-view"
-    :style="{ backgroundColor: !focused && total > 0 ? 'white' : 'transparent' }"
-  >
+  <div class="main-view">
     <div class="thing-detail" :style="{ height: route.params.thingId ? '100%' : '0%' }">
       <router-view></router-view>
     </div>
-    <div class="things-list" :class="{ active }">
+    <div class="thing-list" :class="{ active }" v-loading="querying">
       <div class="list-view-search">
         <div class="list-view-search-left">
-          <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" />
+          <div class="list-view-query-editor">
+            <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" />
+          </div>
         </div>
         <div class="list-view-search-right">
-          <el-button icon="Close" v-if="active" @click="handleClear" />
-          <el-button icon="Search" @click="handleSearch" />
+          <el-button v-if="active" @click="handleClear">RESET</el-button>
+          <el-button v-if="active" @click="handleSearch">QUERY</el-button>
+          <el-button v-else icon="Search" @click="handleSearch" />
         </div>
       </div>
       <div v-if="active" class="list-view-active-body">
@@ -85,6 +85,7 @@ const placeholder = suggestions[0].value;
 const route = useRoute();
 const { shadowListUpdateTag } = useThingsAndShadows();
 const query = ref("SELECT * FROM shadow");
+const querying = ref(false);
 const params = reactive({
   pageIndex: 1,
   pageSize: defaultPageSize,
@@ -144,6 +145,7 @@ const handlePageSizeChange = (value) => {
 const fetchList = async () => {
   try {
     // console.log(params);
+    querying.value = true;
     isSelectAllFields.value = params.query.toLowerCase().startsWith("select *");
     const { data } = await queryShadows(params);
     reset();
@@ -152,10 +154,20 @@ const fetchList = async () => {
     empty.value = data.total === 0;
   } catch (err) {
     // console.error("fetchList error:", err);
+    reset();
     if (err?.code === 400) {
-      reset();
       error.value = JSON.stringify(err, null, 2);
+    } else {
+      error.value = JSON.stringify(
+        {
+          error: err || "undefined",
+        },
+        null,
+        2
+      );
     }
+  } finally {
+    querying.value = false;
   }
 };
 
@@ -190,7 +202,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.list-view {
+.main-view {
   width: 100%;
   height: 100%;
   padding-top: var(--layout-top-gap);
@@ -198,7 +210,12 @@ onUnmounted(() => {
 
   overflow: hidden;
 
-  .things-list {
+  .thing-detail {
+    width: 100%;
+    height: auto;
+  }
+
+  .thing-list {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -214,7 +231,7 @@ onUnmounted(() => {
         width: 100%;
         height: 93px;
         border-radius: 0;
-        border-bottom: solid 1px rgba($color: #000000, $alpha: 0.2);
+        // border-bottom: solid 1px rgba($color: #000000, $alpha: 0.2);
 
         .list-view-search-left {
           height: 92px;
@@ -228,16 +245,27 @@ onUnmounted(() => {
     .list-view-search {
       display: flex;
       width: 624px;
-      height: 52px;
+      height: 60px;
       padding: 0px;
-      border-radius: 4px;
-      background-color: white;
+      // border-radius: 4px;
+      // background-color: white;
       overflow: hidden;
       transition: all ease-in-out 0.05s;
 
       .list-view-search-left {
         flex: 1;
         width: 0;
+        padding: 4px;
+        padding-right: 0;
+
+        .list-view-query-editor {
+          width: 100%;
+          height: 100%;
+          border: solid 1px #dcdfe6;
+          border-radius: 4px;
+
+          overflow: hidden;
+        }
       }
 
       .list-view-search-right {
@@ -248,8 +276,8 @@ onUnmounted(() => {
         gap: 4px;
 
         position: relative;
-        width: 52px;
-        height: 52px;
+        width: 60px;
+        height: 60px;
         padding: 4px;
 
         .el-button {
@@ -270,17 +298,18 @@ onUnmounted(() => {
       .list-view-things {
         width: 100%;
         height: 100%;
+        background-color: white;
       }
 
       .sql-editor-tpls {
         width: 100%;
         height: 100%;
-        padding: 0px 6px 6px;
+        padding: 0px 6px;
         overflow-x: hidden;
         overflow-y: auto;
 
         .sql-editor-tpl-item {
-          margin-top: 6px;
+          margin-bottom: 6px;
           padding: 10px 5px;
           background-color: white;
           line-height: 20px;
@@ -293,13 +322,13 @@ onUnmounted(() => {
     }
 
     .list-view-inactive-body {
-      width: 624px;
+      width: 616px;
       height: 168px;
       max-width: 624px;
       max-width: 624px;
 
       .list-view-error {
-        width: 624px;
+        width: 100%;
         height: 168px;
         max-width: 624px;
         max-width: 624px;
@@ -337,8 +366,8 @@ onUnmounted(() => {
 </style>
 
 <style lang="scss">
-.list-view {
-  .things-list {
+.main-view {
+  .thing-list {
     .list-view-search {
       .CodeMirror {
         width: 100%;

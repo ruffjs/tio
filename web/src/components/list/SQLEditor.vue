@@ -46,7 +46,7 @@ const createEditor = async () => {
     mode: mime,
     indentWithTabs: true,
     smartIndent: true,
-    lineNumbers: false,
+    lineNumbers: true,
     matchBrackets: true,
     cursorHeight: 1,
     lineWrapping: true,
