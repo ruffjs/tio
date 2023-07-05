@@ -35,7 +35,8 @@ jobs:
           chmod +x ./dist/tio_linux_amd64 && \
           bash -c "nohup ./dist/tio_linux_amd64 > /dev/null 2>&1 &" && \
           sleep 5 && \
-          curl http://localhost:9000/apidocs.json > api/swagger_ui/apidocs.json
+          curl http://localhost:9000/apidocs.json > api/swagger_ui/apidocs.json && \
+          sed -i 's/\/apidocs.json/apidocs.json/g' api/swagger_ui/index.html
       
       - name: Deploy API docs to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
