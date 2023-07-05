@@ -1,5 +1,8 @@
 # tio
 
+![build][build]
+[![license][license]](LICENSE)
+
 [中文](README.md) | [English](README_en.md)
 
 `tio` is a tiny iothub core.
@@ -135,3 +138,10 @@ git config core.hooksPath githooks
 golang + sqlite/mysql +  embedded-mqtt-broker/emqx
 
 web：vue3 + element-plus
+
+## License
+
+[MIT](LICENSE)
+
+[build]: https://github.com/ruffjs/tio/actions/workflows/release.yml/badge.svg
+[license]: https://img.shields.io/badge/license-MIT-blue.svg

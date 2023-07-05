@@ -1,5 +1,8 @@
 # tio
 
+![build][build]
+[![license][license]](LICENSE)
+
 [中文](README.md) | [English](README_en.md)
 
 `tio` 是一个轻量的 IotHub 核心实现。
@@ -173,3 +176,11 @@ git config core.hooksPath githooks
 golang + sqlite/mysql +  内置MQTT服务/emqx
 
 前端（调试管理后台）：vue3 + element-plus
+
+
+## License
+
+[MIT](LICENSE)
+
+[build]: https://github.com/ruffjs/tio/actions/workflows/release.yml/badge.svg
+[license]: https://img.shields.io/badge/license-MIT-blue.svg
