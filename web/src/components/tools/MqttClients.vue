@@ -57,6 +57,7 @@
             }}</el-tag>
           </div>
           <div class="mqtt-clients-curr-opts">
+            <SwitchSizeButton />
             <el-tooltip
               v-for="op in opts"
               :content="op.tip"
@@ -97,6 +98,7 @@ import { computed, ref } from "vue";
 import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import MqttConnForm from "@/components/mqtt/MqttConnForm.vue";
 import MqttClientDetail from "@/components/mqtt/MqttClientDetail.vue";
+import SwitchSizeButton from "@/components/common/SwitchSizeButton.vue";
 import useMqtt from "@/reactives/useMqtt";
 import useObjectViewer from "@/reactives/useObjectViewer";
 import useLayout from "@/reactives/useLayout";

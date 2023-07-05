@@ -18,6 +18,7 @@ export default {
       activeToolKey,
       topGap: 50,
       bottomGap,
+      isToolAreaMaxSize: false,
       mqttConnForm: {
         visible: false,
         connIdToEdit: null,

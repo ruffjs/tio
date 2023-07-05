@@ -3,10 +3,11 @@
     <div class="http-logs-header">
       <div class="http-logs-title">HTTP Request Logs</div>
       <div class="http-logs-opts">
+        <SwitchSizeButton />
         <el-pagination
           small
           layout="total,prev, pager, next"
-          hide-on-single-page
+          :hide-on-single-page="false"
           v-model:current-page="currentPage"
           :background-color="false"
           :page-size="pageSize"
@@ -64,12 +65,18 @@
 <script setup>
 import { computed, ref } from "vue";
 import { useStore } from "vuex";
+import SwitchSizeButton from "@/components/common/SwitchSizeButton.vue";
 import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import useObjectViewer from "@/reactives/useObjectViewer";
 
 const pageSize = 50;
 const store = useStore();
-const { objectToBeView, titleOfViewer, viewObject, handleCloseViewer } = useObjectViewer();
+const {
+  objectToBeView,
+  titleOfViewer,
+  viewObject,
+  handleCloseViewer,
+} = useObjectViewer();
 const currentPage = ref(1);
 const all = computed(() => store.state.app.httpRequestLogs);
 const logs = computed(() => {
@@ -106,6 +113,12 @@ const logs = computed(() => {
       }
     }
     .http-logs-opts {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: start;
+      align-items: center;
+      height: 28px;
+      padding: 2px;
       .el-pagination {
         --el-pagination-bg-color: transparent;
         --el-pagination-button-disabled-bg-color: transparent;

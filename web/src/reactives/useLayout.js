@@ -16,7 +16,14 @@ export default () => {
     );
     return conf || null;
   });
-  const activeToolHeight = computed(() => `${store.state.layout.bottomGap}px`);
+  const isToolAreaMaxSize = computed(
+    () => store.state.layout.isToolAreaMaxSize
+  );
+  const activeToolHeight = computed(() =>
+    store.state.layout.isToolAreaMaxSize
+      ? "calc(100vh - 60px)"
+      : `${store.state.layout.bottomGap}px`
+  );
 
   const switchActiveTool = (tool) => {
     const globalTeleport = document.querySelector(teleports.G);
@@ -99,11 +106,20 @@ export default () => {
     });
   };
 
+  const toggleToolAreaSize = () => {
+    store.commit("layout/setState", {
+      isToolAreaMaxSize: !store.state.layout.isToolAreaMaxSize,
+    });
+  };
+
   return {
     activeToolKey,
     activeToolConf,
     activeToolHeight,
     switchActiveTool,
+
+    isToolAreaMaxSize,
+    toggleToolAreaSize,
 
     isConnFormVisible,
     editConnId,

@@ -34,7 +34,7 @@
       <div class="mqtt-messages-btns">
         <el-button icon="Delete" circle size="small" @click="handleClearMessages" />
         <el-button
-          :icon="isGlobal ? 'Bottom' : 'Top'"
+          :icon="isGlobal ? 'Close' : 'FullScreen'"
           circle
           size="small"
           @click="switchTeleport(!isGlobal)"
@@ -106,11 +106,11 @@ const switchTeleport = (toGlobal = false) => {
   const globalTeleport = document.querySelector(teleports.G);
   if (toGlobal) {
     globalTeleport.style.visibility = "visible";
-    globalTeleport.style.height = "66vh";
+    // globalTeleport.style.height = "66vh";
     teleport.value = teleports.G;
   } else {
     globalTeleport.style.visibility = "hidden";
-    globalTeleport.style.height = "100px";
+    // globalTeleport.style.height = "100px";
     if (currentConnId.value) {
       teleport.value = teleports.D;
     } else {
