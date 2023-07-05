@@ -87,8 +87,8 @@
     </el-form>
     <template #footer>
       <span class="meta-form-dialog-footer">
-        <el-button size="small" @click="handleClose">Cancel</el-button>
-        <el-button type="primary" size="small" @click="handleSave">Save</el-button>
+        <el-button @click="handleClose">Cancel</el-button>
+        <el-button type="primary" @click="handleSave">Save</el-button>
       </span>
     </template>
   </el-dialog>

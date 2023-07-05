@@ -70,7 +70,8 @@ h1 {
   }
 }
 .object-view-dialog,
-.meta-form-dialog {
+.meta-form-dialog,
+.subscriptions-form {
   .el-dialog__body {
     padding: 0 var(--el-dialog-padding-primary);
   }
@@ -85,13 +86,6 @@ h1 {
     .object-view-main {
       flex: 1;
       height: calc(100% - 8px);
-      border: none;
-      border-radius: 2px;
-      background-color: #444;
-      color: white;
-      resize: none;
-      outline: none;
-      overflow: auto;
     }
 
     .object-view-right {

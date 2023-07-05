@@ -37,10 +37,9 @@
             </el-col>
             <el-col :span="24">
               <el-button
-                :disabled="!c.client.connected"
+                :disabled="true"
                 size="small"
                 class="thing-mqtt-innerbtn subscription-stats"
-                @click="handleShowSubscriptions(c.config)"
                 ><span>Subscription</span
                 ><span
                   >{{ getSubscribedSubs(c.subs).length }} /
@@ -133,7 +132,7 @@ const {
   subscribe,
   unsubscribe,
 } = useMqtt();
-const { activeToolKey, switchActiveTool, showMqttForm, showMqttSubs } = useLayout();
+const { activeToolKey, switchActiveTool, showMqttConnForm, showMqttSubsForm } = useLayout();
 const clients = ref([]);
 const activeName = ref("");
 const ccbt = shallowRef("");
@@ -181,7 +180,7 @@ const handleShowSubscriptions = (config) => {
     delegateSharedStates.value[config.id] &&
     delegateSharedStates.value[config.id].client?.connected
   ) {
-    showMqttSubs(config);
+    showMqttSubsForm(config);
   }
 };
 const handleShowToolPanel = (config) => {
@@ -192,7 +191,7 @@ const handleShowToolPanel = (config) => {
 };
 
 const handleCreateMqttClient = () => {
-  ccbt.value = showMqttForm(null, selectedThingId.value);
+  ccbt.value = showMqttConnForm(null, selectedThingId.value);
 };
 
 watch(
@@ -303,6 +302,7 @@ onUnmounted(() => {
   }
   .thing-mqtt-innerbtns {
     .thing-mqtt-innerbtn.subscription-stats.el-button {
+      cursor: default;
       > span {
         display: flex;
         flex-direction: row;
@@ -314,4 +314,3 @@ onUnmounted(() => {
   }
 }
 </style>
-@/utils/subs

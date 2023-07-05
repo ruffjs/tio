@@ -73,7 +73,7 @@
               link
               type="primary"
               size="small"
-              @click.prevent="viewObject(scope.row.__ui_delta, 'Delta')"
+              @click.prevent="viewObject(scope.row.__ui_delta, 'Delta', true)"
             >
               View Delta
             </el-button>
@@ -97,7 +97,7 @@
             type="primary"
             size="small"
             :disabled="scope.row.thingId === void 0"
-            @click.prevent="viewObject(scope.row.__ui_origin, 'Raw Data')"
+            @click.prevent="viewObject(scope.row.__ui_origin, 'Raw Data', true)"
           >
             View Raw
           </el-button>
@@ -111,15 +111,16 @@
     </el-table>
   </div>
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
+    :as-tree="viewObjectAsTree"
     @close="handleCloseViewers"
   />
   <StateViewer
     :visible="!!selectedState"
     :data="selectedState"
-    :type="selectedType"
+    :type="titleOfViewer"
     @close="handleCloseViewers"
   />
 </template>
@@ -150,8 +151,9 @@ const props = defineProps({
 const router = useRouter();
 const { setCurrentShadow, delThing } = useThingsAndShadows();
 const {
-  selectedObject,
-  selectedType,
+  objectToBeView,
+  titleOfViewer,
+  viewObjectAsTree,
   viewObject: _viewObject,
   handleCloseViewer,
 } = useObjectViewer();
@@ -169,12 +171,12 @@ const computedData = computed(() => {
 
 const viewState = (state, type) => {
   selectedState.value = state;
-  selectedObject.value = null;
-  selectedType.value = type;
+  objectToBeView.value = null;
+  titleOfViewer.value = type;
 };
-const viewObject = (obj, type) => {
+const viewObject = (obj, type, asTree = false) => {
   selectedState.value = null;
-  _viewObject(obj, type);
+  _viewObject(obj, type, asTree);
 };
 const handleCloseViewers = () => {
   selectedState.value = null;

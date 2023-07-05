@@ -2,7 +2,7 @@
   <el-drawer
     :model-value="visible"
     size="calc(50vw - 250px)"
-    title="Suggested Topics"
+    title="Suggested Topic Templates"
     class="publish-topic-suggestions"
     modal-class="publish-topic-suggestions-mask"
     append-to-body

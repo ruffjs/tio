@@ -7,23 +7,36 @@
       </div>
     </div>
     <div class="mqtt-client-detail-right">
-      <div class="mqtt-client-detail-infos">
+      <!-- <div class="mqtt-client-detail-infos">
         <KeyValueDisplayer :data="baseInfo" :fields="mqttFields" />
+      </div> -->
+      <div class="mqtt-client-detail-sublist">
+        <Subcriptions
+          ref="subsRef"
+          :conn="selectedConn"
+          :connected="selectedConn.client.connected"
+          v-model:filter-topic="filterTopic"
+        />
       </div>
-      <div class="mqtt-client-detail-subs">
+      <div class="mqtt-client-detail-subctrl">
         <el-row :gutter="10">
-          <el-col :span="24">
-            <el-button
-              :disabled="!selectedConn.client.connected"
-              type="success"
-              class="subscription-stats"
-              plain
-              @click="handleShowSubscriptions"
+          <el-col :span="16">
+            <el-button :disabled="true" type="success" class="subscription-stats" plain
               ><span>Subscription</span
               ><span>
                 {{ getSubscribedSubs(subscribed).length }} /
                 {{ selectedConn.subscriptions.length }}</span
               ></el-button
+            >
+          </el-col>
+          <el-col :span="8">
+            <el-button
+              :disabled="!selectedConn.client.connected"
+              type="primary"
+              icon="Plus"
+              plain
+              @click="handleCreateSubscription"
+              >Add</el-button
             >
           </el-col>
           <el-col :span="12">
@@ -58,15 +71,18 @@
       >
     </el-empty>
   </div>
-  <MqttMessage />
+  <MqttMessage :filter-topic="filterTopic" />
+  <SubscriptionForm @submit="handleSubmitSubsForm" />
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { mqttFields } from "@/configs/tool";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
 import MqttMessage from "./MqttMessage.vue";
 import MqttPublish from "./MqttPublish.vue";
+import Subcriptions from "./Subcriptions.vue";
+import SubscriptionForm from "./SubscriptionForm.vue";
 import {
   serverSubTopics,
   subscribeAll,
@@ -79,8 +95,10 @@ import useLayout from "@/reactives/useLayout";
 
 const emit = defineEmits(["request-add-conn"]);
 const { currentConnId, selectedConn, subscribe, unsubscribe } = useMqtt();
-const { showMqttSubs } = useLayout();
+const { showMqttSubsForm } = useLayout();
 
+const subsRef = ref();
+const filterTopic = ref("");
 const baseInfo = computed(() => {
   if (currentConnId.value) {
     const {
@@ -112,9 +130,9 @@ const baseInfo = computed(() => {
 });
 const subscribed = computed(() => selectedConn.value.subs || {});
 
-const handleShowSubscriptions = () => {
+const handleCreateSubscription = () => {
   if (selectedConn.value.client?.connected) {
-    showMqttSubs(selectedConn.value.config);
+    showMqttSubsForm(selectedConn.value.config, null);
   }
 };
 
@@ -132,6 +150,12 @@ const handleUnsubscribeAll = () => {
     unsubscribe,
   });
 };
+
+const handleSubmitSubsForm = (data) => {
+  try {
+    subsRef.value?.submitForm(data);
+  } catch (error) {}
+};
 </script>
 
 <style scoped lang="scss">
@@ -148,20 +172,20 @@ const handleUnsubscribeAll = () => {
 
   .mqtt-client-detail-left {
     width: 50vw;
-    height: 278px;
+    height: 328px;
     min-width: 540px;
 
     .mqtt-client-detail-message {
       width: 100%;
-      height: 90px;
+      height: 150px;
       border: solid 1px rgba(0, 0, 0, 0.05);
       border-radius: 2px;
     }
 
     .mqtt-client-detail-publish {
       width: 100%;
-      height: 180px;
-      margin-top: 8px;
+      height: 172px;
+      margin-top: 6px;
       border: solid 1px rgba(0, 0, 0, 0.05);
       border-radius: 2px;
     }
@@ -170,23 +194,27 @@ const handleUnsubscribeAll = () => {
   .mqtt-client-detail-right {
     flex: 1;
     width: 0;
-    height: 278px;
+    height: 328px;
 
     .mqtt-client-detail-infos {
       width: 100%;
       height: 178px;
     }
-    .mqtt-client-detail-subs {
+    .mqtt-client-detail-sublist {
       width: 100%;
-      height: 90px;
-      margin-top: 10px;
-      padding: 9px 10px 0;
+      height: 240px;
+    }
+    .mqtt-client-detail-subctrl {
+      width: 100%;
+      height: 82px;
+      margin-top: 6px;
+      padding: 6px 10px 0;
       border-radius: 4px;
       background-color: #f7f7f7;
 
       .el-button {
         width: 100%;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
       }
     }
   }
@@ -195,8 +223,13 @@ const handleUnsubscribeAll = () => {
 
 <style lang="scss">
 .mqtt-client-detail {
+  .mqtt-client-detail-left {
+    .mqtt-client-detail-publish {
+      --pub-json-edit-height: 114px;
+    }
+  }
   .mqtt-client-detail-right {
-    .mqtt-client-detail-subs {
+    .mqtt-client-detail-subctrl {
       .subscription-stats.el-button {
         > span {
           display: flex;
@@ -210,4 +243,3 @@ const handleUnsubscribeAll = () => {
   }
 }
 </style>
-@/utils/subs

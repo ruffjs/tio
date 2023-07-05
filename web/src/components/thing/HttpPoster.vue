@@ -9,7 +9,11 @@
   >
     <template #footer>
       <div style="flex: auto">
-        <el-button :loading="submitting" type="primary" @click="handleSubmit"
+        <el-button
+          :disabled="hasJSONError"
+          :loading="submitting"
+          type="primary"
+          @click="handleSubmit"
           >Submit</el-button
         >
       </div>
@@ -83,23 +87,28 @@
         <el-col :span="1"></el-col>
         <el-col :span="23">
           <el-form-item :label-width="formLabelWidth" label="Body" prop="body">
-            <el-input
+            <JSONEditor
               v-model="form.body"
+              v-model:has-error="hasJSONError"
               :disabled="Boolean(payload)"
-              :autosize="{ minRows: 8 }"
-              type="textarea"
-              placeholder="Please input"
+              class="http-poster-body-json"
+              :style="{ opacity: Boolean(payload) ? 0.6 : 1 }"
             />
           </el-form-item> </el-col
         ><el-col :span="1"></el-col>
       </el-row>
     </el-form>
     <el-card
-      header="Responses"
+      header="Response"
       shadow="never"
       :class="['http-poster-res', isError ? 'is-error' : '']"
     >
-      <pre>{{ result }}</pre>
+      <JSONEditor
+        :model-value="result"
+        disabled
+        mode="tree"
+        class="http-poster-resp-json"
+      />
     </el-card>
   </el-drawer>
 </template>
@@ -110,8 +119,14 @@ import { shadowApis } from "@/configs/thing";
 import KeyValueEditor from "@/components/common/KeyValueEditor.vue";
 import { request } from "@/apis";
 import { notifyThingStateChange, TSCE_HTTP } from "@/utils/event";
+import JSONEditor from "../common/JSONEditor.vue";
 
 const formLabelWidth = "120px";
+const res = JSON.stringify({
+  code: 0,
+  message: "",
+  data: "",
+});
 
 const emit = defineEmits(["close", "done"]);
 const props = defineProps({
@@ -128,6 +143,7 @@ const props = defineProps({
   },
 });
 const submitting = ref(false);
+const hasJSONError = ref(false);
 const api = shallowRef(null);
 const params = ref([]);
 const formRef = ref();
@@ -146,7 +162,7 @@ const rules = reactive({
   id: [{ required: true, message: "Please input" }],
 });
 const isError = ref(false);
-const result = ref("");
+const result = ref(res);
 
 const handleOpenDoc = () => window.open(api.value.link, "_blank");
 
@@ -157,6 +173,7 @@ const handleSubmit = async () => {
     if (valid) {
       submitting.value = true;
       isError.value = false;
+      result.value = res;
       const { url, method, body, headers } = form;
       const res = await request({
         url,
@@ -170,11 +187,11 @@ const handleSubmit = async () => {
         method,
       });
       emit("done");
-      emit("close");
+      // emit("close");
     }
   } catch (error) {
     isError.value = true;
-    result.value = error;
+    result.value = JSON.stringify({ error });
   } finally {
     submitting.value = false;
   }
@@ -206,6 +223,7 @@ watch(
       });
     }
     params.value = _params;
+    result.value = res;
   },
   { deep: true, immediate: true }
 );
@@ -283,6 +301,14 @@ watch(
           text-align: left;
         }
       }
+      .http-poster-body-json {
+        .jse-main {
+          position: relative;
+          height: auto;
+          min-height: 172px;
+          max-height: 244px;
+        }
+      }
     }
   }
   .http-poster-res {
@@ -290,7 +316,17 @@ watch(
       padding: 10px var(--el-card-padding);
     }
     .el-card__body {
-      padding: 5px var(--el-card-padding);
+      padding: 5px 0;
+      .http-poster-resp-json {
+        .jse-main {
+          .jse-tree-mode {
+            border: none;
+            .jse-contents {
+              border: none;
+            }
+          }
+        }
+      }
     }
   }
 }

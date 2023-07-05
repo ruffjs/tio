@@ -5,19 +5,19 @@
       <el-form
         ref="formRef"
         v-loading="loading"
-        :model="ruleForm"
+        :model="form"
         :rules="rules"
         status-icon
         label-width="90px"
-        class="demo-ruleForm"
+        class="demo-form"
         @keyup.enter.native="submitForm"
       >
         <el-form-item label="Username" prop="user">
-          <el-input v-model.number="ruleForm.user" autocomplete="off" />
+          <el-input v-model.number="form.user" autocomplete="off" />
         </el-form-item>
         <el-form-item label="Password" prop="pass">
           <el-input
-            v-model="ruleForm.pass"
+            v-model="form.pass"
             type="password"
             show-password
             autocomplete="off"
@@ -35,7 +35,7 @@
 export default {
   name: "Login",
   inheritAttrs: false,
-  customOptions: { title: "登录TIO", zIndex: 2040, actived: false },
+  customOptions: { title: "Login TIO", zIndex: 1999, actived: false },
 };
 </script>
 
@@ -70,7 +70,7 @@ const store = useStore();
 const router = useRouter();
 const { updateThings } = useThingsAndShadows();
 const formRef = ref();
-const ruleForm = reactive({
+const form = reactive({
   user: "admin",
   pass: "",
 });
@@ -82,7 +82,7 @@ const submitForm = async () => {
     if (valid) {
       console.log("submit!");
       loading.value = true;
-      const base = `${ruleForm.user}:${ruleForm.pass}`;
+      const base = `${form.user}:${form.pass}`;
       const auth = `Basic ${btoa(base)}`;
       localStorage.setItem("$tiopg/user/auth", auth);
       store.commit("user/setState", { auth });

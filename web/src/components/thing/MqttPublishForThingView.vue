@@ -48,7 +48,9 @@ const props = defineProps({
     padding: 0 var(--el-dialog-padding-primary) 18px;
   }
   .thing-mqtt-publish {
-    height: 240px;
+    --pub-json-edit-height: 184px;
+
+    height: 242px;
     border: solid 1px rgba(0, 0, 0, 0.05);
     border-radius: 2px;
   }

@@ -1,49 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
-    <script>
-      window.global = window;
-    </script>
-    <script type="module">
-      import process from "process";
-      import { Buffer } from "buffer";
-      import EventEmitter from "events";
 
-      window.process = process;
-      window.Buffer = Buffer;
-      window.EventEmitter = EventEmitter;
-    </script>
-    <style>
-      #global-message-panel {
-        position: fixed;
-        bottom: 223px;
-        left: 245px;
-        width: 50vw;
-        height: 90px;
-        min-width: 540px;
-        max-height: calc(100vh - 230px);
-        border: solid 1px rgba(0, 0, 0, 0.05);
-        border-radius: 2px;
-        background-color: white;
-        z-index: 2004;
-        box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-        visibility: hidden;
-        transition: height ease-in-out 0.1s;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title></title>
+  <script>
+    window.global = window;
+  </script>
+  <script type="module">
+    import process from "process";
+    import { Buffer } from "buffer";
+    import EventEmitter from "events";
 
-      #global-message-panel .mqtt-messages-list {
-        padding-top: 32px;
-      }
-    </style>
-  </head>
+    window.process = process;
+    window.Buffer = Buffer;
+    window.EventEmitter = EventEmitter;
+  </script>
+  <style>
+    #global-message-panel {
+      position: fixed;
+      bottom: 213px;
+      left: 245px;
+      width: 50vw;
+      height: 100px;
+      min-width: 540px;
+      max-height: calc(100vh - 220px);
+      border: solid 1px rgba(0, 0, 0, 0.05);
+      border-radius: 2px;
+      background-color: white;
+      z-index: 2004;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+      visibility: hidden;
+      transition: height ease-in-out 0.1s;
+    }
+  </style>
+</head>
 
-  <body>
-    <div id="global-message-panel"></div>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<body>
+  <div id="global-message-panel"></div>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

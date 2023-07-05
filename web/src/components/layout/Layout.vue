@@ -48,8 +48,10 @@ watch(
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
+    min-width: 1080px;
+    min-height: 320px;
   }
   .background {
     position: absolute;
@@ -57,6 +59,7 @@ watch(
     left: 0;
     width: 100%;
     height: 0;
+    min-width: 1080px;
     background-color: transparent;
     z-index: 10;
     overflow: visible;

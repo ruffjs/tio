@@ -59,7 +59,6 @@ const handlePageSizeChange = (value) => {
     .things-list-items {
       width: 100%;
       height: 100%;
-      padding: 5px 25px;
     }
   }
   .things-list-paging {
@@ -67,8 +66,8 @@ const handlePageSizeChange = (value) => {
     justify-content: center;
     align-items: center;
     width: 100%;
-    height: 58px;
-    padding: 5px 25px 13px;
+    height: 40px;
+    padding: 2px 15px 3px;
   }
 }
 </style>

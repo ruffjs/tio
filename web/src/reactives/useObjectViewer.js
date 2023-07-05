@@ -1,16 +1,25 @@
 import { ref } from "vue";
 
 export default () => {
-  const selectedObject = ref(null);
-  const selectedType = ref("");
-  const viewObject = (obj, type) => {
+  const objectToBeView = ref(null);
+  const titleOfViewer = ref("");
+  const viewObjectAsTree = ref(false);
+  const viewObject = (obj, type, asTree = false) => {
     // console.log(obj, type);
-    selectedObject.value = obj;
-    selectedType.value = type;
+    objectToBeView.value = obj;
+    titleOfViewer.value = type;
+    viewObjectAsTree.value = !!asTree;
   };
   const handleCloseViewer = () => {
-    selectedObject.value = null;
-    selectedType.value = "";
+    objectToBeView.value = null;
+    titleOfViewer.value = "";
+    viewObjectAsTree.value = false;
   };
-  return { selectedObject, selectedType, viewObject, handleCloseViewer };
+  return {
+    objectToBeView,
+    titleOfViewer,
+    viewObjectAsTree,
+    viewObject,
+    handleCloseViewer,
+  };
 };

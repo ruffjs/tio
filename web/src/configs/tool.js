@@ -12,7 +12,7 @@ export const tools = [
     key: "mqtt",
     icon: "Connection",
     name: "MQTT Clients",
-    height: 350,
+    height: 400,
   },
   {
     key: "logs",

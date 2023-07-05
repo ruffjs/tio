@@ -1,111 +1,97 @@
 <template>
-  <el-drawer
-    :model-value="isSubscriptionsVisible"
-    direction="ltr"
-    size="30vw"
-    title="Subcriptions"
-    class="subscriptions-manager"
-    modal-class="subscriptions-manager-mask"
-    append-to-body
-    @close="hideMqttSubs"
-  >
-    <div class="subscriptions-list" v-loading="loading">
-      <div class="subscriptions-list-add">
-        <el-button type="primary" icon="Plus" round plain @click="handleCreate()"
-          >Add Subcription</el-button
-        >
+  <div class="subscriptions-list" v-loading="loading">
+    <div
+      v-for="sub in subscriptions"
+      :class="['subscriptions-list-item', sub.subscribed ? 'subscribed-item' : '']"
+    >
+      <div class="subscriptions-list-topic">
+        <el-tag v-if="sub.name" size="small">{{ sub.name }}</el-tag>
+        <span>{{ sub.topic }}</span>
       </div>
-      <div
-        v-for="sub in subscriptions"
-        :class="['subscriptions-list-item', sub.subscribed ? 'subscribed-item' : '']"
-      >
-        <div class="subscriptions-list-topic">
-          <el-tag v-if="sub.name" size="small">{{ sub.name }}</el-tag>
-          <span>{{ sub.topic }}</span>
-        </div>
-        <div class="subscriptions-list-btns">
+      <div class="subscriptions-list-btns">
+        <el-button
+          v-if="sub.subscribed"
+          :disabled="!conn.client?.connected"
+          type="primary"
+          size="small"
+          class="subscriptions-list-btns-left"
+          plain
+          @click="handleUnsubscribe(sub)"
+          >Unsubscribe</el-button
+        >
+        <el-button
+          v-else
+          :disabled="!conn.client?.connected"
+          type="info"
+          size="small"
+          class="subscriptions-list-btns-left"
+          @click="handleSubscribe(sub)"
+          >Subscribe</el-button
+        >
+        <div class="subscriptions-list-btns-right">
           <el-button
-            v-if="sub.subscribed"
+            :type="filterTopic === sub.topic ? 'primary' : ''"
+            :plain="filterTopic !== sub.topic"
+            icon="Filter"
+            size="small"
+            circle
+            plain
+            @click="handleToggleFilter(sub)"
+          />
+          <el-button
+            :disabled="!conn.client?.connected || sub.subscribed"
             type="primary"
+            icon="Edit"
             size="small"
-            class="subscriptions-list-btns-left"
+            circle
             plain
-            @click="handleUnsubscribe(sub)"
-            >Unsubscribe</el-button
-          >
+            @click="handleEdit(sub)"
+          />
           <el-button
-            v-else
-            type="info"
+            :disabled="sub.keep || sub.subscribed"
+            type="danger"
+            icon="Delete"
             size="small"
-            class="subscriptions-list-btns-left"
+            circle
             plain
-            @click="handleSubscribe(sub)"
-            >Subscribe</el-button
-          >
-          <div class="subscriptions-list-btns-right">
-            <el-button
-              :disabled="sub.subscribed"
-              type="primary"
-              icon="Edit"
-              size="small"
-              circle
-              plain
-              @click="handleEdit(sub)"
-            />
-            <el-button
-              :disabled="sub.keep || sub.subscribed"
-              type="danger"
-              icon="Delete"
-              size="small"
-              circle
-              plain
-              @click="handleDelete(sub)"
-            />
-          </div>
+            @click="handleDelete(sub)"
+          />
         </div>
       </div>
     </div>
-    <SubscriptionForm
-      :type="subsFormType"
-      :data="subsFormData"
-      :conn-config="subscriptionsConnConfig"
-      @cancel="handleHideForm"
-      @submit="handleSubmitForm"
-    />
-  </el-drawer>
+  </div>
 </template>
 
 <script setup>
 import { ref, watch } from "vue";
-import useLayout from "@/reactives/useLayout";
-import useMqtt from "@/reactives/useMqtt";
-import SubscriptionForm from "./SubscriptionForm.vue";
 import { ElNotification } from "element-plus";
 import { notifyDone, notifyFail } from "@/utils/layout";
+import useMqtt from "@/reactives/useMqtt";
+import useLayout from "@/reactives/useLayout";
 
-const {
-  delegateSharedStates,
-  subscribe,
-  unsubscribe,
-  removeTopic,
-  setConnConfig,
-} = useMqtt();
-const { isSubscriptionsVisible, subscriptionsConnConfig, hideMqttSubs } = useLayout();
+const emit = defineEmits(["update:filterTopic"]);
+const props = defineProps({
+  conn: {
+    type: [Object, null],
+    required: true,
+  },
+  subs: Object,
+  filterTopic: {
+    type: String,
+    default: "",
+  },
+});
+const { subscribe, unsubscribe, removeTopic, setConnConfig } = useMqtt();
+const { subsFormData, showMqttSubsForm, hideMqttSubsForm } = useLayout();
+
 const subscriptions = ref([]);
-const subsFormType = ref("");
-const subsFormData = ref(null);
 const loading = ref(false);
 
 const updateSubscriptions = () => {
-  // console.log(subscriptionsConnConfig.value);
-  if (subscriptionsConnConfig.value) {
-    const subs =
-      (delegateSharedStates.value[subscriptionsConnConfig.value.id] &&
-        delegateSharedStates.value[subscriptionsConnConfig.value.id].subs) ||
-      {};
-    subscriptions.value = subscriptionsConnConfig.value.subscriptions
+  if (props.conn.config) {
+    const subscribed = props.conn.subs || {};
+    subscriptions.value = props.conn.subscriptions
       .map((sub) => {
-        //   console.log(sub, delegateSharedStates.value[subscriptionsConnConfig.value.id]);
         const { id, topic, opts, keep, name } = sub;
         return {
           id,
@@ -113,20 +99,20 @@ const updateSubscriptions = () => {
           topic,
           opts,
           keep,
-          subscribed: subs[topic] || false,
+          subscribed: subscribed[topic] || false,
         };
       })
       .sort((a, b) => Number(b.subscribed) - Number(a.subscribed));
   } else {
     subscriptions.value = [];
   }
-  loading.value = false;
 };
 
 const handleUnsubscribe = (sub) => {
   loading.value = true;
   if (sub.subscribed) {
-    unsubscribe(subscriptionsConnConfig.value, sub.topic, (err) => {
+    unsubscribe(props.conn.config, sub.topic, (err) => {
+      loading.value = false;
       if (err) {
         notifyFail("Unsubscribe operation Failed");
       } else {
@@ -139,17 +125,18 @@ const handleUnsubscribe = (sub) => {
 const handleSubscribe = (sub) => {
   if (!sub.subscribed) {
     if (sub.id === subsFormData.value?.id) {
-      handleHideForm();
+      hideMqttSubsForm();
     }
     loading.value = true;
     subscribe(
-      subscriptionsConnConfig.value,
+      props.conn.config,
       {
         topic: sub.topic,
         opts: sub.opts,
-        configs: subscriptionsConnConfig.value.subscriptions || [],
+        configs: props.conn.subscriptions || [],
       },
       (err) => {
+        loading.value = false;
         if (err) {
           notifyFail("Subscribe operation Failed");
         } else {
@@ -160,125 +147,123 @@ const handleSubscribe = (sub) => {
     );
   }
 };
-const handleCreate = () => {
-  subsFormType.value = "create";
-  subsFormData.value = null;
-};
 const handleEdit = (sub) => {
-  subsFormType.value = "edit";
-  subsFormData.value = sub;
+  if (props.conn.client?.connected) {
+    showMqttSubsForm(props.conn.config, sub);
+  }
+};
+
+const handleToggleFilter = (sub) => {
+  emit("update:filterTopic", props.filterTopic === sub.topic ? "" : sub.topic);
 };
 
 const handleDelete = (sub) => {
   if (sub.id === subsFormData.value?.id) {
-    handleHideForm();
+    hideMqttSubsForm();
   }
-  if (sub.subscribed) {
-    unsubscribe(subscriptionsConnConfig.value, sub.topic);
+  if (props.conn.client?.connected && sub.subscribed) {
+    unsubscribe(props.conn.config, sub.topic);
   }
-  const index = subscriptionsConnConfig.value.subscriptions.findIndex(
-    (s) => s.id === sub.id
-  );
+  const index = props.conn.subscriptions.findIndex((s) => s.id === sub.id);
   if (index > -1) {
-    subscriptionsConnConfig.value.subscriptions.splice(index, 1);
-    setConnConfig(subscriptionsConnConfig.value.id, subscriptionsConnConfig.value);
+    props.conn.subscriptions.splice(index, 1);
+    setConnConfig(props.conn.id, props.conn.config);
     removeTopic(sub.topic);
     notifyDone("Delete Subscription");
     updateSubscriptions();
   }
 };
 
-const handleHideForm = () => {
-  subsFormType.value = "";
-  subsFormData.value = null;
-};
-const handleSubmitForm = (data) => {
-  const sameTopicSub = subscriptionsConnConfig.value.subscriptions.find(
-    (s) => s.topic === data.topic
-  );
-  if (sameTopicSub) {
-    if (!data.id || data.id !== sameTopicSub.id) {
-      ElNotification({
-        title: "Conflict",
-        message: "The subscription with same topic already exists",
-      });
-      return;
+defineExpose({
+  submitForm: (data) => {
+    const sameTopicSub = props.conn.subscriptions.find((s) => s.topic === data.topic);
+    if (sameTopicSub) {
+      if (!data.id || data.id !== sameTopicSub.id) {
+        ElNotification({
+          title: "Conflict",
+          message: "The subscription with same topic already exists",
+        });
+        return;
+      }
     }
-  }
-  handleHideForm();
-  const opts = {
-    qos: data.qos,
-  };
-  if (data.nl) {
-    opts.nl = data.nl;
-  }
-  if (data.rap) {
-    opts.rap = data.rap;
-  }
-  if (data.rh) {
-    opts.rh = data.rh;
-  }
-  if (data.subscriptionIdentifier) {
-    opts.properties = {
-      subscriptionIdentifier: data.subscriptionIdentifier,
+    hideMqttSubsForm();
+    loading.value = true;
+    const opts = {
+      qos: data.qos,
     };
-  }
-  if (data.id) {
-    const sub = subscriptionsConnConfig.value.subscriptions.find((s) => s.id === data.id);
-    if (sub) {
-      const oldTopic = sub.topic;
-      sub.name = data.name;
-      sub.topic = data.topic;
-      sub.opts = opts;
+    if (data.nl) {
+      opts.nl = data.nl;
+    }
+    if (data.rap) {
+      opts.rap = data.rap;
+    }
+    if (data.rh) {
+      opts.rh = data.rh;
+    }
+    if (data.subscriptionIdentifier) {
+      opts.properties = {
+        subscriptionIdentifier: data.subscriptionIdentifier,
+      };
+    }
+    if (data.id) {
+      const sub = props.conn.subscriptions.find((s) => s.id === data.id);
+      if (sub) {
+        const oldTopic = sub.topic;
+        sub.name = data.name;
+        sub.topic = data.topic;
+        sub.opts = opts;
+        subscribe(
+          props.conn.config,
+          {
+            topic: sub.topic,
+            opts,
+            configs: [sub],
+          },
+          (err) => {
+            loading.value = false;
+            if (err) {
+              notifyFail("Subscribe operation Failed");
+            } else {
+              notifyDone("Update subscription and subscribe it.");
+              updateSubscriptions();
+            }
+          }
+        );
+        if (sub.topic !== oldTopic) {
+          removeTopic(props.conn.config, oldTopic);
+        }
+      }
+    } else {
       subscribe(
-        subscriptionsConnConfig.value,
+        props.conn.config,
         {
-          topic: sub.topic,
+          topic: data.topic,
           opts,
-          configs: [sub],
+          configs: [
+            {
+              name: data.name,
+              keep: false,
+              opts,
+              topic: data.topic,
+            },
+          ],
         },
         (err) => {
+          loading.value = false;
           if (err) {
             notifyFail("Subscribe operation Failed");
           } else {
-            notifyDone("Update subscription and subscribe it.");
+            notifyDone("Add subscription and subscribe it.");
             updateSubscriptions();
           }
         }
       );
-      if (sub.topic !== oldTopic) {
-        removeTopic(subscriptionsConnConfig.value, oldTopic);
-      }
     }
-  } else {
-    subscribe(
-      subscriptionsConnConfig.value,
-      {
-        topic: data.topic,
-        opts,
-        configs: [
-          {
-            name: data.name,
-            keep: false,
-            opts,
-            topic: data.topic,
-          },
-        ],
-      },
-      (err) => {
-        if (err) {
-          notifyFail("Subscribe operation Failed");
-        } else {
-          notifyDone("Add subscription and subscribe it.");
-          updateSubscriptions();
-        }
-      }
-    );
-  }
-};
+  },
+});
 
 watch(
-  [isSubscriptionsVisible, subscriptionsConnConfig, delegateSharedStates],
+  () => props.conn,
   () => updateSubscriptions(),
   {
     immediate: true,
@@ -287,74 +272,57 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.subscriptions-manager {
-  .subscriptions-list-add {
-    text-align: center;
-    margin-bottom: 16px;
-  }
-  .subscriptions-list {
-    position: relative;
+.subscriptions-list {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: 4px;
+  background-color: white;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 11;
+  .subscriptions-list-item {
     width: 100%;
-    height: 100%;
-    padding: 0 var(--el-drawer-padding-primary) 10px;
-    background-color: white;
-    overflow-x: hidden;
-    overflow-y: auto;
-    z-index: 11;
-    .subscriptions-list-item {
+    height: auto;
+
+    margin-bottom: 6px;
+    padding: 3px 5px 8px;
+    border-left: solid 4px rgba($color: #000000, $alpha: 0.1);
+    border-radius: 4px;
+    background-color: rgba($color: #000000, $alpha: 0.05);
+    cursor: pointer;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    &.subscribed-item {
+      border-left-color: var(--el-color-success);
+    }
+
+    .subscriptions-list-topic {
       width: 100%;
       height: auto;
-
-      margin-bottom: 10px;
-      padding: 3px 5px 8px;
-      border-left: solid 4px rgba($color: #000000, $alpha: 0.1);
-      border-radius: 4px;
-      background-color: rgba($color: #000000, $alpha: 0.05);
-      cursor: pointer;
-
-      &.subscribed-item {
-        border-left-color: var(--el-color-success);
-      }
-
-      .subscriptions-list-topic {
-        width: 100%;
-        height: auto;
-        padding: 5px 0;
-        line-height: 15px;
-        font-size: 12px;
-        font-weight: 600;
-        color: #888;
-        word-break: break-all;
-        word-wrap: break-word;
-        .el-tag {
-          float: right;
-          margin-left: 5px;
-        }
-      }
-
-      .subscriptions-list-btns {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
+      padding: 5px 0;
+      line-height: 15px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      word-break: break-all;
+      word-wrap: break-word;
+      .el-tag {
+        float: right;
+        margin-left: 5px;
       }
     }
-  }
-}
-</style>
-<style lang="scss">
-.el-overlay.subscriptions-manager-mask {
-  background-color: rgba($color: #000000, $alpha: 0.1);
-}
-.subscriptions-manager {
-  .el-drawer__header {
-    margin-bottom: 10px;
-    .el-drawer__title {
-      font-weight: 700;
+
+    .subscriptions-list-btns {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
     }
-  }
-  .el-drawer__body {
-    padding: 0;
   }
 }
 </style>

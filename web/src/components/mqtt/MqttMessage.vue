@@ -20,30 +20,16 @@
         </div>
       </div>
       <div v-else class="mqtt-messages-empty"></div>
-      <div :class="['mqtt-messages-filters', isGlobal ? 'is-global-mode' : '']">
-        <el-select
-          v-model="filters.type"
-          class="m-2"
-          placeholder="Select"
-          size="small"
-          style="width: 100px"
-        >
-          <el-option
+      <div class="mqtt-messages-filters">
+        <el-radio-group v-model="filters.type" size="small">
+          <el-radio
             v-for="item in typeOptions"
             :key="item.value"
-            :label="item.label"
+            :label="item.value"
             :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.topic"
-          class="m-2"
-          placeholder="Select"
-          size="small"
-          style="width: 300px; margin-left: 10px"
-        >
-          <el-option v-for="item in topicOptions" :key="item" :value="item" />
-        </el-select>
+            >{{ item.label }}</el-radio
+          >
+        </el-radio-group>
       </div>
       <div class="mqtt-messages-btns">
         <el-button icon="Delete" circle size="small" @click="handleClearMessages" />
@@ -79,19 +65,18 @@ const typeOptions = [
   },
 ];
 
+const props = defineProps({
+  filterTopic: {
+    type: String,
+    default: "",
+  },
+});
 const { currentConnId, selectedConn, clearMessages } = useMqtt();
 const teleport = ref(teleports.G);
 const isGlobal = computed(() => teleport.value === teleports.G);
 const filters = reactive({
   type: "all",
-  topic: "#",
 });
-const topicOptions = ref([
-  {
-    value: "#",
-    label: "#",
-  },
-]);
 const messages = computed(() => {
   if (currentConnId.value) {
     return (
@@ -102,13 +87,13 @@ const messages = computed(() => {
         if (filters.type === "out" && !message.out) {
           return false;
         }
-        if (filters.topic === "#") {
+        if (props.filterTopic === "") {
           return true;
         }
         if (message.out) {
           return false;
         }
-        return matchTopicMethod(message.topic, filters.topic);
+        return matchTopicMethod(message.topic, props.filterTopic);
       }) || []
     );
   }
@@ -121,11 +106,11 @@ const switchTeleport = (toGlobal = false) => {
   const globalTeleport = document.querySelector(teleports.G);
   if (toGlobal) {
     globalTeleport.style.visibility = "visible";
-    globalTeleport.style.height = "60vh";
+    globalTeleport.style.height = "66vh";
     teleport.value = teleports.G;
   } else {
     globalTeleport.style.visibility = "hidden";
-    globalTeleport.style.height = "90px";
+    globalTeleport.style.height = "100px";
     if (currentConnId.value) {
       teleport.value = teleports.D;
     } else {
@@ -133,11 +118,7 @@ const switchTeleport = (toGlobal = false) => {
     }
   }
 };
-watch([teleport, selectedConn], async () => {
-  Object.assign(filters, {
-    type: "all",
-    topic: "#",
-  });
+const scrollToBottom = async () => {
   await nextTick();
   const list = document.querySelector(".mqtt-messages-list");
   if (list) {
@@ -145,20 +126,17 @@ watch([teleport, selectedConn], async () => {
       top: list.scrollHeight - list.clientHeight,
     });
   }
-});
+};
+
+watch(teleport, scrollToBottom);
 watch(currentConnId, () => {
   switchTeleport(false);
 });
 watch(
   selectedConn,
   () => {
-    const options = ["#"];
-    if (selectedConn.value) {
-      selectedConn.value.subscriptions.forEach((sub) => {
-        options.push(sub.topic);
-      });
-    }
-    topicOptions.value = options;
+    filters.type = "all";
+    scrollToBottom();
   },
   { deep: true, immediate: true }
 );
@@ -180,6 +158,7 @@ onUnmounted(() => {
     width: 100%;
     height: 100%;
     padding: 10px;
+    padding-top: 32px;
     overflow-x: hidden;
     overflow-y: auto;
 
@@ -250,10 +229,11 @@ onUnmounted(() => {
     position: absolute;
     top: 2px;
     left: 5px;
-    opacity: 0;
-    &:hover,
-    &.is-global-mode {
-      opacity: 1;
+    .el-radio-group {
+      // display: flex;
+      .el-radio {
+        margin-right: 12px;
+      }
     }
   }
 

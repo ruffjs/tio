@@ -14,7 +14,7 @@
         <div class="mqtt-clients-title">Connections</div>
         <div class="mqtt-clients-add">
           <el-tooltip content="Click to create a mqtt client" placement="top">
-            <el-button type="default" icon="Plus" size="small" @click="showMqttForm()" />
+            <el-button type="default" icon="Plus" size="small" @click="showMqttConnForm()" />
           </el-tooltip>
           <el-tooltip content="Click to view stats of default Broker" placement="top">
             <el-button
@@ -48,7 +48,7 @@
           <div :class="['mqtt-clients-curr-name', isCurrentConnected ? 'active' : '']">
             {{ selectedConn.name }}
             <el-tag :type="isCurrentConnected ? 'success' : 'info'" size="small">{{
-              selectedConn.userrole
+              selectedConn.userrole === "thing" ? "Thing" : "Server"
             }}</el-tag>
           </div>
           <div class="mqtt-clients-curr-opts">
@@ -74,16 +74,17 @@
         <div v-else class="mqtt-clients-curr-name">No Selected Connection</div>
       </div>
       <div>
-        <MqttClientDetail @request-add-conn="showMqttForm()" />
+        <MqttClientDetail @request-add-conn="showMqttConnForm()" />
       </div>
     </div>
   </div>
   <MqttConnForm @close="handleCreateOrEditCancel" @done="handleCreateOrEditDone" />
-  <Subcriptions />
+
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
+    as-tree
     @close="handleCloseViewer"
   />
 </template>
@@ -92,7 +93,6 @@
 import { computed, ref } from "vue";
 import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import MqttConnForm from "@/components/mqtt/MqttConnForm.vue";
-import Subcriptions from "@/components/mqtt/Subcriptions.vue";
 import MqttClientDetail from "@/components/mqtt/MqttClientDetail.vue";
 import useMqtt from "@/reactives/useMqtt";
 import useObjectViewer from "@/reactives/useObjectViewer";
@@ -112,7 +112,7 @@ const {
   connect,
   disconn,
 } = useMqtt();
-const { isForCreate, showMqttForm, hideMqttForm } = useLayout();
+const { isForCreate, showMqttConnForm, hideMqttConnForm } = useLayout();
 const isCurrentConnected = computed(() => {
   return selectedConn.value?.client?.connected;
 });
@@ -166,7 +166,7 @@ const handleOpt = (key) => {
       break;
 
     case "edit":
-      showMqttForm(currentConnId.value);
+      showMqttConnForm(currentConnId.value);
       break;
 
     case "delete":
@@ -176,7 +176,7 @@ const handleOpt = (key) => {
 };
 
 const handleCreateOrEditCancel = () => {
-  hideMqttForm();
+  hideMqttConnForm();
 };
 
 const handleCreateOrEditDone = (config, connectedToken) => {
@@ -193,7 +193,12 @@ const handleCreateOrEditDone = (config, connectedToken) => {
   connect(selectedConn.value.config, isForCreate ? connectedToken : "");
 };
 
-const { selectedObject, selectedType, viewObject, handleCloseViewer } = useObjectViewer();
+const {
+  objectToBeView,
+  titleOfViewer,
+  viewObject,
+  handleCloseViewer,
+} = useObjectViewer();
 const handleCheckStats = async () => {
   try {
     viewObject((await getBrokerStats()).data, "Embeded MQTT Broker Stats");
@@ -305,4 +310,3 @@ const handleCheckStats = async () => {
   }
 }
 </style>
-@/utils/subs

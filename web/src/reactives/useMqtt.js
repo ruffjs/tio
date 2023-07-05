@@ -148,10 +148,10 @@ export default () => {
             if (sub) {
               sub.opts = multiple ? topic[t] : opts;
             } else {
-              const config = configs?.find((c) => c.topic === t);
-              if (config) {
-                config.id = genSubscriptionId();
-                config.subscriptions.push(config);
+              const conf = configs?.find((c) => c.topic === t);
+              if (conf) {
+                conf.id = genSubscriptionId();
+                config.subscriptions.push(conf);
               }
             }
           });

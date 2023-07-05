@@ -19,16 +19,26 @@
       </span>
     </template>
     <div class="object-view-contents">
-      <textarea readonly class="object-view-left">{{ content1 }}</textarea>
-      <textarea v-if="comparing" readonly class="object-view-right">{{
-        content2
-      }}</textarea>
+      <JSONEditor
+        mode="tree"
+        :model-value="content1"
+        disabled
+        class="object-view-left jse-theme-dark"
+      />
+      <JSONEditor
+        v-if="comparing"
+        mode="tree"
+        :model-value="content2"
+        disabled
+        class="object-view-right jse-theme-dark"
+      />
     </div>
   </el-dialog>
 </template>
 
 <script setup>
 import { computed, watch, ref } from "vue";
+import JSONEditor from "./JSONEditor.vue";
 
 const emit = defineEmits(["close"]);
 const props = defineProps({

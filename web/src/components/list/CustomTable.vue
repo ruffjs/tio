@@ -74,7 +74,7 @@
             link
             type="primary"
             size="small"
-            @click.prevent="viewObject(scope.row, 'Raw Data')"
+            @click.prevent="viewObject(scope.row, 'Raw Data', true)"
           >
             View Raw
           </el-button>
@@ -88,9 +88,10 @@
     </el-table>
   </div>
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
+    :as-tree="viewObjectAsTree"
     @close="handleCloseViewer"
   />
 </template>
@@ -114,8 +115,14 @@ const props = defineProps({
 const router = useRouter();
 const withId = ref(true);
 const columns = ref([]);
-const { delThing } = useThingsAndShadows();
-const { selectedObject, selectedType, viewObject, handleCloseViewer } = useObjectViewer();
+const { delThing, setCurrentShadow } = useThingsAndShadows();
+const {
+  objectToBeView,
+  titleOfViewer,
+  viewObjectAsTree,
+  viewObject,
+  handleCloseViewer,
+} = useObjectViewer();
 
 const viewThing = (thing) => {
   if (thing.thingId) {

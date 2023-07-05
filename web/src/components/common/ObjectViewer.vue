@@ -8,17 +8,24 @@
     append-to-body
   >
     <div class="object-view-contents">
-      <textarea readonly class="object-view-main">{{ content }}</textarea>
+      <JSONEditor
+        :mode="asTree ? 'tree' : 'text'"
+        :model-value="content"
+        disabled
+        class="object-view-main jse-theme-dark"
+      />
     </div>
   </el-dialog>
 </template>
 
 <script setup>
 import { watch, ref } from "vue";
+import JSONEditor from "./JSONEditor.vue";
 
 const emit = defineEmits(["close"]);
 const props = defineProps({
   visible: Boolean,
+  asTree: Boolean,
   data: Object,
   type: String,
 });

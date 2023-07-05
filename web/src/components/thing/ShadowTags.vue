@@ -57,9 +57,10 @@
     </div>
   </el-card>
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
+    as-tree
     @close="handleCloseViewer"
   />
 </template>
@@ -106,7 +107,12 @@ const convertDataTypeToTagType = (value) => {
   }
 };
 
-const { selectedObject, selectedType, viewObject, handleCloseViewer } = useObjectViewer();
+const {
+  objectToBeView,
+  titleOfViewer,
+  viewObject,
+  handleCloseViewer,
+} = useObjectViewer();
 
 watch(
   () => props.data,

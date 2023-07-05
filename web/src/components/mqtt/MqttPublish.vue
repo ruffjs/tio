@@ -77,18 +77,28 @@
       </div>
     </div>
     <div class="mqtt-publish-editor">
-      <!-- <Editor
-          ref="payloadEditor"
-          id="payload"
-          :lang="payloadLang"
-          v-model="form.payload"
-          :useShadows="true"
-          @enter-event="send"
-          @format="formatJsonValue"
-        /> -->
-      <el-input v-model="form.payload" type="textarea" placeholder="Please input" />
+      <JSONEditor
+        v-if="payloadLang === 'json'"
+        v-model="form.payload"
+        v-model:has-error="hasJSONError"
+        class="mqtt-publish-editor-json"
+      />
+      <el-input
+        v-else
+        v-model="form.payload"
+        type="textarea"
+        placeholder="Please input"
+        class="mqtt-publish-editor-text"
+      />
       <div class="mqtt-send-btn">
-        <el-button icon="Promotion" circle size="small" type="primary" @click="send" />
+        <el-button
+          :disabled="payloadLang === 'json' && hasJSONError"
+          icon="Promotion"
+          circle
+          size="small"
+          type="primary"
+          @click="send"
+        />
       </div>
     </div>
   </div>
@@ -113,6 +123,7 @@ import { qosOptions } from "@/configs/tool";
 import useMqtt from "@/reactives/useMqtt";
 import MetaForm from "./MetaForm.vue";
 import PublishTopicSuggestions from "./PublishTopicSuggestions.vue";
+import JSONEditor from "../common/JSONEditor.vue";
 
 const payloadOptions = ["Plaintext", "Base64", "JSON", "Hex"];
 const emit = defineEmits(["publish"]);
@@ -140,6 +151,7 @@ const mqtt5PropsEnable = ref(false);
 const hasMqtt5Props = ref(false);
 const isMetaFormShown = ref(false);
 const isTplsListShown = ref(false);
+const hasJSONError = ref(false);
 
 const isNotEmptyObject = (value) => {
   if (typeof value === "object") {
@@ -231,6 +243,13 @@ watch(
   },
   { deep: true, immediate: true }
 );
+watch(payloadType, () => {
+  if (payloadType.value === "JSON") {
+    payloadLang.value = "json";
+  } else {
+    payloadLang.value = "plaintext";
+  }
+});
 watch(
   () => props.connConfig,
   (config, old) => {
@@ -348,14 +367,39 @@ watch(
     }
   }
   .mqtt-publish-editor {
-    .el-textarea {
+    .mqtt-publish-editor-json {
+      .jse-main {
+        position: relative;
+        height: var(--pub-json-edit-height);
+        min-height: var(--pub-json-edit-height);
+        max-height: var(--pub-json-edit-height);
+        border-radius: 4px;
+        .jse-text-mode {
+          border: none;
+          .jse-contents {
+            border: none;
+            .cm-gutters {
+              display: none !important;
+            }
+          }
+          .jse-message,
+          .jse-error {
+            position: absolute;
+            bottom: var(--pub-json-edit-height);
+            z-index: 9998;
+          }
+        }
+      }
+    }
+    .el-textarea.mqtt-publish-editor-text {
       height: 100%;
       textarea.el-textarea__inner {
         width: 100%;
-        height: 100%;
-        padding: 3px 7px;
-        line-height: 20px;
-        font-size: 12px;
+        height: var(--pub-json-edit-height);
+        padding: 4px 6px;
+        line-height: 18px;
+        font-family: var(--jse-font-family-mono);
+        font-size: 14px;
         border: none;
         outline: none;
         resize: none;

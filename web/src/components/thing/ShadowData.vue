@@ -4,41 +4,40 @@
       <div class="shadow-state-card-header">
         <span>Shadow Data</span>
         <div class="shadow-state-card-buttons">
+          <!-- <el-button
+            icon="View"
+            size="small"
+            @click="viewObject(currentShadow, 'Shadow Raw', false)"
+            >View Raw</el-button
+          > -->
           <el-button size="small" @click="handleCompareState">Compare State</el-button>
           <el-button size="small" @click="handleCheckDelta">Check Delta</el-button>
+          <el-divider direction="vertical" />
           <el-button size="small" @click="emit('call', 'desire')">Set Desired</el-button>
           <el-button size="small" @click="handleSetReported">Set Reported</el-button>
         </div>
       </div>
     </template>
     <div class="shadow-state-card-main">
-      <pre class="shadow-state-card-code">{{
-        JSON.stringify(states[0].data, null, 2)
-      }}</pre>
-      <!-- <el-collapse v-model="activeNames">
-        <el-collapse-item
-          v-for="state in states"
-          :title="state.title"
-          :name="state.key"
-          :key="state.key"
-        >
-          <pre class="shadow-state-card-code">{{
-            JSON.stringify(state.data, null, 2)
-          }}</pre>
-        </el-collapse-item>
-      </el-collapse> -->
+      <JSONEditor
+        mode="tree"
+        :model-value="JSON.stringify(currentShadow)"
+        disabled
+        class="shadow-state-card-code"
+      />
     </div>
   </el-card>
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
+    :as-tree="viewObjectAsTree"
     @close="handleCloseViewers"
   />
   <StateViewer
     :visible="!!selectedState"
     :data="selectedState"
-    :type="selectedType"
+    :type="titleOfViewer"
     @close="handleCloseViewers"
   />
   <MqttPublish
@@ -61,6 +60,7 @@ import { genMqttClientToken } from "@/utils/generators";
 import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import StateViewer from "@/components/common/StateViewer.vue";
 import MqttPublish from "@/components/thing/MqttPublishForThingView.vue";
+import JSONEditor from "../common/JSONEditor.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import useLayout from "@/reactives/useLayout";
 import useObjectViewer from "@/reactives/useObjectViewer";
@@ -77,47 +77,15 @@ const {
   selectConnection,
   connect,
 } = useMqtt();
-const { activeToolKey, switchActiveTool, showMqttForm } = useLayout();
-const activeNames = ["shadow"];
-const states = computed(() => {
-  try {
-    const {
-      state: { desired, reported },
-      metadata,
-    } = currentShadow.value;
-    return [
-      {
-        key: "shadow",
-        title: "Whole Shadow",
-        data: currentShadow.value,
-      },
-      {
-        key: "desired",
-        title: "Desired",
-        data: { state: { desired } },
-      },
-      {
-        key: "reported",
-        title: "Reported",
-        data: { state: { reported } },
-      },
-      {
-        key: "metadata",
-        title: "Meta Data",
-        data: { metadata },
-      },
-    ];
-  } catch (error) {
-    return [
-      {
-        key: "shadow",
-        title: "Whole Shadow",
-        data: currentShadow.value,
-      },
-    ];
-  }
-});
-const { selectedObject, selectedType, viewObject, handleCloseViewer } = useObjectViewer();
+const { activeToolKey, switchActiveTool, showMqttConnForm } = useLayout();
+
+const {
+  objectToBeView,
+  titleOfViewer,
+  viewObjectAsTree,
+  viewObject,
+  handleCloseViewer,
+} = useObjectViewer();
 const selectedState = ref(null);
 const ccbt = shallowRef("");
 const isMqttPublishShown = ref(false);
@@ -129,14 +97,14 @@ const mqttPublishPaytype = ref("");
 
 const handleCompareState = () => {
   selectedState.value = currentShadow.value.state;
-  selectedObject.value = null;
-  selectedType.value = "both";
+  objectToBeView.value = null;
+  titleOfViewer.value = "both";
 };
 const handleCheckDelta = () => {
   selectedState.value = null;
   const [hasDelta, delta] = diffState(currentShadow.value.state);
   if (hasDelta) {
-    viewObject(delta, "Delta");
+    viewObject(delta, "Delta", true);
   } else {
     ElMessageBox.alert("This is no delta property", "No Delta", {
       confirmButtonText: "OK",
@@ -202,7 +170,7 @@ const confirmForCreateMqttClient = () => {
     }
   )
     .then(() => {
-      ccbt.value = showMqttForm(null, currentShadow.value.thingId);
+      ccbt.value = showMqttConnForm(null, currentShadow.value.thingId);
     })
     .catch((action) => {
       console.log("Cancel to set reported", action);
@@ -261,21 +229,18 @@ onUnmounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+    .el-divider--vertical {
+      margin: 0 14px;
+    }
   }
 
   .shadow-state-card-main {
     .shadow-state-card-code {
+      position: relative;
       width: 100%;
       height: auto;
-      margin: 0;
-      padding: 2px 5px;
-      border-radius: 2px;
-      background-color: #444;
-      color: white;
-      font-size: 13px;
-      line-height: 16px;
-      overflow-x: auto;
-      overflow-y: hidden;
+      overflow: hidden;
     }
   }
 }
@@ -285,6 +250,25 @@ onUnmounted(() => {
 .shadow-state-card {
   .el-card__header {
     padding: 10px var(--el-card-padding);
+  }
+
+  .el-card__body {
+    padding: 5px 0;
+    .shadow-state-card-main {
+      .shadow-state-card-code {
+        .jse-main {
+          position: relative;
+          height: auto;
+          max-height: 450px;
+          .jse-tree-mode {
+            border: none;
+            .jse-contents {
+              border: none;
+            }
+          }
+        }
+      }
+    }
   }
 }
 </style>

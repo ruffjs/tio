@@ -18,15 +18,16 @@ export default {
       activeToolKey,
       topGap: 50,
       bottomGap,
-      mqttForm: {
+      mqttConnForm: {
         visible: false,
         connIdToEdit: null,
         thingIdForCreate: "",
         connectedCallbackToken: "",
       },
-      mqttSubs: {
+      mqttSubsForm: {
         visible: false,
         connConfig: null,
+        subscription: null,
       },
     };
   },

@@ -1,52 +1,62 @@
 <template>
   <div
     class="list-view"
-    :style="{ backgroundColor: total > 0 ? 'white' : 'transparent' }"
+    :style="{ backgroundColor: !focused && total > 0 ? 'white' : 'transparent' }"
   >
     <div class="thing-detail" :style="{ height: route.params.thingId ? '100%' : '0%' }">
       <router-view></router-view>
     </div>
-    <div class="things-list">
+    <div class="things-list" :class="{ active }">
       <div class="list-view-search">
-        <el-autocomplete
-          v-model="query"
-          :placeholder="placeholder"
-          :fetch-suggestions="querySearch"
-          clearable
-          class="list-view-search-input"
-          :handle-key-enter="handleSelect"
-          @select="handleSelect"
-          @clear="handleClear"
-        >
-          <template #default="{ item }">
-            <el-tag v-if="item.autoTrigger" size="small" style="margin-right: 5px">
+        <div class="list-view-search-left">
+          <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" />
+        </div>
+        <div class="list-view-search-right">
+          <el-button icon="Close" v-if="active" @click="handleClear" />
+          <el-button icon="Search" @click="handleSearch" />
+        </div>
+      </div>
+      <div v-if="active" class="list-view-active-body">
+        <div v-if="focused" class="sql-editor-tpls" @click="focused = false">
+          <div
+            v-for="suggestion in suggestions"
+            class="sql-editor-tpl-item"
+            @click.stop="handleSelect(suggestion)"
+          >
+            <el-tag size="small" style="float: left; margin-right: 10px">
+              {{ suggestion.label }}
+            </el-tag>
+            <el-tag
+              v-if="suggestion.autoTrigger"
+              size="small"
+              style="float: left; margin-right: 10px"
+            >
               AUTO
             </el-tag>
-            <span style="font-size: 12px">{{ item.value }}</span>
-          </template>
-          <template #append>
-            <el-button :icon="Search" @click="handleSearch" />
-          </template>
-        </el-autocomplete>
+            <span>{{ suggestion.value }}</span>
+          </div>
+        </div>
+        <div v-else="total > 0" class="list-view-things">
+          <ThingsList
+            :items="list"
+            :page-size="params.pageSize"
+            :total="total"
+            :isStandard="isSelectAllFields"
+            @page-index-change="handlePageIndexChange"
+            @page-size-change="handlePageSizeChange"
+          />
+        </div>
       </div>
-      <div v-if="total > 0" class="list-view-things">
-        <ThingsList
-          :items="list"
-          :page-size="params.pageSize"
-          :total="total"
-          :isStandard="isSelectAllFields"
-          @page-index-change="handlePageIndexChange"
-          @page-size-change="handlePageSizeChange"
-        />
-      </div>
-      <div v-else-if="error" class="list-view-error">
-        <textarea readonly>{{ error }}</textarea>
-      </div>
-      <div v-else-if="empty" class="list-view-emtpy">
-        The current query statement returns no Things
-      </div>
-      <div v-else class="list-view-emtpy">
-        Enter or select the SQL statement to query Things
+      <div v-else class="list-view-inactive-body">
+        <div v-if="error" class="list-view-error">
+          <JSONEditor mode="tree" :model-value="error" disabled class="" />
+        </div>
+        <div v-else-if="empty" class="list-view-emtpy">
+          The current query statement returns no Things
+        </div>
+        <div v-else class="list-view-tips">
+          Type in or select the SQL statement to query Things
+        </div>
       </div>
     </div>
   </div>
@@ -56,16 +66,17 @@
 export default {
   name: "List",
   inheritAttrs: false,
-  customOptions: { title: "Tio Playground", zIndex: 0, actived: true },
+  customOptions: { title: "TIO Playground", zIndex: 0, actived: true },
 };
 </script>
 <script setup>
-import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
-import { Search } from "@element-plus/icons-vue";
+import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { useRoute } from "vue-router";
 import { suggestions } from "@/configs/list";
 import { queryShadows } from "@/apis";
 import ThingsList from "@/components/list/ThingsList.vue";
-import { useRoute } from "vue-router";
+import SQLEditor from "@/components/list/SQLEditor.vue";
+import JSONEditor from "@/components/common/JSONEditor.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { TH_STATUS_CHG_EVT, TSCE_MQTO, TSCE_MQTT } from "@/utils/event";
 
@@ -73,7 +84,7 @@ const defaultPageSize = 20;
 const placeholder = suggestions[0].value;
 const route = useRoute();
 const { shadowListUpdateTag } = useThingsAndShadows();
-const query = ref("");
+const query = ref("SELECT * FROM shadow");
 const params = reactive({
   pageIndex: 1,
   pageSize: defaultPageSize,
@@ -81,46 +92,43 @@ const params = reactive({
 });
 const isSelectAllFields = ref(true);
 
+const sqlEditor = ref();
 const list = ref([]);
 const total = ref(0);
+const focused = ref(false);
+const blured = ref(false);
 const empty = ref(false);
 const error = ref("");
+const active = computed(() => focused.value || total.value > 0);
 
-const querySearch = (query, cb) => {
-  const results = query
-    ? suggestions.filter(
-        (suggestion) => suggestion.value.toLowerCase().indexOf(query.toLowerCase()) === 0
-      )
-    : suggestions;
-  // call callback function to return suggestions
-  // console.log(results);
-  cb(results);
+const reset = () => {
+  focused.value = false;
+  list.value = [];
+  total.value = 0;
+  empty.value = false;
+  error.value = "";
 };
-const handleSelect = (suggestion) => {
-  params.query = suggestion.value;
+
+const handleSelect = async (suggestion) => {
+  query.value = suggestion.value;
   if (suggestion.autoTrigger) {
-    fetchList();
+    await nextTick();
+    handleSearch();
+  } else if (total.value > 0) {
+    focused.value = false;
   }
 };
 const handleSearch = () => {
-  if (query.value) {
-    params.query = query.value;
-  } else {
-    query.value = placeholder;
-    params.query = placeholder;
-  }
+  sqlEditor.value?.syncValueTrim();
+  const value = query.value?.trim() || placeholder;
+  query.value = value;
+  params.query = value;
   params.pageIndex = 1;
   fetchList();
 };
 const handleClear = () => {
-  Object.assign(params, {
-    pageIndex: 1,
-    pageSize: defaultPageSize,
-    query: placeholder,
-  });
-  list.value = [];
-  total.value = 0;
-  error.value = "";
+  query.value = placeholder;
+  reset();
 };
 
 const handlePageIndexChange = (value) => {
@@ -138,17 +146,14 @@ const fetchList = async () => {
     // console.log(params);
     isSelectAllFields.value = params.query.toLowerCase().startsWith("select *");
     const { data } = await queryShadows(params);
-    // console.log("fetchList data:", data);
+    reset();
     list.value = data.content;
     total.value = data.total;
     empty.value = data.total === 0;
-    error.value = "";
   } catch (err) {
-    console.error("fetchList error:", err);
+    // console.error("fetchList error:", err);
     if (err?.code === 400) {
-      list.value = [];
-      total.value = 0;
-      empty.value = false;
+      reset();
       error.value = JSON.stringify(err, null, 2);
     }
   }
@@ -202,42 +207,124 @@ onUnmounted(() => {
     width: 100%;
     height: 100%;
     min-height: 268px;
-    .list-view-search {
-      width: 40vw;
-      height: 100px;
-      padding: 36px 0 22px;
-    }
 
-    .list-view-error {
-      width: 40vw;
-      height: 168px;
-      // margin: 0 auto;
-      > textarea {
+    &.active {
+      justify-content: start;
+      .list-view-search {
         width: 100%;
-        height: 100%;
-        padding: 10px;
-        border: none;
-        background-color: white;
-        color: red;
-        resize: none;
-        outline: none;
-        overflow-x: hidden;
-        overflow-y: auto;
+        height: 93px;
+        border-radius: 0;
+        border-bottom: solid 1px rgba($color: #000000, $alpha: 0.2);
+
+        .list-view-search-left {
+          height: 92px;
+        }
+        .list-view-search-right {
+          width: 92px;
+          height: 92px;
+        }
+      }
+    }
+    .list-view-search {
+      display: flex;
+      width: 624px;
+      height: 52px;
+      padding: 0px;
+      border-radius: 4px;
+      background-color: white;
+      overflow: hidden;
+      transition: all ease-in-out 0.05s;
+
+      .list-view-search-left {
+        flex: 1;
+        width: 0;
+      }
+
+      .list-view-search-right {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        align-items: center;
+        gap: 4px;
+
+        position: relative;
+        width: 52px;
+        height: 52px;
+        padding: 4px;
+
+        .el-button {
+          flex: 1;
+          width: 100%;
+          height: 0;
+          margin-left: 0;
+        }
       }
     }
 
-    .list-view-things {
+    .list-view-active-body {
+      flex: 1;
       width: 100%;
-      height: calc(100% - 100px);
+      height: 0;
+      max-height: calc(100% - 92px);
+
+      .list-view-things {
+        width: 100%;
+        height: 100%;
+      }
+
+      .sql-editor-tpls {
+        width: 100%;
+        height: 100%;
+        padding: 0px 6px 6px;
+        overflow-x: hidden;
+        overflow-y: auto;
+
+        .sql-editor-tpl-item {
+          margin-top: 6px;
+          padding: 10px 5px;
+          background-color: white;
+          line-height: 20px;
+          font-size: 13px;
+          word-wrap: normal;
+          word-break: keep-all;
+          cursor: pointer;
+        }
+      }
     }
 
-    .list-view-emtpy {
-      width: 100%;
+    .list-view-inactive-body {
+      width: 624px;
       height: 168px;
-      line-height: 108px;
-      text-align: center;
-      font-size: 14px;
-      color: #999;
+      max-width: 624px;
+      max-width: 624px;
+
+      .list-view-error {
+        width: 624px;
+        height: 168px;
+        max-width: 624px;
+        max-width: 624px;
+        margin-top: 10px;
+        padding: 5px;
+        border-radius: 4px;
+        background-color: rgba($color: #ffffff, $alpha: 0.6);
+      }
+
+      .list-view-emtpy,
+      .list-view-tips {
+        width: 100%;
+        height: 168px;
+        line-height: 108px;
+        text-align: center;
+        font-size: 14px;
+      }
+      .list-view-emtpy {
+        font-weight: 500;
+        color: #555;
+      }
+      .list-view-tips {
+        font-weight: 400;
+        color: #999;
+      }
     }
   }
 }
@@ -251,10 +338,42 @@ onUnmounted(() => {
 
 <style lang="scss">
 .list-view {
-  .list-view-search {
-    .list-view-search-input {
-      width: 40vw;
+  .things-list {
+    .list-view-search {
+      .CodeMirror {
+        width: 100%;
+        height: 92px;
+        line-height: 22px;
+        color: black;
+        direction: ltr;
+        background-color: white;
+
+        .CodeMirror-scroll {
+          width: 100%;
+          max-height: 92px;
+          padding-bottom: 0;
+        }
+      }
+    }
+
+    .list-view-error {
+      .jse-main {
+        position: relative;
+        height: 148px;
+
+        .jse-tree-mode {
+          border: none;
+          background-color: transparent;
+          .jse-contents {
+            border: none;
+          }
+        }
+      }
     }
   }
+}
+/* // 这句为了解决匹配框显示有问题而加 */
+.CodeMirror-hints {
+  z-index: 9999 !important;
 }
 </style>

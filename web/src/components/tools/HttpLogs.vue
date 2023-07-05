@@ -54,9 +54,9 @@
     <el-empty v-else description="No HTTP request logs" :image-size="60" />
   </div>
   <ObjectViewer
-    :visible="!!selectedObject"
-    :data="selectedObject"
-    :type="selectedType"
+    :visible="!!objectToBeView"
+    :data="objectToBeView"
+    :type="titleOfViewer"
     @close="handleCloseViewer"
   />
 </template>
@@ -69,7 +69,7 @@ import useObjectViewer from "@/reactives/useObjectViewer";
 
 const pageSize = 50;
 const store = useStore();
-const { selectedObject, selectedType, viewObject, handleCloseViewer } = useObjectViewer();
+const { objectToBeView, titleOfViewer, viewObject, handleCloseViewer } = useObjectViewer();
 const currentPage = ref(1);
 const all = computed(() => store.state.app.httpRequestLogs);
 const logs = computed(() => {

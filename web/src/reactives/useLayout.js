@@ -21,7 +21,7 @@ export default () => {
   const switchActiveTool = (tool) => {
     const globalTeleport = document.querySelector(teleports.G);
     globalTeleport.style.visibility = "hidden";
-    globalTeleport.style.height = "90px";
+    globalTeleport.style.height = "100px";
     if (tool.key === activeToolKey.value) {
       store.dispatch("layout/switchActiveTool", "");
     } else {
@@ -29,22 +29,28 @@ export default () => {
     }
   };
 
-  const isConnFormVisible = computed(() => store.state.layout.mqttForm.visible);
-  const editConnId = computed(() => store.state.layout.mqttForm.connIdToEdit);
-  const isForCreate = computed(() => !store.state.layout.mqttForm.connIdToEdit);
+  const isConnFormVisible = computed(
+    () => store.state.layout.mqttConnForm.visible
+  );
+  const editConnId = computed(
+    () => store.state.layout.mqttConnForm.connIdToEdit
+  );
+  const isForCreate = computed(
+    () => !store.state.layout.mqttConnForm.connIdToEdit
+  );
   const createThingId = computed(
-    () => store.state.layout.mqttForm.thingIdForCreate
+    () => store.state.layout.mqttConnForm.thingIdForCreate
   );
   const connectedCbT = computed(
-    () => store.state.layout.mqttForm.connectedCallbackToken
+    () => store.state.layout.mqttConnForm.connectedCallbackToken
   );
 
-  const showMqttForm = (connIdToEdit = null, thingIdForCreate = null) => {
+  const showMqttConnForm = (connIdToEdit = null, thingIdForCreate = null) => {
     const connectedCallbackToken = thingIdForCreate
       ? genConnectedCallbackToken()
       : "";
     store.commit("layout/setState", {
-      mqttForm: {
+      mqttConnForm: {
         visible: true,
         connIdToEdit,
         thingIdForCreate,
@@ -54,9 +60,9 @@ export default () => {
     return connectedCallbackToken;
   };
 
-  const hideMqttForm = () => {
+  const hideMqttConnForm = () => {
     store.commit("layout/setState", {
-      mqttForm: {
+      mqttConnForm: {
         visible: false,
         connIdToEdit: null,
         thingIdForCreate: "",
@@ -65,25 +71,30 @@ export default () => {
     });
   };
 
-  const isSubscriptionsVisible = computed(
-    () => store.state.layout.mqttSubs.visible
+  const isSubsFormVisible = computed(
+    () => store.state.layout.mqttSubsForm.visible
   );
-  const subscriptionsConnConfig = computed(
-    () => store.state.layout.mqttSubs.connConfig
+  const subsConnConfig = computed(
+    () => store.state.layout.mqttSubsForm.connConfig
   );
-  const showMqttSubs = (connConfig) => {
+  const subsFormData = computed(
+    () => store.state.layout.mqttSubsForm.subscription
+  );
+  const showMqttSubsForm = (connConfig, subscription) => {
     store.commit("layout/setState", {
-      mqttSubs: {
+      mqttSubsForm: {
         visible: true,
         connConfig,
+        subscription,
       },
     });
   };
-  const hideMqttSubs = () => {
+  const hideMqttSubsForm = () => {
     store.commit("layout/setState", {
-      mqttSubs: {
+      mqttSubsForm: {
         visible: false,
         connConfig: null,
+        subscription: null,
       },
     });
   };
@@ -99,12 +110,13 @@ export default () => {
     isForCreate,
     createThingId,
     connectedCbT,
-    showMqttForm,
-    hideMqttForm,
+    showMqttConnForm,
+    hideMqttConnForm,
 
-    isSubscriptionsVisible,
-    subscriptionsConnConfig,
-    showMqttSubs,
-    hideMqttSubs,
+    isSubsFormVisible,
+    subsConnConfig,
+    subsFormData,
+    showMqttSubsForm,
+    hideMqttSubsForm,
   };
 };
