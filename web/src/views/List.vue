@@ -41,7 +41,7 @@
             :items="list"
             :page-size="params.pageSize"
             :total="total"
-            :isStandard="isSelectAllFields"
+            :isStandard="isSelectAll"
             @page-index-change="handlePageIndexChange"
             @page-size-change="handlePageSizeChange"
           />
@@ -74,26 +74,24 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from
 import { useRoute } from "vue-router";
 import { suggestions } from "@/configs/list";
 import { queryShadows } from "@/apis";
+import { TSCE_MQTO, TSCE_MQTT } from "@/utils/event";
 import ThingsList from "@/components/list/ThingsList.vue";
 import SQLEditor from "@/components/list/SQLEditor.vue";
 import JSONEditor from "@/components/common/JSONEditor.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
-import { TH_STATUS_CHG_EVT, TSCE_MQTO, TSCE_MQTT } from "@/utils/event";
+import useThingEvent from "@/reactives/useThingEvent";
 
 const defaultPageSize = 20;
 const placeholder = suggestions[0].value;
-const route = useRoute();
-const { shadowListUpdateTag } = useThingsAndShadows();
-const query = ref("SELECT * FROM shadow");
-const querying = ref(false);
-const params = reactive({
-  pageIndex: 1,
-  pageSize: defaultPageSize,
-  query: placeholder,
-});
-const isSelectAllFields = ref(true);
 
 const sqlEditor = ref();
+const route = useRoute();
+const { shadowListUpdateTag } = useThingsAndShadows();
+const { onSomethingStatusChange } = useThingEvent();
+
+const query = ref("SELECT * FROM shadow");
+const querying = ref(false);
+const isSelectAll = ref(true);
 const list = ref([]);
 const total = ref(0);
 const focused = ref(false);
@@ -102,12 +100,23 @@ const empty = ref(false);
 const error = ref("");
 const active = computed(() => focused.value || total.value > 0);
 
+const params = reactive({
+  pageIndex: 1,
+  pageSize: defaultPageSize,
+  query: placeholder,
+});
+
 const reset = () => {
   focused.value = false;
   list.value = [];
   total.value = 0;
   empty.value = false;
   error.value = "";
+};
+
+const handleClear = () => {
+  query.value = placeholder;
+  reset();
 };
 
 const handleSelect = async (suggestion) => {
@@ -119,6 +128,7 @@ const handleSelect = async (suggestion) => {
     focused.value = false;
   }
 };
+
 const handleSearch = () => {
   sqlEditor.value?.syncValueTrim();
   const value = query.value?.trim() || placeholder;
@@ -126,10 +136,6 @@ const handleSearch = () => {
   params.query = value;
   params.pageIndex = 1;
   fetchList();
-};
-const handleClear = () => {
-  query.value = placeholder;
-  reset();
 };
 
 const handlePageIndexChange = (value) => {
@@ -144,16 +150,14 @@ const handlePageSizeChange = (value) => {
 
 const fetchList = async () => {
   try {
-    // console.log(params);
     querying.value = true;
-    isSelectAllFields.value = params.query.toLowerCase().startsWith("select *");
+    isSelectAll.value = params.query.toLowerCase().startsWith("select *");
     const { data } = await queryShadows(params);
     reset();
     list.value = data.content;
     total.value = data.total;
     empty.value = data.total === 0;
   } catch (err) {
-    // console.error("fetchList error:", err);
     reset();
     if (err?.code === 400) {
       error.value = JSON.stringify(err, null, 2);
@@ -172,13 +176,11 @@ const fetchList = async () => {
 };
 
 const refresh = () => {
-  if (total.value || empty.value) {
-    fetchList();
-  }
+  if (total.value || empty.value) fetchList();
 };
+
 watch(shadowListUpdateTag, refresh);
-const onSomethingStatusChange = (message) => {
-  const { thingId: eventThingId, type, about } = message.detail;
+onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
   const shadow = list.value.find(({ thingId }) => thingId === eventThingId);
   if (shadow) {
     switch (type) {
@@ -191,13 +193,6 @@ const onSomethingStatusChange = (message) => {
         break;
     }
   }
-};
-
-onMounted(() => {
-  window.addEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
-});
-onUnmounted(() => {
-  window.removeEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
 });
 </script>
 

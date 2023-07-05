@@ -107,10 +107,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
-import useMqtt from "@/reactives/useMqtt";
-import useLayout from "@/reactives/useLayout";
-import useThingsAndShadows from "@/reactives/useThingsAndShadows";
+import { ref, shallowRef, watch } from "vue";
 import { TH_STATUS_CHG_EVT } from "@/utils/event";
 import { TSCE_MQTT } from "@/utils/event";
 import { genConnectedCallbackToken } from "@/utils/generators";
@@ -120,7 +117,12 @@ import {
   subscribeAll,
   unsubscribeAll,
 } from "@/utils/subs";
+import useMqtt from "@/reactives/useMqtt";
+import useLayout from "@/reactives/useLayout";
+import useThingsAndShadows from "@/reactives/useThingsAndShadows";
+import useThingEvent from "@/reactives/useThingEvent";
 
+const ccbt = shallowRef("");
 const { selectedThingId } = useThingsAndShadows();
 const {
   connections,
@@ -132,27 +134,15 @@ const {
   subscribe,
   unsubscribe,
 } = useMqtt();
-const { activeToolKey, switchActiveTool, showMqttConnForm, showMqttSubsForm } = useLayout();
+const {
+  activeToolKey,
+  switchActiveTool,
+  showMqttConnForm,
+  showMqttSubsForm,
+} = useLayout();
+const { onSomethingStatusChange } = useThingEvent();
 const clients = ref([]);
 const activeName = ref("");
-const ccbt = shallowRef("");
-
-const onSomethingStatusChange = (message) => {
-  const { thingId, type, about } = message.detail;
-  if (
-    thingId === selectedThingId.value &&
-    about.connectedToken &&
-    about.connectedToken === ccbt.value &&
-    type === TSCE_MQTT
-  ) {
-    ccbt.value = "";
-    // console.log("connected");
-    const configs = about.connConfig.subscriptions.filter((sub) => sub.keep);
-    const subMap = convertSubsConfigSubMap(configs);
-    // console.log("subMap", subMap);
-    subscribe(about.connConfig, { topic: subMap, multiple: true, configs });
-  }
-};
 
 const handleDisconnectMqttClient = (config) => {
   disconn(config);
@@ -233,11 +223,20 @@ watch(
   { immediate: true }
 );
 
-onMounted(() => {
-  window.addEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
-});
-onUnmounted(() => {
-  window.removeEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
+onSomethingStatusChange(({ thingId, type, about }) => {
+  if (
+    thingId === selectedThingId.value &&
+    about.connectedToken &&
+    about.connectedToken === ccbt.value &&
+    type === TSCE_MQTT
+  ) {
+    ccbt.value = "";
+    // console.log("connected");
+    const configs = about.connConfig.subscriptions.filter((sub) => sub.keep);
+    const subMap = convertSubsConfigSubMap(configs);
+    // console.log("subMap", subMap);
+    subscribe(about.connConfig, { topic: subMap, multiple: true, configs });
+  }
 });
 </script>
 

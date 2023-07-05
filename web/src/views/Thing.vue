@@ -57,7 +57,7 @@ export default {
 </script>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getThing } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
@@ -70,6 +70,7 @@ import HttpPoster from "@/components/thing/HttpPoster.vue";
 import MqttClients from "@/components/thing/MqttClientsOfThing.vue";
 import dayjs from "dayjs";
 import { TH_STATUS_CHG_EVT, TSCE_MQTO, TSCE_MQTT, TSCE_MSGO } from "@/utils/event";
+import useThingEvent from "@/reactives/useThingEvent";
 
 const router = useRouter();
 const {
@@ -79,6 +80,7 @@ const {
   setCurrentShadow,
   updateCurrentShadow,
 } = useThingsAndShadows();
+const { onSomethingStatusChange } = useThingEvent();
 const isFromList = ref(false);
 const thing = reactive({});
 const posterCode = ref("");
@@ -103,9 +105,7 @@ const getBasicInfo = async () => {
   }
 };
 
-const onSomethingStatusChange = async (message) => {
-  const { thingId: eventThingId, type, about } = message.detail;
-  // console.log(eventThingId, type, about);
+onSomethingStatusChange(async ({ thingId: eventThingId, type, about }) => {
   if (eventThingId === thingId.value) {
     console.log(type, about);
     switch (type) {
@@ -123,16 +123,12 @@ const onSomethingStatusChange = async (message) => {
       updateCurrentShadow();
     }
   }
-};
+});
 
 onMounted(() => {
   if (shadow.value.fromList) isFromList.value = true;
-  window.addEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
   getBasicInfo();
   updateCurrentShadow();
-});
-onUnmounted(() => {
-  window.removeEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
 });
 </script>
 

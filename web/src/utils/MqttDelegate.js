@@ -206,15 +206,13 @@ class MqttDelegate {
       this.updateStore();
     }
 
-    if (this.isClientOfThing() && !message.out) {
-      notifyThingStateChange(this.thingId, TSCE_MSGI, {
+    notifyThingStateChange(
+      this.isClientOfThing() ? this.thingId : "*",
+      message.out ? TSCE_MSGO : TSCE_MSGI,
+      {
         topic: message.topic,
-      });
-    } else {
-      notifyThingStateChange("*", message.out ? TSCE_MSGO : TSCE_MSGI, {
-        topic: message.topic,
-      });
-    }
+      }
+    );
   }
   clear() {
     this.messages = [];

@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { ElMessageBox } from "element-plus";
 import { diffState } from "@/utils/shadow";
 import { genMqttClientToken } from "@/utils/generators";
@@ -68,8 +68,10 @@ import useObjectViewer from "@/reactives/useObjectViewer";
 import useMqtt from "@/reactives/useMqtt";
 import { TH_STATUS_CHG_EVT, TSCE_MQTT } from "@/utils/event";
 import { genConnectedCallbackToken } from "@/utils/generators";
+import useThingEvent from "@/reactives/useThingEvent";
 
 const emit = defineEmits(["call"]);
+const ccbt = shallowRef("");
 const { currentShadow, updateCurrentShadow } = useThingsAndShadows();
 const {
   delegateSharedStates,
@@ -78,7 +80,6 @@ const {
   connect,
 } = useMqtt();
 const { activeToolKey, switchActiveTool, showMqttConnForm } = useLayout();
-
 const {
   objectToBeView,
   titleOfViewer,
@@ -86,8 +87,10 @@ const {
   viewObject,
   handleCloseViewer,
 } = useObjectViewer();
+const { onSomethingStatusChange } = useThingEvent();
+
 const selectedState = ref(null);
-const ccbt = shallowRef("");
+
 const isMqttPublishShown = ref(false);
 const mqttPublishConnConf = ref(null);
 const mqttPublishTitle = ref("");
@@ -147,17 +150,7 @@ const showSetReportedForm = (config) => {
   mqttPublishPaytype.value = "JSON";
   isMqttPublishShown.value = true;
 };
-const onSomethingStatusChange = (message) => {
-  const { thingId, type, about } = message.detail;
-  if (
-    thingId === currentShadow.value.thingId &&
-    about.connectedToken &&
-    about.connectedToken === ccbt.value &&
-    type === TSCE_MQTT
-  ) {
-    showSetReportedForm(about.connConfig);
-  }
-};
+
 const confirmForCreateMqttClient = () => {
   ElMessageBox.confirm(
     "<p>No matching client yet, would you like to create one?</p><p>It will subscribe all suggested topics after connected.</p>",
@@ -212,12 +205,6 @@ const handleSetReported = () => {
     confirmForCreateMqttClient();
   }
 };
-onMounted(() => {
-  window.addEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
-});
-onUnmounted(() => {
-  window.removeEventListener(TH_STATUS_CHG_EVT, onSomethingStatusChange);
-});
 </script>
 
 <style scoped lang="scss">
