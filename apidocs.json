@@ -1,0 +1,1067 @@
+{
+ "swagger": "2.0",
+ "info": {
+  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.0.0\n- GitCommit: 22a006de17711aaae921b71be70affd02761dc66\n",
+  "title": "tio",
+  "version": "1.0.0"
+ },
+ "paths": {
+  "/api/v1/mqttBroker/clients/{clientId}": {
+   "delete": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "mqttBroker"
+    ],
+    "summary": "Kick off the client from the mqtt broker",
+    "operationId": "func10",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "clientId",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.pkg.restapi.H]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/mqttBroker/embed/stats": {
+   "get": {
+    "description": "The embedded mqtt broker of tio is used `https://github.com/mochi-co/mqtt`. This api is for getting it's stats info",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "mqttBroker"
+    ],
+    "summary": "Get embedded mqtt broker stats info",
+    "operationId": "GetEmbedBrokerStats",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[github.com.mochi-co.mqtt.v2.system.Info]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "summary": "get all things",
+    "operationId": "func1",
+    "parameters": [
+     {
+      "type": "boolean",
+      "description": "whether return authValue field",
+      "name": "withAuthValue",
+      "in": "query"
+     },
+     {
+      "type": "boolean",
+      "description": "whether return fields of status",
+      "name": "withStatus",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 1,
+      "description": "page index, from 1",
+      "name": "pageIndex",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 10,
+      "description": "page size, from 1",
+      "name": "pageSize",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.pkg.model.PageData[ruff.io.tio.thing.ThingWithStatus]]"
+      }
+     }
+    }
+   },
+   "post": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "summary": "create thing",
+    "operationId": "func2",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/api.CreateReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.thing.Thing]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/shadows/query": {
+   "post": {
+    "description": "SQL query string like : select * from shadow where \\`tags.zone\\` = 'Shanghai'.\n\nJSON path (eg: tags.Shanghai) must be surrounded with `` .\n\nThese fields are queryable: \n  - thingId, createdAt, updatedAt, version\n  - field under tags, state.reported, state.desired , eg: tags.zone, state.reported.loc.lat, sate.desired.x.y\n\nThese fields can be used as sorting fields:\n  - thingId, createdAt, updatedAt\n",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "shadows"
+    ],
+    "operationId": "func5",
+    "parameters": [
+     {
+      "type": "string",
+      "default": 1,
+      "name": "pageIndex",
+      "in": "query"
+     },
+     {
+      "type": "string",
+      "default": 10,
+      "name": "pageSize",
+      "in": "query"
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/api.ShadowQuery"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp%5Bruff.io.tio.pkg.model.PageData%5Binterface%20%7B%7D%5D%5D"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{id}": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "operationId": "func3",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.thing.Thing]"
+      }
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "operationId": "func4",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{id}/methods/{name}": {
+   "post": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "shadows"
+    ],
+    "summary": "invoke thing direct method",
+    "operationId": "func8",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "description": "method name",
+      "name": "name",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/api.MethodInvokeReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.shadow.api.MethodInvokeResp]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{id}/shadows/default": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "shadows"
+    ],
+    "summary": "get shadow",
+    "operationId": "func7",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.shadow.ShadowWithStatus]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{id}/shadows/default/state/desired": {
+   "put": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "shadows"
+    ],
+    "summary": "set shadow desired state",
+    "operationId": "func6",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/shadow.StateReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{id}/shadows/tags": {
+   "put": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "shadows"
+    ],
+    "summary": "set shadow tags property",
+    "operationId": "func9",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/shadow.TagsReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/private/api/things/{id}/topicAcl": {
+   "get": {
+    "description": "for emqx integration topic acl",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "private"
+    ],
+    "operationId": "func11",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "topic",
+      "in": "query",
+      "required": true
+     },
+     {
+      "enum": [
+       "publish",
+       "subscribe"
+      ],
+      "type": "string",
+      "name": "action",
+      "in": "query",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  }
+ },
+ "definitions": {
+  "api.CreateReq": {
+   "required": [
+    "thingId",
+    "password"
+   ],
+   "properties": {
+    "password": {
+     "type": "string"
+    },
+    "thingId": {
+     "type": "string"
+    }
+   }
+  },
+  "api.MethodInvokeReq": {
+   "required": [
+    "connTimeout",
+    "respTimeout",
+    "data"
+   ],
+   "properties": {
+    "connTimeout": {
+     "description": "waiting time for the thing to come online, in seconds",
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "description": "Any legal json data, including basic types, array, object, etc.",
+     "$ref": "#/definitions/api.MethodInvokeReq.data"
+    },
+    "respTimeout": {
+     "description": "waiting time for the thing to response, in seconds",
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "api.MethodInvokeReq.data": {},
+  "api.MethodInvokeResp": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/api.MethodInvokeResp.data"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "api.MethodInvokeResp.data": {},
+  "api.ShadowQuery": {
+   "required": [
+    "query"
+   ],
+   "properties": {
+    "query": {
+     "description": "SQL-like query string",
+     "type": "string",
+     "default": "select * from shadow"
+    }
+   }
+  },
+  "model.PageData[interface {}]": {
+   "required": [
+    "total",
+    "content"
+   ],
+   "properties": {
+    "content": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/model.PageData%5Binterface%20%7B%7D%5D.content"
+     }
+    },
+    "total": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "model.PageData[interface {}].content": {},
+  "model.PageData[ruff.io.tio.thing.ThingWithStatus]": {
+   "required": [
+    "total",
+    "content"
+   ],
+   "properties": {
+    "content": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/thing.ThingWithStatus"
+     }
+    },
+    "total": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "rest.Resp[github.com.mochi-co.mqtt.v2.system.Info]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/system.Info"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.pkg.model.PageData[interface {}]]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/model.PageData%5Binterface%20%7B%7D%5D"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.pkg.model.PageData[ruff.io.tio.thing.ThingWithStatus]]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/model.PageData[ruff.io.tio.thing.ThingWithStatus]"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.pkg.restapi.H]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "type": "object"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.shadow.ShadowWithStatus]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/shadow.ShadowWithStatus"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.shadow.api.MethodInvokeResp]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/api.MethodInvokeResp"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.thing.Thing]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/thing.Thing"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[string]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "type": "string"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "shadow.Metadata": {
+   "properties": {
+    "desired": {
+     "type": "object"
+    },
+    "reported": {
+     "type": "object"
+    }
+   }
+  },
+  "shadow.Shadow": {
+   "required": [
+    "thingId",
+    "state",
+    "metadata",
+    "version",
+    "tags",
+    "updatedAt",
+    "createdAt"
+   ],
+   "properties": {
+    "createdAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "metadata": {
+     "$ref": "#/definitions/shadow.Metadata"
+    },
+    "state": {
+     "$ref": "#/definitions/shadow.StateDR"
+    },
+    "tags": {
+     "type": "object"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updatedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "shadow.ShadowWithStatus": {
+   "required": [
+    "state",
+    "metadata",
+    "version",
+    "tags",
+    "updatedAt",
+    "createdAt",
+    "thingId"
+   ],
+   "properties": {
+    "connected": {
+     "type": "boolean"
+    },
+    "connectedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "createdAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "disconnectedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "metadata": {
+     "$ref": "#/definitions/shadow.Metadata"
+    },
+    "remoteAddr": {
+     "type": "string"
+    },
+    "state": {
+     "$ref": "#/definitions/shadow.StateDR"
+    },
+    "tags": {
+     "type": "object"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updatedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "shadow.StateDR": {
+   "required": [
+    "desired",
+    "reported"
+   ],
+   "properties": {
+    "desired": {
+     "type": "object"
+    },
+    "reported": {
+     "type": "object"
+    }
+   }
+  },
+  "shadow.StateReq": {
+   "required": [
+    "state",
+    "clientToken",
+    "version"
+   ],
+   "properties": {
+    "clientToken": {
+     "type": "string"
+    },
+    "state": {
+     "$ref": "#/definitions/shadow.StateDR"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "shadow.TagsReq": {
+   "required": [
+    "tags",
+    "version"
+   ],
+   "properties": {
+    "tags": {
+     "type": "object"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "system.Info": {
+   "required": [
+    "version",
+    "started",
+    "time",
+    "uptime",
+    "bytes_received",
+    "bytes_sent",
+    "clients_connected",
+    "clients_disconnected",
+    "clients_maximum",
+    "clients_total",
+    "messages_received",
+    "messages_sent",
+    "messages_dropped",
+    "retained",
+    "inflight",
+    "inflight_dropped",
+    "subscriptions",
+    "packets_received",
+    "packets_sent",
+    "memory_alloc",
+    "threads"
+   ],
+   "properties": {
+    "bytes_received": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "bytes_sent": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "clients_connected": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "clients_disconnected": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "clients_maximum": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "clients_total": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "inflight": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "inflight_dropped": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "memory_alloc": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "messages_dropped": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "messages_received": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "messages_sent": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "packets_received": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "packets_sent": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "retained": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "started": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "subscriptions": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "threads": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "time": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "uptime": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "version": {
+     "type": "string"
+    }
+   }
+  },
+  "thing.Thing": {
+   "required": [
+    "thingId",
+    "enabled",
+    "authType",
+    "updateAt",
+    "createAt"
+   ],
+   "properties": {
+    "authType": {
+     "type": "string"
+    },
+    "authValue": {
+     "type": "string"
+    },
+    "createAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "enabled": {
+     "type": "boolean"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updateAt": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
+  "thing.ThingWithStatus": {
+   "required": [
+    "enabled",
+    "authType",
+    "updateAt",
+    "createAt",
+    "thingId"
+   ],
+   "properties": {
+    "authType": {
+     "type": "string"
+    },
+    "authValue": {
+     "type": "string"
+    },
+    "connected": {
+     "type": "boolean"
+    },
+    "connectedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "createAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "disconnectedAt": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "enabled": {
+     "type": "boolean"
+    },
+    "remoteAddr": {
+     "type": "string"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updateAt": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  }
+ },
+ "securityDefinitions": {
+  "basic": {
+   "type": "basic"
+  }
+ },
+ "security": [
+  {
+   "basic": []
+  }
+ ],
+ "tags": [
+  {
+   "name": "things"
+  },
+  {
+   "name": "shadows"
+  }
+ ]
+}
