@@ -2,17 +2,17 @@
 
 ## About Web Page
 
-Also named TIO Playground, as a graphic ui pwa, which is use to understand more about tio's designing and apis for developers.
+Also named TIO Playground, as a graphic ui pwa, which is use to help developers to understand tio's designing and to be familiar with apis.
 
-It provides a query view for adding things to tio, and querying things registered in tio.
+It provides a query view for adding things to tio and querying things registered in tio.
 
-And, it also provides detail views of each thing, for developers to operate their things, such as checking shadow, set tags, set desires and report like a device. And all of these operations, developers could see the operating detail.
+And it also provides detail views of each thing, for developers to operate their things, such as checking shadow, set tags, set desires and report states like a device. And all of these operations, developers could see the operating detail.
 
-In addition, it provides a multiple-client-mqtt-tool, for developers connect to tio as things or as servers.
+In addition, it provides a multiple-client-mqtt-tool, for developers to connect to tio as things' role or as servers' role.
 
 ## Requires
 
-Since it is writen by Vue 3 and TypeScript in Vite, you should prepare environments listing below before run it:
+Since it is writen by Vue 3 and TypeScript in Vite, you should prepare environments listing below before you can run it:
 
 - Node: version >= 16.13.1
 
