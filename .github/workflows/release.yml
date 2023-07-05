@@ -22,10 +22,8 @@ jobs:
           cache: yarn
           cache-dependency-path: ./web/yarn.lock
       - name: Build
-        env:
-          version: ${{GITHUB_REF##*/}}
         run:  |
-          GOOS=linux GOARCH=amd64 bash build/deb/build.sh
+          version=${GITHUB_REF##*/} GOOS=linux GOARCH=amd64 bash build/deb/build.sh
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
@@ -34,12 +32,14 @@ jobs:
             ./dist/tio_linux_amd64
       - name: Generate API docs
         run: |
-          mdkir __tmp_doc && \
-          curl http://localhost:9000/apidocs.json > __tmp_doc/apidocs.json
+          chmod +x ./dist/tio_linux_amd64 && \
+          bash -c "nohup ./dist/tio_linux_amd64 > /dev/null 2>&1 &" && \
+          sleep 5 && \
+          curl http://localhost:9000/apidocs.json > api/swagger_ui/apidocs.json
       
       - name: Deploy API docs to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: __tmp_doc
+          publish_dir: api/swagger_ui
 
