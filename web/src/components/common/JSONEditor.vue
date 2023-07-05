@@ -3,9 +3,9 @@
     v-model="object"
     :mode="mode"
     :main-menu-bar="false"
-    :navigation-bar="false"
-    :status-bar="disabled"
-    :read-only="disabled"
+    :navigation-bar="readOnly"
+    :status-bar="false"
+    :read-only="readOnly"
     class="json-editor-n-viewer"
     @change="onChange"
   />
@@ -33,7 +33,7 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  disabled: Boolean,
+  readOnly: Boolean,
 });
 
 watch(

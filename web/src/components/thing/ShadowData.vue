@@ -22,7 +22,7 @@
       <JSONEditor
         mode="tree"
         :model-value="JSON.stringify(currentShadow)"
-        disabled
+        read-only
         class="shadow-state-card-code"
       />
     </div>
@@ -240,7 +240,7 @@ const handleSetReported = () => {
   }
 
   .el-card__body {
-    padding: 5px 0;
+    padding: 0;
     .shadow-state-card-main {
       .shadow-state-card-code {
         .jse-main {

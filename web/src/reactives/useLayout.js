@@ -20,7 +20,7 @@ export default () => {
     () => store.state.layout.isToolAreaMaxSize
   );
   const activeToolHeight = computed(() =>
-    store.state.layout.isToolAreaMaxSize
+    activeToolKey.value && isToolAreaMaxSize.value
       ? "calc(100vh - 60px)"
       : `${store.state.layout.bottomGap}px`
   );
@@ -31,6 +31,9 @@ export default () => {
     globalTeleport.style.height = "100px";
     if (tool.key === activeToolKey.value) {
       store.dispatch("layout/switchActiveTool", "");
+      store.commit("layout/setState", {
+        isToolAreaMaxSize: false,
+      });
     } else {
       store.dispatch("layout/switchActiveTool", tool.key);
     }

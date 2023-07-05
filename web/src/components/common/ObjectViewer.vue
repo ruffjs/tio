@@ -11,7 +11,7 @@
       <JSONEditor
         :mode="asTree ? 'tree' : 'text'"
         :model-value="content"
-        disabled
+        read-only
         class="object-view-main jse-theme-dark"
       />
     </div>

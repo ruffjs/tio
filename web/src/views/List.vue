@@ -52,7 +52,7 @@
       </div>
       <div v-else class="list-view-inactive-body">
         <div v-if="error" class="list-view-error">
-          <JSONEditor mode="tree" :model-value="error" disabled class="" />
+          <JSONEditor mode="tree" :model-value="error" read-only class="" />
         </div>
         <div v-else-if="empty" class="list-view-emtpy">
           <el-empty

@@ -92,7 +92,7 @@
             <JSONEditor
               v-model="form.body"
               v-model:has-error="hasJSONError"
-              :disabled="Boolean(payload)"
+              :read-only="Boolean(payload)"
               class="http-poster-body-json"
               :style="{ opacity: Boolean(payload) ? 0.6 : 1 }"
             />
@@ -107,7 +107,7 @@
     >
       <JSONEditor
         :model-value="result"
-        disabled
+        read-only
         mode="tree"
         class="http-poster-resp-json"
       />

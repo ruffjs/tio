@@ -15,7 +15,6 @@
           type="primary"
           size="small"
           class="subscriptions-list-btns-left"
-          plain
           @click="handleUnsubscribe(sub)"
           >Unsubscribe</el-button
         >
@@ -25,6 +24,7 @@
           type="info"
           size="small"
           class="subscriptions-list-btns-left"
+          plain
           @click="handleSubscribe(sub)"
           >Subscribe</el-button
         >

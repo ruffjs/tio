@@ -22,14 +22,14 @@
       <JSONEditor
         mode="tree"
         :model-value="content1"
-        disabled
+        read-only
         class="object-view-left jse-theme-dark"
       />
       <JSONEditor
         v-if="comparing"
         mode="tree"
         :model-value="content2"
-        disabled
+        read-only
         class="object-view-right jse-theme-dark"
       />
     </div>
