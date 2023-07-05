@@ -36,7 +36,7 @@ func enrichSwaggerObject(swo *spec.Swagger) {
 			Title: "tio",
 			Description: "A tiny iothub core\n\n" +
 				fmt.Sprintf("Build Info:\n- Version: %s\n- GitCommit: %s\n", config.Version, config.GitCommit),
-			Version: "1.0.0",
+			Version: config.Version,
 		},
 	}
 	swo.Tags = []spec.Tag{

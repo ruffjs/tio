@@ -123,18 +123,21 @@ func main() {
 	restful.DefaultContainer.Add(mq.Service(ctx, connector).Filter(azf))
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
-	startHttpSvr(ctx, cfg.API.Port, nil)
+	startHttpSvr(ctx, cfg, nil)
 
 	// wait some seconds before shutting down
 	time.Sleep(1 * time.Second)
 }
 
-func startHttpSvr(ctx context.Context, apiPort int, handler http.Handler) {
-	addr := fmt.Sprintf(":%d", apiPort)
+func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) {
+	addr := fmt.Sprintf(":%d", cfg.API.Port)
 	server := &http.Server{Addr: addr, Handler: handler}
 	errCh := make(chan error)
 	go func() {
 		log.Infof("Http listening on %s", addr)
+
+		log.Infof("Open http://127.0.0.1%s user=%s password=%s",
+			addr, cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
 		errCh <- server.ListenAndServe()
 	}()
 	select {
