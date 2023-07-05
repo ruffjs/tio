@@ -32,3 +32,14 @@ jobs:
           files: |
             ./dist/tio_linux_amd64.deb
             ./dist/tio_linux_amd64
+      - name: Generate API docs
+        run: |
+          mdkir __tmp_doc && \
+          curl http://localhost:9000/apidocs.json > __tmp_doc/apidocs.json
+      
+      - name: Deploy API docs to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: __tmp_doc
+
