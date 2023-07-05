@@ -1,13 +1,30 @@
 <template>
   <div class="custom-thing-table">
-    <el-table :data="data" scrollbar-always-on height="100%" style="width: 100%">
+    <el-table
+      :data="data"
+      scrollbar-always-on
+      height="100%"
+      size="small"
+      style="width: 100%"
+    >
       <el-table-column
         v-if="withId"
         fixed
         prop="thingId"
         label="Thing Id"
         min-width="180"
-      />
+      >
+        <template #default="scope">
+          <el-button
+            link
+            type="primary"
+            size="small"
+            @click.prevent="viewThing(scope.row)"
+          >
+            {{ scope.row.thingId }}
+          </el-button></template
+        >
+      </el-table-column>
       <template v-for="column in columns">
         <el-table-column
           v-if="column.type === 'boolean'"
@@ -16,8 +33,10 @@
           min-width="100"
         >
           <template #default="scope">
-            <el-tag v-if="scope.row[column.prop]">True</el-tag>
-            <el-tag v-else>False</el-tag>
+            <el-button v-if="scope.row[column.prop]" type="info" size="small" plain round
+              >True</el-button
+            >
+            <el-button v-else type="info" size="small" plain round>False</el-button>
           </template>
         </el-table-column>
         <el-table-column
@@ -43,7 +62,7 @@
               size="small"
               @click.prevent="viewObject(scope.row[column.prop], column.label)"
             >
-              View {{ column.label }}
+              View
             </el-button>
           </template>
         </el-table-column>
@@ -62,21 +81,12 @@
       >
         <template #default="scope">
           <el-button
-            v-if="withId"
-            link
-            type="primary"
-            size="small"
-            @click.prevent="viewThing(scope.row)"
-          >
-            Goto Thing
-          </el-button>
-          <el-button
             link
             type="primary"
             size="small"
             @click.prevent="viewObject(scope.row, 'Raw Data', true)"
           >
-            View Raw
+            View Shadow
           </el-button>
           <DeleteButton
             title="Are you sure to delete this Thing?"
@@ -157,7 +167,11 @@ watch(
         })
         .map((prop) => {
           let type = typeof data[0][prop];
-          if (prop.endsWith("_time") || prop.endsWith("Time")) {
+          if (
+            prop.endsWith("_time") ||
+            prop.endsWith("Time") ||
+            ["createdAt", "updatedAt"].includes(prop)
+          ) {
             type = "time";
           }
           return {

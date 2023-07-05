@@ -12,7 +12,7 @@
     @confirm="emit('confirm')"
   >
     <template #reference>
-      <el-button link type="danger" size="small"> Delete Thing </el-button>
+      <el-button link type="danger" size="small"> Delete </el-button>
     </template>
   </el-popconfirm>
 </template>

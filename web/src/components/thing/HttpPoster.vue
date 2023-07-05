@@ -122,7 +122,7 @@ import { notifyThingStateChange, TSCE_HTTP } from "@/utils/event";
 import JSONEditor from "../common/JSONEditor.vue";
 
 const formLabelWidth = "120px";
-const res = JSON.stringify({
+const defaultRes = JSON.stringify({
   code: 0,
   message: "",
   data: "",
@@ -162,7 +162,7 @@ const rules = reactive({
   id: [{ required: true, message: "Please input" }],
 });
 const isError = ref(false);
-const result = ref(res);
+const result = ref(defaultRes);
 
 const handleOpenDoc = () => window.open(api.value.link, "_blank");
 
@@ -173,7 +173,7 @@ const handleSubmit = async () => {
     if (valid) {
       submitting.value = true;
       isError.value = false;
-      result.value = res;
+      result.value = defaultRes;
       const { url, method, body, headers } = form;
       const res = await request({
         url,
@@ -190,6 +190,7 @@ const handleSubmit = async () => {
       // emit("close");
     }
   } catch (error) {
+    console.error("error", error);
     isError.value = true;
     result.value = JSON.stringify({ error });
   } finally {
@@ -223,7 +224,7 @@ watch(
       });
     }
     params.value = _params;
-    result.value = res;
+    result.value = defaultRes;
   },
   { deep: true, immediate: true }
 );

@@ -229,6 +229,8 @@ onUnmounted(() => {
     position: absolute;
     top: 2px;
     left: 5px;
+    padding-left: 5px;
+    background-color: white;
     .el-radio-group {
       // display: flex;
       .el-radio {

@@ -13,12 +13,7 @@
           </el-option>
         </el-select>
         <span class="mqtt-publish-label">QoS: </span>
-        <el-select
-          v-model="form.qos"
-          :disabled="connConfig?.userrole === 'thing'"
-          size="small"
-          class="mqtt-publish-select"
-        >
+        <el-select v-model="form.qos" size="small" class="mqtt-publish-select">
           <el-option
             v-for="qos in qosOptions"
             :key="qos.value"
