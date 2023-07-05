@@ -28,7 +28,7 @@ export default () => {
   const switchActiveTool = (tool) => {
     const globalTeleport = document.querySelector(teleports.G);
     globalTeleport.style.visibility = "hidden";
-    globalTeleport.style.height = "100px";
+    // globalTeleport.style.height = "100px";
     if (tool.key === activeToolKey.value) {
       store.dispatch("layout/switchActiveTool", "");
       store.commit("layout/setState", {
