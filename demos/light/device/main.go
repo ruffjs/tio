@@ -37,7 +37,6 @@ var mqttClient client.Client
 var ctx context.Context
 
 func main() {
-	// glg.Get().SetLevel(glg.INFO)
 	ctx = context.Background()
 
 	// Connect
@@ -244,7 +243,7 @@ func regularlyReportState() {
 
 	go func() {
 		for {
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Minute)
 			// mock for some state change
 			lightState["voltage"] = rand.Intn(30-6) + 5
 
@@ -285,6 +284,23 @@ func doControlOrConfigByDelta(shadowDelta map[string]any) {
 			// Conifg light
 			case "sunriseTime", "sunsetTime":
 				conf[k] = v
+
+			// OTA
+			// Also can be other field name as you want
+			case "firmware":
+
+			// The OTA process can also be achieved by Shadow, You can try to write the code. The basic idea is:
+			//  1. The server sets the `Shadow Desired` field "firmware" by http api to
+			//     { "version": "1.2.3", "packageFile": "http://demo.com/pkg_v1.2.3" }
+			//  2. When the device receives a Shadow Delta notifying
+			// 		 that the value of this field has been updated,
+			// 		 it pulls the firmware from the `packageFile` address,
+			// 		 updates, and reports the progress to the `Shadow Reported` field "firmware" : {"processPercent": 20 }
+			//  3. When the device has successfully or unsuccessfully upgrade,
+			//     it reports the result to the `Shadow Reported` "firmware" field, like:
+			//     {"version": "1.2.3", "packageFile": "http://demo.com/pkg_v1.2.3", "result": "done"}
+			//  4. In this process, the server and the upper business system can query
+			//     the current status and results of the OTA task through Shadow
 
 			default:
 				log.Infof("[Receive Shadow Delta] shadow delta field %q", k)
