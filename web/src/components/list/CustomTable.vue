@@ -71,7 +71,15 @@
           :prop="column.prop"
           :label="column.label"
           :min-width="column.minWidth"
-        />
+        >
+          <template #default="scope">
+            <el-tooltip effect="dark" :content="scope.row[column.prop]" placement="top">
+              <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
+                {{ scope.row[column.prop] }}
+              </div>
+            </el-tooltip>
+          </template>
+        </el-table-column>
       </template>
       <el-table-column
         fixed="right"
@@ -170,7 +178,7 @@ watch(
           if (
             prop.endsWith("_time") ||
             prop.endsWith("Time") ||
-            ["createdAt", "updatedAt"].includes(prop)
+            ["createdAtd", "updatedAtd"].includes(prop)
           ) {
             type = "time";
           }

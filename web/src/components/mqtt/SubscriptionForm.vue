@@ -16,7 +16,7 @@
     <el-form ref="formRef" :model="form" :rules="rules" class="subscriptions-form-main">
       <el-row :gutter="20">
         <el-col :span="24">
-          <el-form-item :label-width="formLabelWidth" label="Alias">
+          <el-form-item :label-width="formLabelWidth" label="Alias" prop="name">
             <el-input v-model.trim="form.name" :disabled="form.keep" size="small" />
           </el-form-item>
         </el-col>
@@ -156,10 +156,11 @@ const initModel = {
   rap: undefined,
   rh: undefined,
 };
-const rules = reactive({
+const rules = {
+  name: [{ max: 20, message: "Length should not greater than 20", trigger: "blur" }],
   topic: [{ required: true, message: "Please Input" }],
   qos: [{ required: true, message: "Please Select" }],
-});
+};
 const emit = defineEmits(["submit"]);
 const {
   isSubsFormVisible: visible,
@@ -332,6 +333,12 @@ watch(
 <style lang="scss">
 .subscriptions-form {
   .el-form.subscriptions-form-main {
+    .el-form-item {
+      .el-form-item__error {
+        margin-top: -2px;
+        padding-top: 0;
+      }
+    }
     .el-form-item.subscriptions-form-topic {
       .el-textarea {
         textarea.el-textarea__inner {

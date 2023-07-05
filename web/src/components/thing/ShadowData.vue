@@ -109,7 +109,7 @@ const handleCheckDelta = () => {
   if (hasDelta) {
     viewObject(delta, "Delta", true);
   } else {
-    ElMessageBox.alert("This is no delta property", "No Delta", {
+    ElMessageBox.alert("These is no delta property", "No Delta", {
       confirmButtonText: "OK",
     });
   }

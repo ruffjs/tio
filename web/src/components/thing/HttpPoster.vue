@@ -3,7 +3,7 @@
     :model-value="!!code"
     :title="`${api ? api.name : 'HTTP Poster'}`"
     :modal="false"
-    size="min(40vw, 640px)"
+    size="max(32vw, 570px)"
     class="http-poster"
     modal-class="http-poster-mask"
     append-to-body
@@ -123,7 +123,7 @@ import { request } from "@/apis";
 import { notifyThingStateChange, TSCE_HTTP } from "@/utils/event";
 import JSONEditor from "../common/JSONEditor.vue";
 
-const formLabelWidth = "100px";
+const formLabelWidth = "110px";
 const defaultRes = JSON.stringify({
   code: 0,
   message: "",
@@ -277,7 +277,7 @@ watch(
 
 <style lang="scss">
 .http-poster-mask {
-  width: min(40vw, 640px);
+  width: max(32vw, 570px);
   height: 100vh;
   inset: unset !important;
   right: 0 !important;
@@ -293,6 +293,9 @@ watch(
     }
     .el-form {
       .el-form-item {
+        .el-form-item__label {
+          font-size: 12px;
+        }
         .el-form-item__error {
           margin-top: -2px;
           padding-top: 0;

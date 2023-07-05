@@ -263,9 +263,20 @@ onSomethingStatusChange(({ thingId, type, about }) => {
     justify-content: start;
     align-items: center;
     gap: 5px;
+
+    width: 100%;
     color: #666;
     &.connected {
       color: var(--el-color-success);
+    }
+
+    > span {
+      flex: 1;
+      width: 0;
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
   .thing-mqtt-bigbtn.el-button {

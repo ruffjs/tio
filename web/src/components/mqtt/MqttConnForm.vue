@@ -564,6 +564,7 @@ const formLabelWidthAdvanced = "180px";
 const rules = {
   name: [
     { required: true, message: "Please input" },
+    { min: 3, max: 50, message: "Length should be 3 to 50", trigger: "blur" },
     {
       validator: (_rule, name, callBack) => {
         for (const connection of connections.value) {

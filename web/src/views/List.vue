@@ -8,6 +8,9 @@
         <div class="list-view-search-left">
           <div class="list-view-query-editor">
             <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" />
+            <div class="list-view-query-link">
+              <el-button icon="Link" size="small" circle @click="handleOpenDoc" />
+            </div>
           </div>
         </div>
         <div class="list-view-search-right">
@@ -52,7 +55,10 @@
           <JSONEditor mode="tree" :model-value="error" disabled class="" />
         </div>
         <div v-else-if="empty" class="list-view-emtpy">
-          The current query statement returns no Things
+          <el-empty
+            :image-size="80"
+            description="The current query statement returns no Things"
+          />
         </div>
         <div v-else class="list-view-tips">
           Type in or select the SQL statement to query Things
@@ -113,6 +119,8 @@ const reset = () => {
   empty.value = false;
   error.value = "";
 };
+
+const handleOpenDoc = () => window.open("/docs/#/shadows/func5", "_blank");
 
 const handleClear = () => {
   query.value = placeholder;
@@ -230,6 +238,11 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
 
         .list-view-search-left {
           height: 92px;
+          .list-view-query-editor {
+            .list-view-query-link {
+              top: 4px;
+            }
+          }
         }
         .list-view-search-right {
           width: 92px;
@@ -254,12 +267,29 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         padding-right: 0;
 
         .list-view-query-editor {
+          position: relative;
           width: 100%;
           height: 100%;
           border: solid 1px #dcdfe6;
           border-radius: 4px;
 
           overflow: hidden;
+
+          .list-view-query-link {
+            position: absolute;
+            top: 9px;
+            right: 4px;
+            width: 26px;
+            height: 26px;
+            line-height: 26px;
+            text-align: center;
+            opacity: 0;
+          }
+          &:hover {
+            .list-view-query-link {
+              opacity: 1;
+            }
+          }
         }
       }
 
@@ -330,22 +360,27 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         margin-top: 10px;
         padding: 5px;
         border-radius: 4px;
-        background-color: rgba($color: #ffffff, $alpha: 0.6);
+        background-color: rgba($color: #ffffff, $alpha: 0.8);
       }
 
       .list-view-emtpy,
       .list-view-tips {
         width: 100%;
         height: 168px;
-        line-height: 108px;
         text-align: center;
         font-size: 14px;
       }
       .list-view-emtpy {
+        border-radius: 4px;
+        background-color: rgba($color: #ffffff, $alpha: 0.8);
         font-weight: 500;
         color: #555;
+        .el-empty {
+          height: 148px;
+        }
       }
       .list-view-tips {
+        line-height: 128px;
         font-weight: 400;
         color: #999;
       }

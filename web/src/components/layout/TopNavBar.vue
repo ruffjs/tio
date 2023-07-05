@@ -123,12 +123,12 @@ const handleLogOut = () => {
 
   .nav-thing-id {
     height: 34px;
-    margin: 8px 0;
+    margin: 8px 0 8px 3px;
     padding: 4px;
-    border: solid 2px var(--el-text-color-primary);
-    border-left-width: 1px;
+    border: solid 3px var(--el-text-color-primary);
+    border-left-width: 3px;
     color: var(--el-text-color-primary);
-    line-height: 20px;
+    line-height: 18px;
     font-size: 24px;
     font-weight: 400;
     cursor: pointer;

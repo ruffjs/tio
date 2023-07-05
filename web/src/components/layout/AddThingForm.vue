@@ -49,7 +49,7 @@ const rules = {
     // { min: 1, max: 30, message: "Length should be 1 to 30", trigger: "change", },
     {
       validator: (_rule: any, value: any, callback: any) => {
-        const reg = /^[A-Za-z0-9_]+$/;
+        const reg = /^[A-Za-z0-9-_]+$/;
         if (value !== "" && value !== undefined && value !== null && !reg.test(value)) {
           callback(new Error("只能包含字母、数字、减号和下划线"));
         } else {

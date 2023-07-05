@@ -277,6 +277,11 @@ const handleCheckStats = async () => {
         justify-content: start;
         width: calc(100% - 10px);
         margin: 2px 5px;
+        > span {
+          display: inline-block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
     }
   }
@@ -307,6 +312,22 @@ const handleCheckStats = async () => {
         .el-button + .el-button {
           margin-left: 0;
           margin-right: 10px;
+        }
+      }
+    }
+  }
+}
+</style>
+
+<style lang="scss">
+.mqtt-clients-panel {
+  .mqtt-clients-conns {
+    .mqtt-clients-conns-list {
+      .mqtt-clients-conn {
+        > span {
+          display: inline-block;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
     }
