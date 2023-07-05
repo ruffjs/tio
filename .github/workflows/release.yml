@@ -21,9 +21,6 @@ jobs:
           node-version: '16'
           cache: yarn
           cache-dependency-path: ./web/yarn.lock
-      - name: Build web
-        run: yarn && yarn build
-        working-directory: ./web
       - name: Get version
         run: echo "::set-output name=version::${GITHUB_REF##*/}"
         id: version
