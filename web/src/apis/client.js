@@ -23,7 +23,11 @@ const log = (res, error) => {
     },
   });
 };
-const client = axios.create({ baseURL: "/" });
+const client = axios.create({
+  baseURL: "/",
+  timeout: "20",
+  timeoutErrorMessage: "Request tio api timeout",
+});
 client.interceptors.request.use(
   (req) => {
     // console.log(req.headers);

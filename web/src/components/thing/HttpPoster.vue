@@ -1,9 +1,11 @@
 <template>
   <el-drawer
     :model-value="!!code"
-    size="640"
     :title="`${api ? api.name : 'HTTP Poster'}`"
+    :modal="false"
+    size="min(40vw, 640px)"
     class="http-poster"
+    modal-class="http-poster-mask"
     append-to-body
     @close="emit('close')"
   >
@@ -121,7 +123,7 @@ import { request } from "@/apis";
 import { notifyThingStateChange, TSCE_HTTP } from "@/utils/event";
 import JSONEditor from "../common/JSONEditor.vue";
 
-const formLabelWidth = "120px";
+const formLabelWidth = "100px";
 const defaultRes = JSON.stringify({
   code: 0,
   message: "",
@@ -274,56 +276,62 @@ watch(
 </style>
 
 <style lang="scss">
-.http-poster {
-  .el-drawer__header {
-    margin-bottom: 20px;
-    .el-drawer__title {
-      font-weight: 700;
-    }
-  }
-  .el-drawer__body {
-    padding: 0 var(--el-drawer-padding-primary) 10px;
-  }
-  .el-form {
-    .el-form-item {
-      .el-form-item__error {
-        margin-top: -2px;
-        padding-top: 0;
+.http-poster-mask {
+  width: min(40vw, 640px);
+  height: 100vh;
+  inset: unset !important;
+  right: 0 !important;
+  .http-poster {
+    .el-drawer__header {
+      margin-bottom: 20px;
+      .el-drawer__title {
+        font-weight: 700;
       }
     }
-    .el-col-1 {
-      .el-icon {
-        cursor: pointer;
-      }
+    .el-drawer__body {
+      padding: 0 var(--el-drawer-padding-primary) 10px;
     }
-    .el-col-23 {
-      .el-input-number {
-        .el-input__inner {
-          text-align: left;
+    .el-form {
+      .el-form-item {
+        .el-form-item__error {
+          margin-top: -2px;
+          padding-top: 0;
         }
       }
-      .http-poster-body-json {
-        .jse-main {
-          position: relative;
-          height: auto;
-          min-height: 172px;
-          max-height: 244px;
+      .el-col-1 {
+        .el-icon {
+          cursor: pointer;
+        }
+      }
+      .el-col-23 {
+        .el-input-number {
+          .el-input__inner {
+            text-align: left;
+          }
+        }
+        .http-poster-body-json {
+          .jse-main {
+            position: relative;
+            height: auto;
+            min-height: 172px;
+            max-height: 244px;
+          }
         }
       }
     }
-  }
-  .http-poster-res {
-    .el-card__header {
-      padding: 10px var(--el-card-padding);
-    }
-    .el-card__body {
-      padding: 5px 0;
-      .http-poster-resp-json {
-        .jse-main {
-          .jse-tree-mode {
-            border: none;
-            .jse-contents {
+    .http-poster-res {
+      .el-card__header {
+        padding: 10px var(--el-card-padding);
+      }
+      .el-card__body {
+        padding: 5px 0;
+        .http-poster-resp-json {
+          .jse-main {
+            .jse-tree-mode {
               border: none;
+              .jse-contents {
+                border: none;
+              }
             }
           }
         }

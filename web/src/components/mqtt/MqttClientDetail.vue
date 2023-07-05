@@ -167,17 +167,17 @@ const handleSubmitSubsForm = (data) => {
   gap: 5px;
 
   width: 100%;
-  height: 100%;
+  height: calc(100% - 62px);
   padding: 5px;
 
   .mqtt-client-detail-left {
     width: 50vw;
-    height: 328px;
+    height: 100%;
     min-width: 540px;
 
     .mqtt-client-detail-message {
       width: 100%;
-      height: 150px;
+      height: calc(100% - 178px);
       border: solid 1px rgba(0, 0, 0, 0.05);
       border-radius: 2px;
     }
@@ -194,15 +194,15 @@ const handleSubmitSubsForm = (data) => {
   .mqtt-client-detail-right {
     flex: 1;
     width: 0;
-    height: 328px;
+    height: 100%;
 
-    .mqtt-client-detail-infos {
-      width: 100%;
-      height: 178px;
-    }
+    // .mqtt-client-detail-infos {
+    //   width: 100%;
+    //   height: 178px;
+    // }
     .mqtt-client-detail-sublist {
       width: 100%;
-      height: 240px;
+      height: calc(100% - 88px);
     }
     .mqtt-client-detail-subctrl {
       width: 100%;

@@ -50,9 +50,9 @@ export const shadowApis = {
     },
     payloadResolver: () => {
       return {
-        connTimeout: 0,
+        connTimeout: 30,
+        respTimeout: 20,
         data: {},
-        respTimeout: 0,
       };
     },
   },

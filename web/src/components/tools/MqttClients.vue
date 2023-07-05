@@ -14,7 +14,12 @@
         <div class="mqtt-clients-title">Connections</div>
         <div class="mqtt-clients-add">
           <el-tooltip content="Click to create a mqtt client" placement="top">
-            <el-button type="default" icon="Plus" size="small" @click="showMqttConnForm()" />
+            <el-button
+              type="default"
+              icon="Plus"
+              size="small"
+              @click="showMqttConnForm()"
+            />
           </el-tooltip>
           <el-tooltip content="Click to view stats of default Broker" placement="top">
             <el-button
@@ -73,9 +78,7 @@
         </template>
         <div v-else class="mqtt-clients-curr-name">No Selected Connection</div>
       </div>
-      <div>
-        <MqttClientDetail @request-add-conn="showMqttConnForm()" />
-      </div>
+      <MqttClientDetail @request-add-conn="showMqttConnForm()" />
     </div>
   </div>
   <MqttConnForm @close="handleCreateOrEditCancel" @done="handleCreateOrEditDone" />
