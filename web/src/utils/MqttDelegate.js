@@ -47,8 +47,8 @@ class MqttDelegate {
 
   // 当前 Client 所关联的 Thing 是否正处于详情页面
   get isOfCurrentThing() {
-    const currentId = store.app.currentShadow?.thingId;
-    if (currentId) return isClientOfThing(currentId);
+    const currentId = store.state.app.currentShadow?.thingId;
+    if (currentId) return this.isClientOfThing(currentId);
     return false;
   }
 

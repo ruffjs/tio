@@ -205,6 +205,20 @@ const handleSetReported = () => {
     confirmForCreateMqttClient();
   }
 };
+onSomethingStatusChange(({ thingId, type, about }) => {
+  // console.log(thingId, type, about);
+  if (
+    thingId === currentShadow.value.thingId &&
+    about.connectedToken &&
+    about.connectedToken === ccbt.value
+  ) {
+    switch (type) {
+      case TSCE_MQTT:
+        showSetReportedForm(about.connConfig);
+        break;
+    }
+  }
+});
 </script>
 
 <style scoped lang="scss">

@@ -69,7 +69,13 @@ import ShadowData from "@/components/thing/ShadowData.vue";
 import HttpPoster from "@/components/thing/HttpPoster.vue";
 import MqttClients from "@/components/thing/MqttClientsOfThing.vue";
 import dayjs from "dayjs";
-import { TH_STATUS_CHG_EVT, TSCE_MQTO, TSCE_MQTT, TSCE_MSGO } from "@/utils/event";
+import {
+  TH_STATUS_CHG_EVT,
+  TSCE_MQTO,
+  TSCE_MQTT,
+  TSCE_MSGO,
+  TSCE_MSGI,
+} from "@/utils/event";
 import useThingEvent from "@/reactives/useThingEvent";
 
 const router = useRouter();
@@ -106,11 +112,14 @@ const getBasicInfo = async () => {
 };
 
 onSomethingStatusChange(async ({ thingId: eventThingId, type, about }) => {
+  // console.log(eventThingId, type, about);
   if (eventThingId === thingId.value) {
     console.log(type, about);
     switch (type) {
       case TSCE_MQTT:
       case TSCE_MQTO:
+      case TSCE_MSGO:
+      case TSCE_MSGI:
         updateCurrentShadow();
         break;
 
