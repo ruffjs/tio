@@ -2,7 +2,7 @@
   <el-card class="shadow-state-card" shadow="never">
     <template #header>
       <div class="shadow-state-card-header">
-        <span>Shadow Data</span>
+        <span>Shadow Data </span>
         <div class="shadow-state-card-buttons">
           <!-- <el-button
             icon="View"
@@ -10,6 +10,13 @@
             @click="viewObject(currentShadow, 'Shadow Raw', false)"
             >View Raw</el-button
           > -->
+          <el-switch
+            v-model="isJSONViewTreeMode"
+            size="small"
+            active-text="Tree"
+            inactive-text="Text"
+          />
+          <el-divider direction="vertical" />
           <el-button size="small" @click="handleCompareState">Compare State</el-button>
           <el-button size="small" @click="handleCheckDelta">Check Delta</el-button>
           <el-divider direction="vertical" />
@@ -20,7 +27,7 @@
     </template>
     <div class="shadow-state-card-main">
       <JSONEditor
-        mode="tree"
+        :mode="isJSONViewTreeMode ? 'tree' : 'text'"
         :model-value="JSON.stringify(currentShadow)"
         read-only
         class="shadow-state-card-code"
@@ -56,7 +63,7 @@
 import { computed, ref, shallowRef } from "vue";
 import { ElMessageBox } from "element-plus";
 import { diffState } from "@/utils/shadow";
-import { genMqttClientToken } from "@/utils/generators";
+import { genClientToken } from "@/utils/generators";
 import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import StateViewer from "@/components/common/StateViewer.vue";
 import MqttPublish from "@/components/thing/MqttPublishForThingView.vue";
@@ -90,7 +97,7 @@ const {
 const { onSomethingStatusChange } = useThingEvent();
 
 const selectedState = ref(null);
-
+const isJSONViewTreeMode = ref(true);
 const isMqttPublishShown = ref(false);
 const mqttPublishConnConf = ref(null);
 const mqttPublishTitle = ref("");
@@ -141,7 +148,7 @@ const showSetReportedForm = (config) => {
       state: {
         reported: {},
       },
-      clientToken: genMqttClientToken(),
+      clientToken: genClientToken(),
       version: 0,
     },
     null,

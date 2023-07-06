@@ -1,4 +1,4 @@
-import { genMqttClientToken } from "@/utils/generators";
+import { genClientToken } from "@/utils/generators";
 
 export const metaFields = [
   {
@@ -69,7 +69,7 @@ export const shadowApis = {
     },
     payloadResolver: () => {
       return {
-        clientToken: genMqttClientToken(),
+        clientToken: genClientToken(),
         state: {
           desired: {},
         },

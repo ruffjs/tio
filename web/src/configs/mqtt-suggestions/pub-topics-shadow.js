@@ -1,4 +1,4 @@
-import { genMqttClientToken } from "@/utils/generators";
+import { genClientToken } from "@/utils/generators";
 
 export default [
   {
@@ -27,7 +27,7 @@ export default [
           state: {
             reported: {},
           },
-          clientToken: genMqttClientToken(),
+          clientToken: genClientToken(),
           version: 0,
         },
         null,

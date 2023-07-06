@@ -1,4 +1,4 @@
-import { genMqttClientToken } from "@/utils/generators";
+import { genClientToken } from "@/utils/generators";
 
 export default [
   {
@@ -161,7 +161,7 @@ export default [
     payloadResolver: (params) => {
       return JSON.stringify(
         {
-          clientToken: genMqttClientToken(),
+          clientToken: genClientToken(),
           data: {},
         },
         null,

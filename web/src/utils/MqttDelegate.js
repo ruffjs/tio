@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import store from "@/store";
-import { genMessageId } from "@/utils/generators";
+import { genDelegateId, genMessageId } from "@/utils/generators";
 import { convertPayloadByType, createClient } from "@/utils/mqtt";
 import {
   TSCE_MQTO,
@@ -15,6 +15,7 @@ const delegateSharedStates = {};
 
 class MqttDelegate {
   constructor(connConfig) {
+    this._self_id = genDelegateId();
     this.id = connConfig.id;
     this.role = connConfig.userrole;
     this.thingId = this.role === "thing" ? connConfig.username : "+";
@@ -35,6 +36,12 @@ class MqttDelegate {
   get isConnected() {
     // console.log(this.client);
     return this.client?.connected || false;
+  }
+
+  // 当前 MQTT Client 是否为连接中或断开连接中
+  get isConnectingOrDisconnecting() {
+    // console.log(this.client);
+    return this.client?.connecting || this.client?.disconnecting || false;
   }
 
   // 当前 MQTT Client 是否为活动窗口
@@ -90,46 +97,60 @@ class MqttDelegate {
   cancel() {
     this.disconnect();
   }
-  disconnect(cb) {
-    if (!this.isConnected) {
-      return;
-    }
-    this.client?.end(true, (err) => {
-      if (err) {
-        console.error("error", err);
-        cb(err);
-      } else {
-        this.retryTimes = 0;
-        this.subs = {};
-        if (typeof cb === "function") {
-          cb();
-        } else {
-          this.updateStore();
-        }
+  disconnect(cb, force = false) {
+    if (this.client?.removeAllListeners) {
+      if ((!this.isConnected || !this.isConnectingOrDisconnecting) && !force) {
+        cb();
+        return;
       }
-    });
+      this.client.removeAllListeners();
+      this.client.end(true, (err) => {
+        if (err) {
+          console.error("error", err);
+          cb(err);
+        } else {
+          this.retryTimes = 0;
+          this.subs = {};
+          if (typeof cb === "function") {
+            cb();
+          } else {
+            this.updateStore();
+          }
+        }
+      });
+    } else {
+      cb();
+    }
   }
   connect(connConfig, connectedToken = "") {
-    this.retryTimes = 0;
-    store.commit("mqtt/setState", {
-      connecting: true,
-      retryTimes: this.retryTimes,
-    });
-    const { curConnectClient } = createClient(connConfig);
-    this.client = curConnectClient;
+    this.disconnect((err) => {
+      if (err) {
+        console.log("connect -> disconnect -> err", err);
+        notifyFail("Connect Failure");
+      } else {
+        this.retryTimes = 0;
+        store.commit("mqtt/setState", {
+          connecting: true,
+          retryTimes: this.retryTimes,
+        });
+        const { curConnectClient } = createClient(connConfig);
+        this.client = curConnectClient;
 
-    curConnectClient.on("connect", () => {
-      this.onconnect(connConfig, connectedToken);
-      connectedToken = "";
-    });
-    curConnectClient.on("reconnect", this.onreconnect.bind(this));
-    curConnectClient.on("error", this.onerror.bind(this));
-    curConnectClient.on("close", this.onclose.bind(this));
-    curConnectClient.on("message", this.onmessage.bind(this));
-    curConnectClient.once("end", this.onend.bind(this));
+        curConnectClient.on("connect", () => {
+          this.onconnect(connConfig, connectedToken);
+          connectedToken = "";
+        });
+        curConnectClient.on("reconnect", this.onreconnect.bind(this));
+        curConnectClient.on("error", this.onerror.bind(this));
+        curConnectClient.on("close", this.onclose.bind(this));
+        curConnectClient.on("message", this.onmessage.bind(this));
+        curConnectClient.once("end", this.onend.bind(this));
+      }
+    }, true);
   }
 
   onconnect(connConfig, connectedToken = "") {
+    // console.log("connected", this.id, this._self_id);
     notifyDone("Connected");
     this.updateStore();
     if (this.isClientOfThing()) {
@@ -140,6 +161,7 @@ class MqttDelegate {
     }
   }
   onreconnect() {
+    // console.log("connected", this.id, this._self_id);
     if (this.retryTimes < 3) {
       console.log(this.id, "is reconnecting...");
       this.retryTimes++;
