@@ -94,6 +94,8 @@ import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import DeleteButton from "./DeleteButton.vue";
 import useObjectViewer from "@/reactives/useObjectViewer";
 import { diffState } from "@/utils/shadow";
+import useMqtt from "@/reactives/useMqtt";
+import { notifyDone } from "@/utils/layout";
 
 const formatTime = (time) => {
   return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
@@ -109,6 +111,7 @@ const props = defineProps({
 });
 const router = useRouter();
 const { setCurrentShadow, delThing } = useThingsAndShadows();
+const { removeConnectionsByClientId } = useMqtt();
 const {
   objectToBeView,
   titleOfViewer,
@@ -128,7 +131,9 @@ const deleteThing = (thing) => {
   if (thing.thingId) {
     delThing(thing.thingId).then((ok) => {
       if (ok) {
-        console.log("deleted");
+        // console.log("deleted", thing.thingId);
+        removeConnectionsByClientId(thing.thingId);
+        notifyDone(`Delete ${thing.thingId}`);
       }
     });
   }

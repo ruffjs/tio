@@ -102,6 +102,12 @@ export default () => {
     if (delegate) delegate.destroy();
   };
 
+  const removeConnectionsByClientId = (clientId) => {
+    return connectionConfigs.value
+      .filter((connection) => connection.clientId === clientId)
+      .forEach((connection) => removeConnection(connection.id));
+  };
+
   const publish = (config, options, cb) => {
     const { topic, payload, paytype, qos, retain, properties } = options;
     const delegate = getDelegateById(config.id, config);
@@ -206,6 +212,7 @@ export default () => {
     getConnConfig,
     removeConnection,
     getConnConfigsByClientId,
+    removeConnectionsByClientId,
     selectConnection,
     connect,
     disconn,

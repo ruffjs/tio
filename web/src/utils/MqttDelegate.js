@@ -41,7 +41,22 @@ class MqttDelegate {
   // 当前 MQTT Client 是否为连接中或断开连接中
   get isConnectingOrDisconnecting() {
     // console.log(this.client);
-    return this.client?.connecting || this.client?.disconnecting || false;
+    return (
+      this.client?.connecting ||
+      this.client?.reconnecting ||
+      this.client?.disconnecting ||
+      false
+    );
+  }
+
+  get isConnActive() {
+    return (
+      this.client?.connected ||
+      this.client?.connecting ||
+      this.client?.reconnecting ||
+      this.client?.disconnecting ||
+      false
+    );
   }
 
   // 当前 MQTT Client 是否为活动窗口
@@ -97,17 +112,12 @@ class MqttDelegate {
   cancel() {
     this.disconnect();
   }
-  disconnect(cb, force = false) {
-    if (this.client?.removeAllListeners) {
-      if ((!this.isConnected || !this.isConnectingOrDisconnecting) && !force) {
-        cb();
-        return;
-      }
-      this.client.removeAllListeners();
+  disconnect(cb) {
+    if (this.client?.end) {
       this.client.end(true, (err) => {
         if (err) {
           console.error("error", err);
-          cb(err);
+          cb && cb(err);
         } else {
           this.retryTimes = 0;
           this.subs = {};
@@ -119,7 +129,7 @@ class MqttDelegate {
         }
       });
     } else {
-      cb();
+      cb && cb();
     }
   }
   connect(connConfig, connectedToken = "") {
@@ -146,7 +156,7 @@ class MqttDelegate {
         curConnectClient.on("message", this.onmessage.bind(this));
         curConnectClient.once("end", this.onend.bind(this));
       }
-    }, true);
+    });
   }
 
   onconnect(connConfig, connectedToken = "") {
@@ -163,7 +173,7 @@ class MqttDelegate {
   onreconnect() {
     // console.log("connected", this.id, this._self_id);
     if (this.retryTimes < 3) {
-      console.log(this.id, "is reconnecting...");
+      console.log(this.id, "is reconnecting...", this.retryTimes);
       this.retryTimes++;
       store.commit("mqtt/setState", {
         connecting: true,
