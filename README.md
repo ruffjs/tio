@@ -1,6 +1,8 @@
 # tio
 
-![build][build]
+[![Test](https://github.com/ruffjs/tio/workflows/test/badge.svg)](https://github.com/ruffjs/tio/actions?query=workflow:test)
+[![Release](https://img.shields.io/github/v/release/ruffjs/tio)](https://github.com/ruffjs/tio/releases)
+[![API Docs](https://img.shields.io/badge/api-documentation-blue)](https://ruffjs.github.io/tio/)
 [![license][license]](LICENSE)
 
 [中文](README.md) | [English](README_en.md)
@@ -182,5 +184,4 @@ golang + sqlite/mysql +  内置MQTT服务/emqx
 
 [MIT](LICENSE)
 
-[build]: https://github.com/ruffjs/tio/actions/workflows/release.yml/badge.svg
 [license]: https://img.shields.io/badge/license-MIT-blue.svg
