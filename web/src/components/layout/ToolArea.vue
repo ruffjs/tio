@@ -16,19 +16,19 @@
     <div class="tools-container">
       <div
         class="tool-container"
-        :style="{ top: activeToolKey === 'mqtt' ? '0%' : '100%' }"
+        :style="{ top: activeToolKey === 'mqtt' ? '0%' : '200%' }"
       >
         <MqttClients />
       </div>
       <div
         class="tool-container"
-        :style="{ top: activeToolKey === 'logs' ? '0%' : '100%' }"
+        :style="{ top: activeToolKey === 'logs' ? '0%' : '200%' }"
       >
         <HttpLogs />
       </div>
       <div
         class="tool-container"
-        :style="{ top: activeToolKey === 'code' ? '0%' : '100%' }"
+        :style="{ top: activeToolKey === 'code' ? '0%' : '200%' }"
       >
         <CodeSnippet />
       </div>
@@ -103,7 +103,7 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
       position: absolute;
       width: 100%;
       height: 100%;
-      top: 100%;
+      top: 200%;
       left: 0;
       // transition: top ease-in-out 0.1s;
     }

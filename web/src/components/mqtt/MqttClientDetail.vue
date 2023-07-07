@@ -170,6 +170,8 @@ const handleSubmitSubsForm = (data) => {
   height: calc(100% - 62px);
   padding: 5px;
 
+  overflow: hidden;
+
   .mqtt-client-detail-left {
     width: 50vw;
     height: 100%;

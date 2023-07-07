@@ -29,15 +29,18 @@
           >Subscribe</el-button
         >
         <div class="subscriptions-list-btns-right">
-          <el-button
-            :type="filterTopic === sub.topic ? 'primary' : ''"
-            :plain="filterTopic !== sub.topic"
-            icon="Filter"
-            size="small"
-            circle
-            plain
-            @click="handleToggleFilter(sub)"
-          />
+          <el-tooltip
+            content="Click to read messages of this subscription only"
+            placement="left"
+            ><el-button
+              :type="filterTopic === sub.topic ? 'primary' : ''"
+              :plain="filterTopic !== sub.topic"
+              icon="Filter"
+              size="small"
+              circle
+              plain
+              @click="handleToggleFilter(sub)"
+          /></el-tooltip>
           <el-button
             :disabled="!conn.client?.connected || sub.subscribed"
             type="primary"
