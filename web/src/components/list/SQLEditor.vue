@@ -47,6 +47,9 @@ const createEditor = async () => {
     indentWithTabs: true,
     smartIndent: true,
     lineNumbers: true,
+    hintOptions: {
+      completeSingle: false,
+    },
     matchBrackets: true,
     cursorHeight: 1,
     lineWrapping: true,
