@@ -12,6 +12,11 @@ type Connectivity struct {
 	mock.Mock
 }
 
+func (g *Connectivity) AllClientInfo() ([]shadow.ClientInfo, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func NewConnectivity() *Connectivity {
 	return &Connectivity{}
 }

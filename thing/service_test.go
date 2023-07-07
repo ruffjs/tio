@@ -29,7 +29,7 @@ var connector = shadowMock.NewConnectivity()
 
 func NewTestSvc() thing.Service {
 	db := mock.NewSqliteConnTest()
-	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{})
+	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
 	shadowSvc := shadowWire.InitSvc(db, connector)
 	return wire.InitSvc(context.Background(), db, shadowSvc, connector)
 }

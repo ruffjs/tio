@@ -61,13 +61,14 @@ type client struct {
 
 // ClientInfo for emqx http api response
 type ClientInfo struct {
-	ClientId       string     `json:"clientid"`
-	Username       string     `json:"username"`
-	Connected      bool       `json:"connected"`
-	ConnectedAt    *time.Time `json:"connected_at"`
-	DisconnectedAt *time.Time `json:"disconnected_at"`
-	IpAddress      string     `json:"ip_address"`
-	Port           int        `json:"port"`
+	ClientId         string     `json:"clientid"`
+	Username         string     `json:"username"`
+	Connected        bool       `json:"connected"`
+	ConnectedAt      *time.Time `json:"connected_at"`
+	DisconnectedAt   *time.Time `json:"disconnected_at"`
+	DisconnectReason string     `json:"-"`
+	IpAddress        string     `json:"ip_address"`
+	Port             int        `json:"port"`
 }
 
 type MqttConnectedEvent struct {
@@ -147,14 +148,25 @@ func (e *emqxAdapter) ClientInfo(thingId string) (shadow.ClientInfo, error) {
 	return toClientInfo(*info), nil
 }
 
+func (e *emqxAdapter) AllClientInfo() ([]shadow.ClientInfo, error) {
+	clients := make([]shadow.ClientInfo, 0)
+	e.clients.Range(func(key, value any) bool {
+		i := toClientInfo(value.(client).info)
+		clients = append(clients, i)
+		return true
+	})
+	return clients, nil
+}
+
 func toClientInfo(c ClientInfo) shadow.ClientInfo {
 	return shadow.ClientInfo{
-		ClientId:       c.ClientId,
-		Username:       c.Username,
-		Connected:      c.Connected,
-		ConnectedAt:    c.ConnectedAt,
-		DisconnectedAt: c.DisconnectedAt,
-		RemoteAddr:     c.IpAddress,
+		ClientId:         c.ClientId,
+		Username:         c.Username,
+		Connected:        c.Connected,
+		ConnectedAt:      c.ConnectedAt,
+		DisconnectedAt:   c.DisconnectedAt,
+		DisconnectReason: c.DisconnectReason,
+		RemoteAddr:       c.IpAddress,
 	}
 }
 
@@ -275,11 +287,12 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 			}
 			dt := time.UnixMilli(d.DisconnectedAt)
 			e.updateClient(ClientInfo{
-				ClientId:       d.ClientId,
-				Username:       d.Username,
-				Connected:      false,
-				DisconnectedAt: &dt,
-				IpAddress:      d.IpAddress,
+				ClientId:         d.ClientId,
+				Username:         d.Username,
+				Connected:        false,
+				DisconnectedAt:   &dt,
+				DisconnectReason: d.Reason,
+				IpAddress:        d.IpAddress,
 			})
 			evt := toDisconnectEvent(d)
 			e.presenceEventBus.Publish(presenceEventName, evt)

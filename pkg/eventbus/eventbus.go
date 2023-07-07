@@ -50,8 +50,8 @@ func (eb *EventBus[T]) Publish(event string, message T) {
 		for _, ch := range subscribers {
 			select {
 			case ch <- message:
-			case <-time.After(time.Millisecond):
-				log.Error("EventBus notify event timeout in 1 ms")
+			case <-time.After(time.Second):
+				log.Error("EventBus notify event timeout in 1 s")
 			}
 		}
 	}

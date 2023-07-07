@@ -35,6 +35,7 @@ type StateService interface {
 	SubscribeDelta(StateDeltaSubscribe)
 	SubAccepted(StateAcceptedSubscribe)
 	SubRejected(StateRejectedSubscribe)
+	SyncConnStatus(ctx context.Context) error
 }
 
 type CrudService interface {
@@ -65,13 +66,16 @@ type Repo interface {
 	Update(ctx context.Context, thingId string, version int64, s Shadow) (*Shadow, error)
 	Get(ctx context.Context, thingId string) (*Shadow, error)
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[Entity], error)
+
+	UpdateConnStatus(ctx context.Context, s []ClientInfo) error
+	UpdateAllConnStatusDisconnect(ctx context.Context) error
 }
 
 var _ Service = (*shadowSvc)(nil)
 
 type shadowSvc struct {
 	repo                Repo
-	statusGetter        ConnectChecker
+	connectorChecker    ConnectChecker
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
 	acceptedSubscribers []StateAcceptedSubscribe
@@ -89,7 +93,7 @@ func NewSvc(r Repo, a ConnectChecker) Service {
 		rjt := make([]StateRejectedSubscribe, 0)
 		svcSingleton = &shadowSvc{
 			repo:                r,
-			statusGetter:        a,
+			connectorChecker:    a,
 			updateSubscribers:   u,
 			deltaSubscribers:    d,
 			acceptedSubscribers: acp,
@@ -135,6 +139,52 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 		s.notifyAccepted(thingId, sr.ClientToken, sar)
 	}
 	return ss, err
+}
+
+func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
+	if err := s.doFirstSyncStatus(ctx); err != nil {
+		return err
+	}
+	connEventCh := s.connectorChecker.OnConnect()
+	go func() {
+		for {
+			select {
+			case e := <-connEventCh:
+				c := toClientInfo(e)
+				err := s.repo.UpdateConnStatus(ctx, []ClientInfo{c})
+				if err != nil {
+					log.Errorf("update conn for %s error: %v", c.ClientId, err)
+				} else {
+					log.Debugf("updated conn status %#v", c)
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
+	clients, err := s.connectorChecker.AllClientInfo()
+	if err != nil {
+		return errors.Wrap(err, "get all client info for sync conn status")
+	}
+	err = s.repo.UpdateAllConnStatusDisconnect(ctx)
+	if err != nil {
+		return errors.Wrap(err, "update all conn status disconnect")
+	}
+
+	batch := 100
+	for from, to := 0, batch; from < len(clients); from, to = to, to+batch {
+		if to > len(clients) {
+			to = len(clients)
+		}
+		l := clients[from:to]
+		err := s.repo.UpdateConnStatus(ctx, l)
+		if err != nil {
+			return errors.Wrap(err, "update conn status")
+		}
+	}
+	return nil
 }
 
 func (s *shadowSvc) Create(ctx context.Context, thingId string) (Shadow, error) {
@@ -206,7 +256,7 @@ func (s *shadowSvc) toShadowWithStatus(list []Entity) []ShadowWithStatus {
 			continue
 		}
 		ss := ShadowWithStatus{Shadow: sd}
-		ci, err := s.statusGetter.ClientInfo(v.ThingId)
+		ci, err := s.connectorChecker.ClientInfo(v.ThingId)
 		if err == nil {
 			ss.Connected = &ci.Connected
 			ss.ConnectedAt = ci.ConnectedAt
@@ -228,7 +278,7 @@ func (s *shadowSvc) Get(ctx context.Context, thingId string, opt GetOption) (Sha
 	}
 	res := ShadowWithStatus{Shadow: *ss}
 	if opt.WithStatus {
-		ci, err := s.statusGetter.ClientInfo(thingId)
+		ci, err := s.connectorChecker.ClientInfo(thingId)
 		if err == nil {
 			res.Connected = &ci.Connected
 			res.ConnectedAt = ci.ConnectedAt
@@ -408,4 +458,24 @@ func DeepCopyMap(src map[string]any) map[string]any {
 		}
 	}
 	return tgt
+}
+
+func toClientInfo(e Event) ClientInfo {
+	conn := false
+	if e.EventType == EventConnected {
+		conn = true
+	}
+	t := time.UnixMilli(e.Timestamp)
+	c := ClientInfo{
+		ClientId:         e.ThingId,
+		Connected:        conn,
+		DisconnectReason: e.DisconnectReason,
+		RemoteAddr:       e.RemoteAddr,
+	}
+	if conn {
+		c.ConnectedAt = &t
+	} else {
+		c.DisconnectedAt = &t
+	}
+	return c
 }

@@ -10,15 +10,15 @@ import (
 )
 
 type Entity struct {
-	ThingId  string         `gorm:"primaryKey;size=64" json:"thingId"`
-	Desired  datatypes.JSON `gorm:"desired" json:"desired"`
-	Reported datatypes.JSON `gorm:"reported" json:"-"`
-	Metadata datatypes.JSON `gorm:"metadata" json:"-"`
+	ThingId  string         `gorm:"primaryKey;size=64"`
+	Desired  datatypes.JSON `json:"desired"`
+	Reported datatypes.JSON `json:"-"`
+	Metadata datatypes.JSON `json:"-"`
 	Tags     datatypes.JSON `gorm:"tags" json:"-"`
 	Version  int64          `json:"version"`
 
-	UpdatedAt time.Time `json:"updatedAt"`
-	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
 
 func (t Entity) TableName() string {
@@ -93,4 +93,19 @@ func toShadow(en Entity) (Shadow, error) {
 		CreatedAt: en.CreatedAt,
 		UpdatedAt: en.UpdatedAt,
 	}, nil
+}
+
+// ConnStatusEntity for saving connectivity info
+type ConnStatusEntity struct {
+	ThingId          string `gorm:"primaryKey;size=64"`
+	Connected        *bool
+	ConnectedAt      *time.Time
+	DisconnectedAt   *time.Time
+	DisconnectReason string
+	RemoteAddr       string
+	UpdatedAt        time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+}
+
+func (t ConnStatusEntity) TableName() string {
+	return "conn_status"
 }

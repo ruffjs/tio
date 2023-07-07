@@ -141,7 +141,7 @@ func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, thingSvc t
 }
 
 func autoMigrate(conn *gorm.DB) {
-	_ = conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{})
+	_ = conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
 }
 
 func newThingMqttClient(cxt context.Context, thingId string, password string) client.Client {

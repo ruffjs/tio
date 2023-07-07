@@ -23,12 +23,13 @@ const (
 )
 
 type ClientInfo struct {
-	ClientId       string     `json:"clientId"`
-	Username       string     `json:"username"`
-	Connected      bool       `json:"connected"`
-	ConnectedAt    *time.Time `json:"connectedAt"`
-	DisconnectedAt *time.Time `json:"disconnectedAt"`
-	RemoteAddr     string     `json:"remoteAddr"`
+	ClientId         string     `json:"clientId"`
+	Username         string     `json:"username"`
+	Connected        bool       `json:"connected"`
+	ConnectedAt      *time.Time `json:"connectedAt"`
+	DisconnectedAt   *time.Time `json:"disconnectedAt"`
+	DisconnectReason string     `json:"disconnectReason"`
+	RemoteAddr       string     `json:"remoteAddr"`
 }
 
 type Connector interface {
@@ -50,6 +51,7 @@ type ConnectChecker interface {
 	IsConnected(thingId string) (bool, error)
 	OnConnect() <-chan Event
 	ClientInfo(thingId string) (ClientInfo, error)
+	AllClientInfo() ([]ClientInfo, error)
 }
 
 type Event struct {

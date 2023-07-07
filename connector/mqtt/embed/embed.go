@@ -34,6 +34,10 @@ func (m *embedMqttAdapter) ClientInfo(thingId string) (shadow.ClientInfo, error)
 	return BrokerInstance().ClientInfo(thingId)
 }
 
+func (m *embedMqttAdapter) AllClientInfo() ([]shadow.ClientInfo, error) {
+	return BrokerInstance().AllClientInfo()
+}
+
 func (m *embedMqttAdapter) Start(ctx context.Context) error {
 	return nil
 }

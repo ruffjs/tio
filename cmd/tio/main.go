@@ -96,6 +96,9 @@ func main() {
 	if err := connector.Start(ctx); err != nil {
 		log.Fatalf("Mqtt connector start error: %v", err)
 	}
+	if err := shadowSvc.SyncConnStatus(ctx); err != nil {
+		log.Fatalf("Sync Conn Status error: %v", err)
+	}
 	if err := connector.InitMethodHandler(ctx); err != nil {
 		log.Fatalf("Connector init method handler error: %v", err)
 	}
@@ -154,7 +157,7 @@ func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) 
 }
 
 func autoMigrate(conn *gorm.DB) {
-	err := conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{})
+	err := conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
 	if err != nil {
 		log.Fatalf("auto migrate db error: %v", err)
 	}

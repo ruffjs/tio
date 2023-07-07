@@ -13,6 +13,7 @@ func NewSqliteConnTest() *gorm.DB {
 	cfg := sqlite.Config{
 		FilePath: ":memory:",
 		//FilePath: "./test.repo",
+		ShowSql: true,
 	}
 	conn, err := sqlite.Connect(cfg)
 	if err != nil {
@@ -27,12 +28,13 @@ func NewMySqlConnTest() *gorm.DB {
 		Port:            "3306",
 		User:            "root",
 		Password:        "123",
-		DB:              "tio",
+		DB:              "tio_test",
 		Charset:         "utf8",
 		Timezone:        "Asia%2FShanghai",
 		MaxOpenConns:    10,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: 30,
+		ShowSql:         true,
 	}
 	conn, err := mysql.Connect(cfg)
 	if err != nil {

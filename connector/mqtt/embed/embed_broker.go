@@ -45,6 +45,7 @@ type Broker interface {
 	IsConnected(clientId string) bool
 	OnConnect() <-chan shadow.Event
 	ClientInfo(clientId string) (shadow.ClientInfo, error)
+	AllClientInfo() ([]shadow.ClientInfo, error)
 	Close() error
 	CloseClient(clientId string) bool
 	StatsInfo() *system.Info
@@ -108,6 +109,16 @@ func (e *embedBroker) ClientInfo(clientId string) (shadow.ClientInfo, error) {
 		return c.(shadow.ClientInfo), nil
 	}
 	return shadow.ClientInfo{ClientId: clientId}, fmt.Errorf("not found")
+}
+
+func (e *embedBroker) AllClientInfo() ([]shadow.ClientInfo, error) {
+	clients := make([]shadow.ClientInfo, 0)
+	e.clients.Range(func(key, value any) bool {
+		i := value.(shadow.ClientInfo)
+		clients = append(clients, i)
+		return true
+	})
+	return clients, nil
 }
 
 func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[shadow.Event]) *mqtt.Server {

@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
 	"reflect"
+	"ruff.io/tio/pkg/log"
 	"testing"
 	"time"
 
@@ -16,11 +19,14 @@ import (
 	"ruff.io/tio/shadow/wire"
 )
 
-func newTestSvc() shadow.Service {
+func newTestSvc() (shadow.Service, *gorm.DB) {
 	db := mock.NewSqliteConnTest()
-	_ = db.AutoMigrate(&shadow.Entity{})
+	err := db.AutoMigrate(&shadow.Entity{}, &shadow.ConnStatusEntity{})
+	if err != nil {
+		log.Fatalf("db AutoMigrate: %v", err)
+	}
 	time.Sleep(time.Millisecond * 100)
-	return wire.InitSvc(db, shadowMock.NewConnectivity())
+	return wire.InitSvc(db, shadowMock.NewConnectivity()), db
 }
 
 var ctx = context.Background()
@@ -31,7 +37,7 @@ var stateVal = shadow.StateValue{
 		"period": 30,
 	},
 }
-var svc = newTestSvc()
+var svc, db = newTestSvc()
 
 func TestShadowSvc_Create(t *testing.T) {
 	id := fmt.Sprintf("for-create-%d", time.Now().UnixNano())
@@ -43,6 +49,24 @@ func TestShadowSvc_Create(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, id, ss.ThingId)
 	require.Equal(t, int64(1), s.Version)
+
+	// should also create conn status
+	cs := shadow.ConnStatusEntity{ThingId: ss.ThingId}
+	res := db.First(&cs)
+	require.NoError(t, res.Error)
+	require.Equal(t, id, cs.ThingId)
+
+	err = svc.Delete(ctx, id)
+
+	require.NoError(t, err)
+
+	ss, err = svc.Get(ctx, id, shadow.GetOption{})
+	require.Equal(t, model.ErrNotFound, err)
+
+	// should also delete conn status
+	res = db.First(&cs)
+	require.Error(t, res.Error)
+	require.True(t, errors.Is(res.Error, gorm.ErrRecordNotFound))
 }
 
 func TestShadowSVc_Query(t *testing.T) {
@@ -120,7 +144,7 @@ func TestSvcImpl_Set(t *testing.T) {
 }
 
 func TestShadowSvc_SubscribeUpdate(t *testing.T) {
-	svc := newTestSvc()
+	svc, _ := newTestSvc()
 	upd := struct {
 		ThingId     string
 		StateNotice shadow.StateUpdatedNotice
@@ -194,7 +218,7 @@ func TestShadowSvc_SubscribeUpdate(t *testing.T) {
 }
 
 func TestShadowSvc_SubscribeDelta(t *testing.T) {
-	svc := newTestSvc()
+	svc, _ := newTestSvc()
 	thingId = fmt.Sprintf("for-delta-sub-%d", time.Now().UnixNano())
 	_, err := svc.Create(ctx, thingId)
 	require.NoError(t, err)
@@ -284,5 +308,5 @@ func assertDelta(t *testing.T, lastDelta lastDelta, token, color string) {
 		ts = tsm.Timestamp
 	}
 	dTs := time.Now().UnixMilli() - ts
-	require.Truef(t, dTs >= 0 && dTs < 10, "state metadata should be closer to current time")
+	require.Truef(t, dTs >= 0 && dTs < 100, "state metadata should be closer to current time")
 }

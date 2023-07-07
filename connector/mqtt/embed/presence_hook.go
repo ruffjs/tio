@@ -41,7 +41,7 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 		return
 	}
 	now := time.Now()
-	cinfo := toClientInfo(cl, true, &now, nil)
+	cinfo := toClientInfo(cl, true, &now, nil, nil)
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
 		evt := toEvent(cl, shadow.EventConnected, now, "")
@@ -62,7 +62,7 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 		return
 	}
 	now := time.Now()
-	cinfo := toClientInfo(cl, false, nil, &now)
+	cinfo := toClientInfo(cl, false, nil, &now, err)
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
 		evt := toEvent(cl, shadow.EventDisconnected, now, fmt.Sprintf("%s", err))
@@ -71,13 +71,21 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 }
 
 func toClientInfo(cl *mqtt.Client, connected bool,
-	connectAt, disconnectAt *time.Time) shadow.ClientInfo {
+	connectAt, disconnectAt *time.Time, err error) shadow.ClientInfo {
+	discReason := ""
+	if err != nil {
+		discReason = err.Error()
+		if len(discReason) > 256 {
+			discReason = discReason[0:256]
+		}
+	}
 	res := shadow.ClientInfo{
-		ClientId:       cl.ID,
-		Username:       string(cl.Properties.Username),
-		Connected:      connected,
-		DisconnectedAt: disconnectAt,
-		RemoteAddr:     cl.Net.Remote,
+		ClientId:         cl.ID,
+		Username:         string(cl.Properties.Username),
+		Connected:        connected,
+		DisconnectedAt:   disconnectAt,
+		DisconnectReason: discReason,
+		RemoteAddr:       cl.Net.Remote,
 	}
 	if connected {
 		res.ConnectedAt = connectAt

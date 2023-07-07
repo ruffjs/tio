@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
@@ -31,10 +32,20 @@ func (r shadowRepo) Create(ctx context.Context, thingId string, s Shadow) (*Shad
 	if err != nil {
 		return nil, err
 	}
-	re := r.db.Create(&en)
-	if re.Error != nil {
-		return nil, errors.Wrap(re.Error, "create shadow "+thingId)
+	err = r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&en).Error; err != nil {
+			return err
+		}
+		conn := ConnStatusEntity{ThingId: thingId, Connected: new(bool)}
+		if err := tx.Create(&conn).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "create shadow")
 	}
+
 	ss, err := toShadow(en)
 	if err != nil {
 		return nil, err
@@ -83,6 +94,49 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 	return &n, nil
 }
 
+// UpdateConnStatus batch update in a transaction
+func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		for _, c := range s {
+			en := ConnStatusEntity{
+				Connected:        &c.Connected,
+				ConnectedAt:      c.ConnectedAt,
+				DisconnectedAt:   c.DisconnectedAt,
+				DisconnectReason: c.DisconnectReason,
+				RemoteAddr:       c.RemoteAddr,
+			}
+			ex := tx.Model(&ConnStatusEntity{ThingId: c.ClientId})
+			ts := en.ConnectedAt
+			if en.DisconnectedAt != nil && (en.ConnectedAt == nil || en.ConnectedAt.Before(*en.DisconnectedAt)) {
+				ts = en.DisconnectedAt
+			}
+			// This update cannot cover newer data than it.
+			if ts != nil {
+				ex.Where("(connected_at IS NULL OR connected_at <= ?) "+
+					"AND (disconnected_at IS NULL OR disconnected_at <= ?)",
+					ts, ts,
+				)
+			}
+			if err := ex.Updates(&en).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context) error {
+	conn := true
+	disc := false
+
+	t := time.Now()
+	res := r.db.Model(&ConnStatusEntity{Connected: &conn}).
+		Where("1=?", 1).
+		Updates(ConnStatusEntity{Connected: &disc, DisconnectedAt: &t})
+	return res.Error
+}
+
 func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
 	en := Entity{ThingId: thingId}
 	res := r.db.First(&en)
@@ -98,15 +152,19 @@ func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
 }
 
 func (r shadowRepo) Delete(ctx context.Context, thingId string) error {
-	res := r.db.Delete(&Entity{ThingId: thingId})
-	err := res.Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&Entity{ThingId: thingId}).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+		if err := tx.Delete(&ConnStatusEntity{ThingId: thingId}).Error; err != nil {
+			return err
+		}
 		return nil
-	}
-	if res.RowsAffected == 0 {
-		return model.ErrNotFound
-	}
-	return nil
+	})
+
+	return errors.Wrap(err, "delete shadow "+thingId)
 }
 
 func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuerySql) (model.PageData[Entity], error) {
