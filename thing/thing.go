@@ -17,8 +17,8 @@ type Thing struct {
 	Enabled   bool      `json:"enabled"`
 	AuthType  string    `json:"authType"`
 	AuthValue string    `json:"authValue,omitempty" optional:"true"`
-	UpdatedAt time.Time `json:"updateAt"`
-	CreatedAt time.Time `json:"createAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type ThingWithStatus struct {
