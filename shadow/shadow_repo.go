@@ -127,12 +127,11 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error 
 }
 
 func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context) error {
-	conn := true
 	disc := false
 
 	t := time.Now()
-	res := r.db.Model(&ConnStatusEntity{Connected: &conn}).
-		Where("1=?", 1).
+	res := r.db.Model(&ConnStatusEntity{}).
+		Where("connected=1").
 		Updates(ConnStatusEntity{Connected: &disc, DisconnectedAt: &t})
 	return res.Error
 }
