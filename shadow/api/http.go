@@ -43,10 +43,11 @@ func Service(
 			"SQL query string like : select * from shadow where \\`tags.zone\\` = 'Shanghai'.\n"+
 				"\nJSON path (eg: tags.Shanghai) must be surrounded with `` .\n"+
 				"\nThese fields are queryable: \n"+
-				"  - thingId, createdAt, updatedAt, version\n"+
-				"  - field under tags, state.reported, state.desired , eg: tags.zone, state.reported.loc.lat, sate.desired.x.y\n"+
+				"  - `thingId, createdAt, updatedAt, version`\n"+
+				"  - filed about connection: `connected, connectedAt, disconnectedAt, remoteAddr` \n"+
+				"  - field under `tags, state.reported, state.desired` , eg: tags.zone, state.reported.loc.lat, sate.desired.x.y\n"+
 				"\nThese fields can be used as sorting fields:\n"+
-				"  - thingId, createdAt, updatedAt\n",
+				"  - `thingId, createdAt, updatedAt`\n",
 		).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("pageIndex", "").DefaultValue("1")).

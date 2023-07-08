@@ -23,6 +23,7 @@ var (
 		"connected": true, "connectedAt": true, "disconnectedAt": true, "remoteAddr": true}
 	validJsonColumnPrefix = []string{"tags", "state.reported", "state.desired", "metadata"}
 	statusColumns         = map[string]bool{"connected": true, "connectedAt": true, "disconnectedAt": true, "remoteAddr": true}
+	intersectionColumns   = map[string]bool{"thingId": true, "updatedAt": true}
 )
 
 type ParsedQuerySql struct {
@@ -54,6 +55,10 @@ func parseQuerySql(qrySql string) (ParsedQuerySql, error) {
 			err := validColumn(node.Name.String())
 			if err != nil {
 				return false, err
+			}
+			// intersection columns between table `shadow` and `conn_status`
+			if ok := intersectionColumns[node.Name.String()]; ok {
+				node.Qualifier = sqlparser.TableName{Name: sqlparser.NewTableIdent("shadow")}
 			}
 			n := toDbCol(node.Name.String())
 			node.Name = sqlparser.NewColIdent(n)

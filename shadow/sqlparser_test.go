@@ -16,26 +16,26 @@ func TestParseQuery(t *testing.T) {
 		{
 			sql: "select version from shadow",
 			// add thingId automatically
-			sel: "version as version, thing_id as thingId",
+			sel: "version as version, shadow.thing_id as thingId",
 		},
 		{
 			sql: "select connected, connectedAt, disconnectedAt, remoteAddr from shadow",
 			// remove status fields
-			sel: "thing_id as thingId",
+			sel: "shadow.thing_id as thingId",
 		},
 		{
 			sql: "select `tags.a`, thingId from shadow where thingId='1' order by updatedAt",
 			// add alias for json path
 			// add type field for json path
-			sel:     "json_extract(tags, '$.a') as a, thing_id as thingId, json_type(json_extract(tags, '$.a')) as `$type_a`",
-			where:   "thing_id = '1'",
-			orderBy: "updated_at asc",
+			sel:     "json_extract(tags, '$.a') as a, shadow.thing_id as thingId, json_type(json_extract(tags, '$.a')) as `$type_a`",
+			where:   "shadow.thing_id = '1'",
+			orderBy: "shadow.updated_at asc",
 		},
 		{
 			sql:     "select * from shadow where thingId='1' order by updatedAt",
 			sel:     "*",
-			where:   "thing_id = '1'",
-			orderBy: "updated_at asc",
+			where:   "shadow.thing_id = '1'",
+			orderBy: "shadow.updated_at asc",
 		},
 		{
 			sql:     "select * from shadow where `state.reported.c` in ('xxx','yyy')",
@@ -62,8 +62,8 @@ func TestParseQuery(t *testing.T) {
 			sql: "select * from shadow where `thingId`= 'abc' and (`state.desired.y` = 'xy' or `state.reported.s`='qs')" +
 				" order by thingId desc, createdAt desc",
 			sel:     "*",
-			where:   "thing_id = 'abc' and (json_extract(desired, '$.y') = 'xy' or json_extract(reported, '$.s') = 'qs')",
-			orderBy: "thing_id desc, created_at desc",
+			where:   "shadow.thing_id = 'abc' and (json_extract(desired, '$.y') = 'xy' or json_extract(reported, '$.s') = 'qs')",
+			orderBy: "shadow.thing_id desc, created_at desc",
 		},
 		{
 			sql: "select * from shadow",

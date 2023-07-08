@@ -256,13 +256,11 @@ func (s *shadowSvc) toShadowWithStatus(list []Entity) []ShadowWithStatus {
 			continue
 		}
 		ss := ShadowWithStatus{Shadow: sd}
-		ci, err := s.connectorChecker.ClientInfo(v.ThingId)
-		if err == nil {
-			ss.Connected = &ci.Connected
-			ss.ConnectedAt = ci.ConnectedAt
-			ss.DisconnectedAt = ci.DisconnectedAt
-			ss.RemoteAddr = ci.RemoteAddr
-		}
+		cs := v.ConnStatus
+		ss.Connected = cs.Connected
+		ss.ConnectedAt = cs.ConnectedAt
+		ss.DisconnectedAt = cs.DisconnectedAt
+		ss.RemoteAddr = cs.RemoteAddr
 		res[i] = ss
 	}
 	return res

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
-	"gorm.io/gorm"
 	"reflect"
-	"ruff.io/tio/pkg/log"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
+	"ruff.io/tio/pkg/log"
 
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/db/mock"

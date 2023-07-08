@@ -173,7 +173,10 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 	var page model.PageData[Entity]
 	var total int64
 
-	db := r.db.WithContext(ctx).Model(&Entity{})
+	db := r.db.WithContext(ctx).
+		Model(&Entity{}).
+		Joins("ConnStatus").
+		Preload("ConnStatus")
 	if q.Where != "" {
 		db.Where(q.Where)
 	}
