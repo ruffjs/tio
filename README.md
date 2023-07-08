@@ -73,7 +73,7 @@ change notifications      │  │   └──────────┘  │  
 
 ### 内置 MQTT Broker
 
-默认运行一个内置的 MQTT Broker，采用 [github.com/mochi-co/mqtt/](github.com/mochi-co/mqtt)。对于测试、开发和对轻量环境有需求的场景非常有用。  
+默认运行一个内置的 MQTT Broker，采用 [github.com/mochi-co/mqtt](https://github.com/mochi-co/mqtt)。对于测试、开发和对轻量环境有需求的场景非常有用。  
 
 - 支持 MQTT v3.1.1 和 v5.0
 - 支持 MQTT over Websocket
