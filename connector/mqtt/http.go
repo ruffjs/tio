@@ -24,6 +24,7 @@ func Service(ctx context.Context, brk shadow.Connectivity) *restful.WebService {
 
 	ws.Route(ws.DELETE("/clients/{clientId}").
 		To(CloseClientHandler(ctx, brk)).
+		Operation("delete-client").
 		Doc("Kick off the client from the mqtt broker").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clientId", "")).
@@ -31,6 +32,7 @@ func Service(ctx context.Context, brk shadow.Connectivity) *restful.WebService {
 
 	ws.Route(ws.GET("/embed/stats").
 		To(GetEmbedBrokerStats).
+		Operation("embed-stats").
 		Doc("Get embedded mqtt broker stats info").
 		Notes("The embedded mqtt broker of tio is used `https://github.com/mochi-co/mqtt`. This api is for getting it's stats info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).

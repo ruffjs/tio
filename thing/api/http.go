@@ -48,6 +48,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 
 	ws.Route(ws.GET("/").
 		To(QueryHandler(ctx, svc)).
+		Operation("query").
 		Doc("get all things").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("withAuthValue", "whether return authValue field").DataType("boolean")).
@@ -58,6 +59,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 
 	ws.Route(ws.POST("/").
 		To(CreateHandler(ctx, svc)).
+		Operation("create-one").
 		Doc("create thing").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(CreateReq{}).
@@ -65,12 +67,14 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 
 	ws.Route(ws.GET("/{id}").
 		To(GetHandler(ctx, svc)).
+		Operation("get-one").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
 		Returns(200, "OK", rest.RespOK(thing.Thing{})))
 
 	ws.Route(ws.DELETE("/{id}").
 		To(DeleteHandler(ctx, svc)).
+		Operation("delete-one").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
 		Returns(200, "OK", rest.RespOK("")))
@@ -94,6 +98,7 @@ func ServiceForEmqxIntegration() *restful.WebService {
 		Param(ws.QueryParameter("topic", "").DataType("string").Required(true)).
 		Param(ws.QueryParameter("action", "").DataType("string").
 			PossibleValues([]string{"publish", "subscribe"}).Required(true)).
+		Operation("topic-acl").
 		To(func(r *restful.Request, w *restful.Response) {
 			thingId := r.PathParameter("id")
 			topic := r.QueryParameter("topic")

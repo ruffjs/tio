@@ -39,6 +39,7 @@ func Service(
 
 	ws.Route(ws.POST("/shadows/query").
 		To(QueryHandler(ctx, svc)).
+		Operation("query").
 		Notes(
 			"SQL query string like : select * from shadow where \\`tags.zone\\` = 'Shanghai'.\n"+
 				"\nJSON path (eg: tags.Shanghai) must be surrounded with `` .\n"+
@@ -57,6 +58,7 @@ func Service(
 
 	ws.Route(ws.PUT("/{id}/shadows/default/state/desired").
 		To(PatchDesiredStateHandler(ctx, svc)).
+		Operation("set-state-desired").
 		Doc("set shadow desired state").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
@@ -65,6 +67,7 @@ func Service(
 
 	ws.Route(ws.GET("/{id}/shadows/default").
 		To(GetDesiredStateHandler(ctx, svc)).
+		Operation("get-one").
 		Doc("get shadow").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
@@ -72,6 +75,7 @@ func Service(
 
 	ws.Route(ws.POST("/{id}/methods/{name}").
 		To(InvokeMethodHandler(ctx, conn, thingSvc)).
+		Operation("invoke-direct-method").
 		Doc("invoke thing direct method").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
@@ -81,6 +85,7 @@ func Service(
 
 	ws.Route(ws.PUT("/{id}/shadows/tags").
 		To(SetTagsHandler(ctx, svc)).
+		Operation("set-tags").
 		Doc("set shadow tags property").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
