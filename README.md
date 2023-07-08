@@ -67,6 +67,10 @@ change notifications      │  │   └──────────┘  │  
                           
 ```
 
+Shadow Query:  
+
+Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 Shadow 属性，给到上层使用方很大自由，按需要的视图和查询条件让 Shadow 的数据获取有了很大的适应性。参考 [Azure](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-query-language)。
+
 
 ## 支持的连接层（connector）
 

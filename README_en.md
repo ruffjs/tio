@@ -43,6 +43,10 @@ change notifications      │  │   └──────────┘  │  
                           
 ```
 
+Shadow Query:
+
+The Shadow Query interface adopts a SQL-like approach for querying, coupled with the flexibility and extensibility of Shadow attributes, providing a great deal of freedom to the upper layer of usage. This allows for a highly adaptable way to retrieve Shadow data based on desired views and query conditions. Refer to [Azure](https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-devguide-query-language) for more information.
+
 
 ## Supported Connectors
 
