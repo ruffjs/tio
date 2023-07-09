@@ -33,6 +33,13 @@ export default () => {
           hasNext = false;
         }
       }
+      // const raw = things[0];
+      // for (let index = 0; index < 2000; index++) {
+      //   things.push({
+      //     ...raw,
+      //     thingId: raw.thingId + "__" + index,
+      //   });
+      // }
       store.commit("app/setState", {
         things,
       });

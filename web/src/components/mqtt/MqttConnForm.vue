@@ -106,18 +106,17 @@
 
         <el-col :span="23">
           <el-form-item :label-width="formLabelWidth" label="Username" prop="username">
-            <el-select
+            <el-autocomplete
               v-if="form.userrole === 'thing'"
               v-model.trim="form.username"
-              size="small"
+              :fetch-suggestions="filterUsername"
               :disabled="Boolean(editConnId || createThingId)"
-            >
-              <el-option
-                v-for="thing in things"
-                :label="thing.thingId"
-                :value="thing.thingId"
-              />
-            </el-select>
+              clearable
+              size="small"
+              placeholder="Please select or input"
+              autocomplete="off"
+              @select="handleUsernameSelect"
+            />
             <el-input v-else v-model.trim="form.username" size="small">
               <template #prepend>$</template>
             </el-input>
@@ -544,7 +543,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch, nextTick } from "vue";
+import { reactive, ref, watch, nextTick, computed } from "vue";
 // import { useStore } from "vuex";
 import { createClient, getDefaultForm } from "@/utils/mqtt";
 import { Warning, RefreshRight } from "@element-plus/icons-vue";
@@ -718,6 +717,27 @@ const handleConnect = async (test = false) => {
   }
 };
 
+const filterUsername = (qs, cb) => {
+  // form.password = "";
+  const results = qs
+    ? things.value
+        .filter(({ thingId }) => thingId.toLowerCase().indexOf(qs.toLowerCase()) > -1)
+        .slice(0, 1000)
+    : things.value.slice(0, 1000);
+  cb(
+    results.map((thing) => ({
+      value: thing.thingId,
+      clientId: thing.thingId,
+      password: thing.authValue,
+    }))
+  );
+};
+
+const handleUsernameSelect = (item) => {
+  form.clientId = item.clientId;
+  form.password = item.password;
+};
+
 watch(isConnFormVisible, async () => {
   oldName = "";
   connectedToken = "";
@@ -739,7 +759,9 @@ watch(isConnFormVisible, async () => {
       form.userrole = "thing";
       form.name = `Client For ${createThingId.value} (default)`;
       form.username = createThingId.value;
+      form.clientId = createThingId.value;
       form.password = thing.authValue;
+      form.mqttVersion = "3.1.1";
     }
   }
 });
@@ -763,17 +785,7 @@ watch(
   () => form.username,
   () => {
     if (form.username) {
-      if (form.userrole === "thing") {
-        const thing = things.value.find(({ thingId }) => thingId === form.username);
-        if (thing) {
-          form.clientId = form.username;
-          form.password = thing.authValue;
-        } else {
-          form.clientId = "";
-          form.password = "";
-        }
-        form.mqttVersion = "3.1.1";
-      } else {
+      if (form.userrole === "server") {
         form.clientId = `\$${form.username}_${genClientIdSuffix()}`;
       }
     } else {
@@ -783,7 +795,7 @@ watch(
 );
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 .mqtt-connection-form {
   .el-form {
     .el-form-item {
@@ -807,6 +819,7 @@ watch(
     .el-col-22,
     .el-col-23 {
       .el-select,
+      .el-autocomplete,
       .el-input-number {
         width: 100%;
       }
