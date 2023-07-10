@@ -20,7 +20,7 @@ type Entity struct {
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 
-	ConnStatus ConnStatusEntity `gorm:"foreignKey:thing_id;constraint:OnDelete:CASCADE;" json:"connStatus"`
+	ConnStatus ConnStatusEntity `gorm:"foreignKey:thing_id;" json:"connStatus"`
 }
 
 func (t Entity) TableName() string {

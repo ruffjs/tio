@@ -78,21 +78,11 @@ func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
 		return Thing{}, err
 	}
 
-	// create shadow for thing
-	_, err = t.shadowSvc.Create(ctx, th.Id)
-	if err != nil {
-		_ = t.repo.Delete(ctx, th.Id)
-		return Thing{}, err
-	}
-
 	return res, err
 }
 
 func (t *thingSvc) Delete(ctx context.Context, id string) error {
 	err := t.repo.Delete(ctx, id)
-	if err == nil {
-		err = t.shadowSvc.Delete(ctx, id)
-	}
 	if err != nil {
 		return err
 	}

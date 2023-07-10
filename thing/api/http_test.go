@@ -50,7 +50,7 @@ func newServer() *httptest.Server {
 	mkSs.On("Delete", tmock.Anything, tmock.Anything).Return(nil)
 
 	conn := mock.NewSqliteConnTest()
-	_ = conn.AutoMigrate(&thing.Entity{})
+	_ = conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
 	repo := thing.NewThingRepo(conn)
 	svc := thing.NewSvc(repo, uuid.New(), mkSs, connector)
 
@@ -229,8 +229,8 @@ func TestDeleteHandler(t *testing.T) {
 
 		// delete thing
 
-		connDelCall := connector.On("Close", th.ThingId).Return(nil)
-		removeCall := connector.On("Remove", th.ThingId).Return(nil)
+		connector.On("Close", th.ThingId).Return(nil)
+		connector.On("Remove", th.ThingId).Return(nil)
 		req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s", svr.URL, th.ThingId), toBuf(nil))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err = client.Do(req)
@@ -240,10 +240,9 @@ func TestDeleteHandler(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD.Code)
-		connDelCall.Unset()
-		removeCall.Unset()
 
 		// delete thing
+		// repeat delete thing, got no error
 		req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s", svr.URL, th.ThingId), toBuf(nil))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err = client.Do(req)
@@ -251,7 +250,7 @@ func TestDeleteHandler(t *testing.T) {
 		var resD2 rest.Resp[any]
 		err = json.NewDecoder(resp.Body).Decode(&resD2)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		require.Equal(t, http.StatusNotFound, resD2.Code)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resD2.Code)
 	})
 }

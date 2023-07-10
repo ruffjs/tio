@@ -12,7 +12,7 @@ import (
 func NewSqliteConnTest() *gorm.DB {
 	cfg := sqlite.Config{
 		FilePath: ":memory:",
-		//FilePath: "./test.repo",
+		//FilePath: "./tio-test.sqlite",
 		ShowSql: true,
 	}
 	conn, err := sqlite.Connect(cfg)

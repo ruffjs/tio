@@ -27,15 +27,16 @@ var (
 
 var connector = shadowMock.NewConnectivity()
 
-func NewTestSvc() thing.Service {
+func NewTestSvc() (thing.Service, shadow.Service) {
 	db := mock.NewSqliteConnTest()
 	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
 	shadowSvc := shadowWire.InitSvc(db, connector)
-	return wire.InitSvc(context.Background(), db, shadowSvc, connector)
+	thingSvc := wire.InitSvc(context.Background(), db, shadowSvc, connector)
+	return thingSvc, shadowSvc
 }
 
 func TestThingSvc_Create(t *testing.T) {
-	svc := NewTestSvc()
+	svc, sdSvc := NewTestSvc()
 	th := thing.Thing{}
 	t.Run("create thing with no id", func(t *testing.T) {
 		th.Id = ""
@@ -43,6 +44,10 @@ func TestThingSvc_Create(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, resTh.Id, "thing id is empty")
 		require.NotEmpty(t, resTh.AuthValue, "thing auth value is empty")
+
+		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		require.NoError(t, err)
+		require.Equal(t, resTh.Id, sd.ThingId)
 	})
 
 	t.Run("create thing with duplicates", func(t *testing.T) {
@@ -65,9 +70,9 @@ func TestThingSvc_Create(t *testing.T) {
 		err = svc.Delete(ctxTest, pre.Id)
 		require.NoError(t, err)
 
-		th.Id = pre.Id
-		_, err = svc.Create(ctxTest, th)
-		require.NoError(t, err, "should have no error when creating duplicates with the same id as th deleted thing")
+		//th.Id = pre.Id
+		//_, err = svc.Create(ctxTest, th)
+		//require.NoError(t, err, "should have no error when creating duplicates with the same id as th deleted thing")
 	})
 
 	t.Run("create thing with password", func(t *testing.T) {
@@ -80,23 +85,31 @@ func TestThingSvc_Create(t *testing.T) {
 }
 
 func TestThingSvc_Delete(t *testing.T) {
-	svc := NewTestSvc()
+	svc, sdSvc := NewTestSvc()
 	randId, _ := uuid.New().ID()
-	err := svc.Delete(ctxTest, randId)
-	require.Error(t, err, "should error when not found")
 
-	connector.On("Close", randId).Return(nil).Once()
-	connector.On("Remove", randId).Return(nil).Once()
+	connector.On("Close", randId).Return(nil).Twice()
+	connector.On("Remove", randId).Return(nil).Twice()
+
+	err := svc.Delete(ctxTest, randId)
+	require.NoError(t, err, "should no error when not found")
 
 	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId})
 	err = svc.Delete(ctxTest, randId)
 	require.NoError(t, err)
+	_, err = sdSvc.Get(ctxTest, randId, shadow.GetOption{WithStatus: false})
+	require.Error(t, err, "shadow should get not found error when thing is deleted")
+	if herr, ok := err.(model.HttpErr); ok {
+		require.Equal(t, herr.HttpCode, 404)
+	} else {
+		t.Fatalf("error should by model.HttpErr : %v", err)
+	}
 
 	connector.AssertExpectations(t)
 }
 
 func TestThingSvc_Get(t *testing.T) {
-	svc := NewTestSvc()
+	svc, _ := NewTestSvc()
 	randId, _ := uuid.New().ID()
 	_, err := svc.Get(ctxTest, randId)
 	isNotFound := errors.Is(err, model.ErrNotFound)

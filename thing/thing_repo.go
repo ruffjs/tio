@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"ruff.io/tio/pkg/model"
+	"ruff.io/tio/shadow"
 )
 
 type thingRepo struct {
@@ -20,22 +21,52 @@ var _ Repo = (*thingRepo)(nil)
 
 func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 	en := ToEntity(th)
-	res := t.db.Create(&en)
-	if res.Error != nil {
-		return Thing{}, res.Error
-	}
-	return ToThing(en), nil
+	err := t.db.Transaction(func(tx *gorm.DB) error {
+		// create Thing
+		if er := tx.Create(&en).Error; er != nil {
+			return er
+		}
+
+		// create Shadow
+		defaultObj := []byte("{}")
+		shd := shadow.Entity{
+			ThingId:  th.Id,
+			Desired:  defaultObj,
+			Reported: defaultObj,
+			Metadata: defaultObj,
+			Tags:     defaultObj,
+			Version:  1,
+		}
+		if err := tx.Create(&shd).Error; err != nil {
+			return err
+		}
+		// create Shadow ConnStatus
+		conn := shadow.ConnStatusEntity{ThingId: th.Id, Connected: new(bool)}
+		if err := tx.Create(&conn).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	return ToThing(en), err
 }
 
 func (t thingRepo) Delete(ctx context.Context, id string) error {
-	res := t.db.Delete(&Entity{Id: id})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return model.ErrNotFound
-	}
-	return nil
+	err := t.db.Transaction(func(tx *gorm.DB) error {
+		// delete Thing
+		if er := tx.Delete(&Entity{Id: id}).Error; er != nil {
+			return er
+		}
+		// delete Shadow
+		if er := tx.Delete(&shadow.Entity{ThingId: id}).Error; er != nil {
+			return er
+		}
+		// delete ConnStatus
+		if er := tx.Delete(&shadow.ConnStatusEntity{ThingId: id}).Error; er != nil {
+			return er
+		}
+		return nil
+	})
+	return err
 }
 
 func (t thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error) {
