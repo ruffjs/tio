@@ -70,9 +70,9 @@ func TestThingSvc_Create(t *testing.T) {
 		err = svc.Delete(ctxTest, pre.Id)
 		require.NoError(t, err)
 
-		//th.Id = pre.Id
-		//_, err = svc.Create(ctxTest, th)
-		//require.NoError(t, err, "should have no error when creating duplicates with the same id as th deleted thing")
+		th.Id = pre.Id
+		_, err = svc.Create(ctxTest, th)
+		require.NoError(t, err, "should have no error when creating duplicates with the same id as th deleted thing")
 	})
 
 	t.Run("create thing with password", func(t *testing.T) {
