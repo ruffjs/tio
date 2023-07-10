@@ -36,7 +36,7 @@ func (r shadowRepo) Create(ctx context.Context, thingId string, s Shadow) (*Shad
 		if err := tx.Create(&en).Error; err != nil {
 			return err
 		}
-		conn := ConnStatusEntity{ThingId: thingId, Connected: new(bool)}
+		conn := ConnStatusEntity{ThingId: thingId, Connected: false}
 		if err := tx.Create(&conn).Error; err != nil {
 			return err
 		}
@@ -99,7 +99,7 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		for _, c := range s {
 			en := ConnStatusEntity{
-				Connected:        &c.Connected,
+				Connected:        c.Connected,
 				ConnectedAt:      c.ConnectedAt,
 				DisconnectedAt:   c.DisconnectedAt,
 				DisconnectReason: c.DisconnectReason,
@@ -126,13 +126,11 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error 
 	return err
 }
 
-func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context) error {
-	disc := false
-
+func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error {
 	t := time.Now()
 	res := r.db.Model(&ConnStatusEntity{}).
-		Where("connected=1").
-		Updates(ConnStatusEntity{Connected: &disc, DisconnectedAt: &t})
+		Where("connected=1 AND updated_at < ?", updateTimeBefore).
+		Updates(map[string]any{"connected": 0, "disconnected_at": &t, "disconnect_reason": "system"})
 	return res.Error
 }
 

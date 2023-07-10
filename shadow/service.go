@@ -68,7 +68,7 @@ type Repo interface {
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[Entity], error)
 
 	UpdateConnStatus(ctx context.Context, s []ClientInfo) error
-	UpdateAllConnStatusDisconnect(ctx context.Context) error
+	UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error
 }
 
 var _ Service = (*shadowSvc)(nil)
@@ -164,13 +164,10 @@ func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
 }
 
 func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
+	now := time.Now()
 	clients, err := s.connectorChecker.AllClientInfo()
 	if err != nil {
 		return errors.Wrap(err, "get all client info for sync conn status")
-	}
-	err = s.repo.UpdateAllConnStatusDisconnect(ctx)
-	if err != nil {
-		return errors.Wrap(err, "update all conn status disconnect")
 	}
 
 	batch := 100
@@ -184,6 +181,12 @@ func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
 			return errors.Wrap(err, "update conn status")
 		}
 	}
+
+	err = s.repo.UpdateAllConnStatusDisconnect(ctx, now)
+	if err != nil {
+		return errors.Wrap(err, "update all conn status disconnect")
+	}
+
 	return nil
 }
 
@@ -257,7 +260,7 @@ func (s *shadowSvc) toShadowWithStatus(list []Entity) []ShadowWithStatus {
 		}
 		ss := ShadowWithStatus{Shadow: sd}
 		cs := v.ConnStatus
-		ss.Connected = cs.Connected
+		ss.Connected = &cs.Connected
 		ss.ConnectedAt = cs.ConnectedAt
 		ss.DisconnectedAt = cs.DisconnectedAt
 		ss.RemoteAddr = cs.RemoteAddr

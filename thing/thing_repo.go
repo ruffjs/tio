@@ -41,7 +41,7 @@ func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 			return err
 		}
 		// create Shadow ConnStatus
-		conn := shadow.ConnStatusEntity{ThingId: th.Id, Connected: new(bool)}
+		conn := shadow.ConnStatusEntity{ThingId: th.Id, Connected: false}
 		if err := tx.Create(&conn).Error; err != nil {
 			return err
 		}
