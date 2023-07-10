@@ -120,7 +120,7 @@ const reset = () => {
   error.value = "";
 };
 
-const handleOpenDoc = () => window.open("/docs/#/shadows/func5", "_blank");
+const handleOpenDoc = () => window.open("/docs/#/shadows/query", "_blank");
 
 const handleClear = () => {
   query.value = placeholder;

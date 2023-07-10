@@ -13,6 +13,7 @@
           <el-switch
             v-model="isJSONViewTreeMode"
             size="small"
+            inline-prompt
             active-text="Tree"
             inactive-text="Text"
           />

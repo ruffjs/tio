@@ -217,7 +217,7 @@ export const getInitMeatModel = () => ({
 export const getDefaultForm = () => {
   const { hostname, protocol } = window.location;
   return {
-    userrole: "thing",
+    userrole: "server",
     clientId: "", // getClientId(),
     createAt: dayjs().format("YYYY-MM-DD HH:mm:ss:SSS"),
     updateAt: dayjs().format("YYYY-MM-DD HH:mm:ss:SSS"),

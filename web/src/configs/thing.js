@@ -34,7 +34,7 @@ export const shadowApis = {
     name: "Request Direct Method",
     method: "post",
     url: "/api/v1/things/{id}/methods/{name}",
-    link: "/docs/#/shadows/func8",
+    link: "/docs/#/shadows/invoke-direct-method",
     params: [
       {
         key: "name",
@@ -60,7 +60,7 @@ export const shadowApis = {
     name: "Set Desired",
     method: "put",
     url: "/api/v1/things/{id}/shadows/default/state/desired",
-    link: "/docs/#/shadows/func6",
+    link: "/docs/#/shadows/set-state-desired",
     params: [],
     urlResolver: (params) => {
       return `api/v1/things/${
@@ -81,7 +81,7 @@ export const shadowApis = {
     name: "Set Tags",
     method: "put",
     url: "/api/v1/things/{id}/shadows/tags",
-    link: "/docs/#/shadows/func9",
+    link: "/docs/#/shadows/set-tags",
     params: [],
     urlResolver: (params) => {
       return `/api/v1/things/${params.id || "{id}"}/shadows/tags`;

@@ -46,7 +46,7 @@
         <el-col :span="1"></el-col>
         <el-col :span="23">
           <el-form-item :label-width="formLabelWidth" label="Name" prop="name">
-            <el-input v-model="form.name" size="small" />
+            <el-input v-model="form.name" size="small" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="1">
@@ -79,7 +79,7 @@
               </el-select>
             </el-col>
             <el-col :span="18">
-              <el-input v-model.trim="form.host" size="small" />
+              <el-input v-model.trim="form.host" size="small" clearable />
             </el-col>
           </el-form-item>
         </el-col>
@@ -99,7 +99,7 @@
         </el-col>
         <el-col :span="23">
           <el-form-item :label-width="formLabelWidth" label="Path" prop="path">
-            <el-input v-model="form.path" size="small" />
+            <el-input v-model="form.path" size="small" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="1"></el-col>
@@ -117,7 +117,7 @@
               autocomplete="off"
               @select="handleUsernameSelect"
             />
-            <el-input v-else v-model.trim="form.username" size="small">
+            <el-input v-else v-model.trim="form.username" size="small" clearable>
               <template #prepend>$</template>
             </el-input>
           </el-form-item>
@@ -130,6 +130,7 @@
               type="password"
               size="small"
               show-password
+              clearable
               :disabled="
                 (editConnId && form.userrole === 'thing') || Boolean(createThingId)
               "
@@ -562,7 +563,7 @@ const formLabelWidth = "100px";
 const formLabelWidthAdvanced = "180px";
 const rules = {
   name: [
-    { required: true, message: "Please input" },
+    { required: true, message: "Please input", trigger: "blur" },
     { min: 3, max: 50, message: "Length should be 3 to 50", trigger: "blur" },
     {
       validator: (_rule, name, callBack) => {
@@ -580,8 +581,8 @@ const rules = {
       trigger: "blur",
     },
   ],
-  username: [{ required: true, message: "Please select or input" }],
-  password: [{ required: true, message: "Please input" }],
+  username: [{ required: true, message: "Please select or input", trigger: "blur" }],
+  password: [{ required: true, message: "Please input", trigger: "blur" }],
   path: [{ required: true, message: "Please input" }],
   host: [{ required: true, message: "Please input" }],
   port: [{ required: true, message: "Please input" }],
@@ -718,19 +719,34 @@ const handleConnect = async (test = false) => {
 };
 
 const filterUsername = (qs, cb) => {
-  // form.password = "";
-  const results = qs
-    ? things.value
-        .filter(({ thingId }) => thingId.toLowerCase().indexOf(qs.toLowerCase()) > -1)
-        .slice(0, 1000)
-    : things.value.slice(0, 1000);
-  cb(
-    results.map((thing) => ({
-      value: thing.thingId,
-      clientId: thing.thingId,
-      password: thing.authValue,
-    }))
-  );
+  if (createThingId.value) {
+    const thing = things.value.find(({ thingId }) => thingId === createThingId.value);
+    if (thing) {
+      cb([
+        {
+          value: thing.thingId,
+          clientId: thing.thingId,
+          password: thing.authValue,
+        },
+      ]);
+    } else {
+      cb([]);
+    }
+  } else {
+    // form.password = "";
+    const results = qs
+      ? things.value
+          .filter(({ thingId }) => thingId.toLowerCase().indexOf(qs.toLowerCase()) > -1)
+          .slice(0, 1000)
+      : things.value.slice(0, 1000);
+    cb(
+      results.map((thing) => ({
+        value: thing.thingId,
+        clientId: thing.thingId,
+        password: thing.authValue,
+      }))
+    );
+  }
 };
 
 const handleUsernameSelect = (item) => {
@@ -763,6 +779,8 @@ watch(isConnFormVisible, async () => {
       form.password = thing.authValue;
       form.mqttVersion = "3.1.1";
     }
+  } else {
+    Object.assign(form, getDefaultForm());
   }
 });
 
@@ -777,6 +795,7 @@ const resetClientID = () => {
 watch(
   () => form.userrole,
   () => {
+    if (createThingId.value) return;
     form.username = "";
   }
 );
@@ -784,6 +803,7 @@ watch(
 watch(
   () => form.username,
   () => {
+    if (createThingId.value) return;
     if (form.username) {
       if (form.userrole === "server") {
         form.clientId = `\$${form.username}_${genClientIdSuffix()}`;
