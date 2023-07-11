@@ -2,10 +2,10 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import store from "@/store";
 import { REQ_ROUTE_CHG_EVT } from "@/utils/event";
 
-import List from "@/views/List.vue";
-import Login from "@/views/Login.vue";
-import NotFound from "@/views/NotFound.vue";
-import Thing from "@/views/Thing.vue";
+import List from "@/components/views/List.vue";
+import Login from "@/components/views/Login.vue";
+import NotFound from "@/components/views/NotFound.vue";
+import Thing from "@/components/views/Thing.vue";
 
 const routes = [
   {

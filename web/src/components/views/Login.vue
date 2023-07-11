@@ -8,10 +8,13 @@
         :model="form"
         :rules="rules"
         status-icon
-        label-width="90px"
+        label-width="80px"
         class="demo-form"
         @keyup.enter.native="submitForm"
       >
+        <el-form-item label="TIO Host" prop="host">
+          <el-input v-model.number="form.host" autocomplete="off" />
+        </el-form-item>
         <el-form-item label="Username" prop="user">
           <el-input v-model.number="form.user" autocomplete="off" />
         </el-form-item>
@@ -45,6 +48,7 @@ import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { ElNotification } from "element-plus";
+import { getUri, recreateClient } from "@/apis";
 
 const loading = ref(false);
 const checkName = (_rule, value, callback) => {
@@ -71,6 +75,7 @@ const router = useRouter();
 const { updateThings } = useThingsAndShadows();
 const formRef = ref();
 const form = reactive({
+  host: localStorage.getItem("$tiopg/client/url") || "/",
   user: "admin",
   pass: "",
 });
@@ -82,6 +87,11 @@ const submitForm = async () => {
     if (valid) {
       console.log("submit!");
       loading.value = true;
+
+      if (form.host !== getUri()) {
+        recreateClient(form.host || "/");
+      }
+
       const base = `${form.user}:${form.pass}`;
       const auth = `Basic ${btoa(base)}`;
       localStorage.setItem("$tiopg/user/auth", auth);
@@ -116,8 +126,8 @@ const submitForm = async () => {
   .login-dialog {
     position: absolute;
     top: 50vh;
-    width: 400px;
-    height: 200px;
+    width: 420px;
+    height: 240px;
     padding: 34px 34px;
     transform: translateY(-200px);
     border: none;

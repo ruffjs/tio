@@ -19,7 +19,7 @@
       <div class="nav-button" @click="handleLogOut">
         <el-icon><Avatar /></el-icon>{{ hasAuth ? "Log Out" : "" }}
       </div>
-      <div v-if="isList" class="nav-button" @click="isAdding = true">
+      <div v-if="isList" class="nav-button" @click="handleShowAddingForm">
         <el-icon><CirclePlusFilled /></el-icon>Add Thing
       </div>
       <div v-if="isList" class="nav-button" @click="requestUpdateShadowList">
@@ -40,15 +40,15 @@
       </div> -->
     </div>
   </div>
-  <AddThingForm v-if="isAdding" @close="isAdding = false" />
+  <AddThingForm v-if="isAdding" @close="handleCloseDialogs" />
 </template>
 
 <script setup>
 import { computed, ref } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
-import List from "@/views/List.vue";
-import Thing from "@/views/Thing.vue";
+import List from "@/components/views/List.vue";
+import Thing from "@/components/views/Thing.vue";
 import AddThingForm from "./AddThingForm.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { kickOutClient } from "@/apis";
@@ -68,6 +68,22 @@ const isList = computed(() => route.name === List.name);
 const isThing = computed(() => route.name === Thing.name && thingId.value);
 
 const isAdding = ref(false);
+const isSetting = ref(false);
+
+const handleShowAddingForm = () => {
+  isAdding.value = true;
+  isSetting.value = false;
+};
+
+const handleShowSettingPanel = () => {
+  isAdding.value = false;
+  isSetting.value = true;
+};
+
+const handleCloseDialogs = () => {
+  isAdding.value = false;
+  isSetting.value = false;
+};
 
 const handleKickOutSelected = async () => {
   try {
