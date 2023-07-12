@@ -1,5 +1,6 @@
 api:
   port: 9000
+  cors: true
   basicAuth:
     name: admin
     password: public

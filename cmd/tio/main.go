@@ -122,10 +122,15 @@ func main() {
 		Filter(azf)
 	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, connector)
 
+	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
+
 	restful.DefaultContainer.Add(thingWs)
-	restful.DefaultContainer.Add(mq.Service(ctx, connector).Filter(azf))
+	restful.DefaultContainer.Add(mqWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
+	if cfg.API.Cors {
+		restful.DefaultContainer.Filter(restful.OPTIONSFilter())
+	}
 	startHttpSvr(ctx, cfg, nil)
 
 	// wait some seconds before shutting down

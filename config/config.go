@@ -57,6 +57,7 @@ type Config struct {
 	}
 	API struct {
 		Port      int
+		Cors      bool
 		BasicAuth UserPassword
 	}
 	DB struct {
