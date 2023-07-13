@@ -1,30 +1,32 @@
 package job
 
+// Types for Job and Execution
+
 // The following data types are used to communicate with the tio Jobs service over the MQTT
 // Their names start with T which means thing.
 
-type ExecutionStatus string
+type ExecStatus string
 
 const (
-	ExecQueued     ExecutionStatus = "QUEUED"
-	ExecInProgress ExecutionStatus = "IN_PROGRESS"
-	ExecFailed     ExecutionStatus = "FAILED"
-	ExecSucceeded  ExecutionStatus = "SUCCEEDED"
-	ExecCanceled   ExecutionStatus = "CANCELED"
-	ExecTimeOut    ExecutionStatus = "TIMED_OUT"
-	ExecRejected   ExecutionStatus = "REJECTED"
-	ExecRemoved    ExecutionStatus = "REMOVED"
+	ExecQueued     ExecStatus = "QUEUED"
+	ExecInProgress ExecStatus = "IN_PROGRESS"
+	ExecFailed     ExecStatus = "FAILED"
+	ExecSucceeded  ExecStatus = "SUCCEEDED"
+	ExecCanceled   ExecStatus = "CANCELED"
+	ExecTimeOut    ExecStatus = "TIMED_OUT"
+	ExecRejected   ExecStatus = "REJECTED"
+	ExecRemoved    ExecStatus = "REMOVED"
 )
 
-type TExecution struct {
+type TExec struct {
 	JobId       string `json:"jobId"`
 	ThingId     string `json:"thingId"`
-	ExecutionId int64  `json:"executionId"`
+	ExecId      int64  `json:"execId"`
 	JobDocument string `json:"jobDocument"`
 	Priority    uint8  `json:"priority"` // 1-10
 	Operation   string `json:"operation"`
 
-	Status        ExecutionStatus   `json:"status"`
+	Status        ExecStatus        `json:"status"`
 	StatusDetails map[string]string `json:"statusDetails"`
 	QueuedAt      int64             `json:"queuedAt"` // timestamp in ms
 	StartedAt     int64             `json:"startedAt"`
@@ -33,17 +35,17 @@ type TExecution struct {
 	Version int `json:"version"`
 }
 
-type TExecutionState struct {
-	Status        ExecutionStatus   `json:"status"`
+type TExecState struct {
+	Status        ExecStatus        `json:"status"`
 	StatusDetails map[string]string `json:"statusDetails"`
 	Version       int               `json:"version"`
 }
 
-type TExecutionSummary struct {
-	JobId       string `json:"jobId"`
-	ExecutionId int64  `json:"executionId"`
-	Priority    uint8  `json:"priority"` // 1-10
-	Operation   string `json:"operation"`
+type TExecSummary struct {
+	JobId     string `json:"jobId"`
+	ExecId    int64  `json:"execId"`
+	Priority  uint8  `json:"priority"` // 1-10
+	Operation string `json:"operation"`
 
 	QueuedAt  int64 `json:"queuedAt"` // timestamp in ms
 	StartedAt int64 `json:"startedAt"`
@@ -139,14 +141,14 @@ type Summary struct {
 	Version int `json:"version"`
 }
 
-type Execution struct {
-	JobId       string `json:"jobId"`
-	ExecutionId int64  `json:"executionId"`
-	Priority    uint8  `json:"priority"`
-	Operation   string `json:"operation"`
+type Exec struct {
+	JobId     string `json:"jobId"`
+	ExecId    int64  `json:"execId"`
+	Priority  uint8  `json:"priority"`
+	Operation string `json:"operation"`
 
 	ForceCanceled bool              `json:"forceCanceled"`
-	Status        ExecutionStatus   `json:"status"`
+	Status        ExecStatus        `json:"status"`
 	StatusDetails map[string]string `json:"statusDetails"`
 	QueuedAt      int64             `json:"queuedAt"`
 	StartedAt     int64             `json:"startedAt"`
@@ -155,26 +157,26 @@ type Execution struct {
 	Version int `json:"version"`
 }
 
-type ExecutionSummary struct {
-	ExecutionId int64  `json:"executionId"`
-	Priority    uint8  `json:"priority"`
-	Operation   string `json:"operation"`
+type ExecSummary struct {
+	ExecId    int64  `json:"execId"`
+	Priority  uint8  `json:"priority"`
+	Operation string `json:"operation"`
 
-	RetryAttempt uint8           `json:"retryAttempt"`
-	Status       ExecutionStatus `json:"status"`
-	QueuedAt     int64           `json:"queuedAt"`
-	StartedAt    int64           `json:"startedAt"`
-	UpdatedAt    int64           `json:"updatedAt"`
+	RetryAttempt uint8      `json:"retryAttempt"`
+	Status       ExecStatus `json:"status"`
+	QueuedAt     int64      `json:"queuedAt"`
+	StartedAt    int64      `json:"startedAt"`
+	UpdatedAt    int64      `json:"updatedAt"`
 }
 
-type ExecutionSummaryForJob struct {
-	ThingId          string           `json:"thingId"`
-	ExecutionSummary ExecutionSummary `json:"executionSummary"`
+type ExecSummaryForJob struct {
+	ThingId     string      `json:"thingId"`
+	ExecSummary ExecSummary `json:"execSummary"`
 }
 
-type ExecutionSummaryForThing struct {
-	JobId            string           `json:"jobId"`
-	ExecutionSummary ExecutionSummary `json:"executionSummary"`
+type ExecSummaryForThing struct {
+	JobId       string      `json:"jobId"`
+	ExecSummary ExecSummary `json:"execSummary"`
 }
 
 // The following is used by http api request body
