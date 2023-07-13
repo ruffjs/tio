@@ -19,13 +19,14 @@ func MkHttpErr(msg string, httpCode, code int) HttpErr {
 }
 
 var (
-	ErrAuthentication  = MkHttpErr("authentication failed", 401, 401)
-	ErrAuthorization   = MkHttpErr("authorization failed", 403, 403)
-	ErrInvalidParams   = MkHttpErr("invalid parameters", 400, 400)
-	ErrNotFound        = MkHttpErr("entity not found", 404, 404)
-	ErrDuplicated      = MkHttpErr("entity already exists", 400, 400)
-	ErrConflict        = MkHttpErr("version conflict", 409, 409)
-	ErrPayloadTooLarge = MkHttpErr("payload too large", 413, 413)
+	ErrAuthentication         = MkHttpErr("authentication failed", 401, 401)
+	ErrAuthorization          = MkHttpErr("authorization failed", 403, 403)
+	ErrInvalidParams          = MkHttpErr("invalid parameters", 400, 400)
+	ErrNotFound               = MkHttpErr("entity not found", 404, 404)
+	ErrDuplicated             = MkHttpErr("entity already exists", 400, 400)
+	ErrVersionConflict        = MkHttpErr("version conflict", 409, 409)
+	ErrInvalidStateTransition = MkHttpErr("an invalid state transition was attempted", 409, 409)
+	ErrPayloadTooLarge        = MkHttpErr("payload too large", 413, 413)
 
 	ErrShadowFormat = MkHttpErr("invalid shadow format", 400, 400)
 
