@@ -156,6 +156,71 @@ func TestCreateHandler(t *testing.T) {
 	})
 }
 
+func TestCreateBatchHandler(t *testing.T) {
+	t.Parallel()
+	svr := newServer()
+	defer svr.Close()
+
+	vaildThing := api.CreateReq{"some-id-xxx", "password"}
+	noPasswordThing := api.CreateReq{ThingId: "noPasswordThing"}
+
+	doReq := func(r []api.CreateReq) (*http.Response, error) {
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/batch", svr.URL), toBuf(r))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := svr.Client().Do(req)
+		require.NoError(t, err)
+		return resp, err
+	}
+
+	decodeRes := func(resp *http.Response) (api.CreateBatchResp, error) {
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var resD rest.Resp[api.CreateBatchResp]
+		err := json.NewDecoder(resp.Body).Decode(&resD)
+		var rTh = resD.Data
+		return rTh, err
+	}
+
+	t.Run("should request ok", func(t *testing.T) {
+		ths := []api.CreateReq{vaildThing, noPasswordThing}
+		resp, err := doReq(ths)
+		require.NoError(t, err)
+
+		rTh, err := decodeRes(resp)
+		require.NoError(t, err)
+
+		require.Equal(t, resp.StatusCode, http.StatusOK)
+		require.Equal(t, len(rTh.ValidList), len(ths))
+	})
+
+	t.Run("wrong thingId should error", func(t *testing.T) {
+		ths := []api.CreateReq{}
+		cases := []struct {
+			id  string
+			pwd string
+		}{
+			{"sdf$", ""}, {"#sd/df", ""}, {"&sdf", ""},
+			// id or password length greater than 64
+			{strings.Repeat("x", 65), ""},
+			{strings.Repeat("x", 90), ""},
+			{"sds", strings.Repeat("p", 65)},
+			{"sds", strings.Repeat("p", 165)},
+			{strings.Repeat("x", 90), strings.Repeat("p", 165)},
+		}
+		for _, c := range cases {
+			th := createThReq
+			th.ThingId = c.id
+			th.Password = c.pwd
+			ths = append(ths, th)
+		}
+		resp, err := doReq(ths)
+		require.NoError(t, err)
+
+		rTh, err := decodeRes(resp)
+		require.NoError(t, err)
+		require.Equal(t, len(rTh.InvalidList), len(cases))
+	})
+}
+
 func TestQueryHandler(t *testing.T) {
 	t.Parallel()
 	svr := newServer()

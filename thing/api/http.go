@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,6 +24,17 @@ type CreateReq struct {
 	// AuthType string `json:"authType"`
 }
 
+type InvalidCreate struct {
+	ThingId   string `json:"thingId"`
+	ErrorCode string `json:"errorCode"`
+	ErrorMsg  string `json:"errorMsg"`
+}
+
+type CreateBatchResp struct {
+	InvalidList []InvalidCreate `json:"invalidList"`
+	ValidList   []thing.Thing   `json:"validList"`
+}
+
 func (req CreateReq) validate() error {
 	if len(req.ThingId) > 64 {
 		return errors.New("thingId length must be less than 64")
@@ -35,6 +47,14 @@ func (req CreateReq) validate() error {
 		return errors.New("thingId and password can't contain space character")
 	}
 	return nil
+}
+
+func (req CreateReq) batchValidate() error {
+	if len(req.ThingId) == 0 {
+		return errors.New("batch create thingId can't be empty")
+	}
+
+	return req.validate()
 }
 
 func Service(ctx context.Context, svc thing.Service) *restful.WebService {
@@ -64,6 +84,14 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(CreateReq{}).
 		Returns(200, "OK", rest.RespOK(thing.Thing{})))
+
+	ws.Route(ws.POST("/batch").
+		To(CreateBatchHandler(ctx, svc)).
+		Operation("create-batch").
+		Doc("create things").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads([]CreateReq{}).
+		Returns(200, "OK", rest.RespOK(CreateBatchResp{})))
 
 	ws.Route(ws.GET("/{id}").
 		To(GetHandler(ctx, svc)).
@@ -149,6 +177,44 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		} else {
 			_ = w.WriteEntity(rest.RespOK(rTh))
 		}
+	}
+}
+
+func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		var resp CreateBatchResp
+		var cReq []CreateReq
+		err := r.ReadEntity(&cReq)
+		if err != nil {
+			log.Infof("Error decoding body for create thing: %v", err)
+			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
+			return
+		}
+
+		for _, req := range cReq {
+			err = req.batchValidate()
+			if err != nil {
+				msg := fmt.Sprintf("Invalid request for create thing: %v", err)
+				log.Info(msg)
+				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "Illegal", msg})
+				continue
+			}
+
+			th := thing.Thing{
+				Id:        req.ThingId,
+				Enabled:   true,
+				AuthType:  thing.AuthTypePassword,
+				AuthValue: req.Password,
+			}
+			rTh, err := svc.Create(ctx, th)
+			if err != nil {
+				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "InternalFailureException", err.Error()})
+				continue
+			}
+			resp.ValidList = append(resp.ValidList, rTh)
+		}
+
+		_ = w.WriteEntity(rest.RespOK(resp))
 	}
 }
 
