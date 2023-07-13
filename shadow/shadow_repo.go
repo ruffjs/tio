@@ -98,17 +98,10 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		for _, c := range s {
-			en := ConnStatusEntity{
-				Connected:        c.Connected,
-				ConnectedAt:      c.ConnectedAt,
-				DisconnectedAt:   c.DisconnectedAt,
-				DisconnectReason: c.DisconnectReason,
-				RemoteAddr:       c.RemoteAddr,
-			}
 			ex := tx.Model(&ConnStatusEntity{ThingId: c.ClientId})
-			ts := en.ConnectedAt
-			if en.DisconnectedAt != nil && (en.ConnectedAt == nil || en.ConnectedAt.Before(*en.DisconnectedAt)) {
-				ts = en.DisconnectedAt
+			ts := c.ConnectedAt
+			if c.DisconnectedAt != nil && (c.ConnectedAt == nil || c.ConnectedAt.Before(*c.DisconnectedAt)) {
+				ts = c.DisconnectedAt
 			}
 			// This update cannot cover newer data than it.
 			if ts != nil {
@@ -117,7 +110,22 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error 
 					ts, ts,
 				)
 			}
-			if err := ex.Updates(&en).Error; err != nil {
+			var up map[string]any
+			if c.Connected {
+				up = map[string]any{
+					"connected":    1,
+					"connected_at": c.ConnectedAt,
+					"remote_addr":  c.RemoteAddr,
+				}
+			} else {
+				up = map[string]any{
+					"connected":         0,
+					"disconnected_at":   c.DisconnectedAt,
+					"disconnect_reason": c.DisconnectReason,
+					"remote_addr":       c.RemoteAddr,
+				}
+			}
+			if err := ex.Updates(up).Error; err != nil {
 				return err
 			}
 		}
