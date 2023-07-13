@@ -191,6 +191,12 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 			return
 		}
 
+		if len(cReq) > 1000 {
+			msg := "In a single call, you can create a maximum of 1000 things"
+			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: msg})
+			return
+		}
+
 		for _, req := range cReq {
 			err = req.batchValidate()
 			if err != nil {
