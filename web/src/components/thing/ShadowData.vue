@@ -269,10 +269,14 @@ onSomethingStatusChange(({ thingId, type, about }) => {
           position: relative;
           height: auto;
           max-height: 450px;
-          .jse-tree-mode {
+          border-radius: 0;
+          .jse-tree-mode,
+          .jse-text-mode {
             border: none;
+            border-radius: 0;
             .jse-contents {
               border: none;
+              border-radius: 0;
             }
           }
         }

@@ -11,7 +11,9 @@
             }"
           >
             <el-icon><SwitchButton /></el-icon>
-            <span>{{ c.name }}</span>
+            <el-tooltip effect="dark" :content="c.name" placement="top-start">
+              <span>{{ c.name }}</span></el-tooltip
+            >
           </div>
         </template>
         <div class="thing-mqtt-innerbtns">
@@ -307,6 +309,16 @@ onSomethingStatusChange(({ thingId, type, about }) => {
 
 <style lang="scss">
 .thing-mqtt-clients {
+  .el-collapse-item__header {
+    .el-collapse-item__arrow {
+      margin: 0;
+    }
+    &.is-active {
+      .el-collapse-item__arrow {
+        color: var(--el-color-success);
+      }
+    }
+  }
   .el-collapse-item__content {
     padding-bottom: 5px;
   }

@@ -78,7 +78,7 @@ export default {
 <script setup>
 import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute } from "vue-router";
-import { suggestions } from "@/configs/list";
+import { suggestions } from "@/configs/query";
 import { queryShadows } from "@/apis";
 import { TSCE_MQTO, TSCE_MQTT } from "@/utils/event";
 import ThingsList from "@/components/list/ThingsList.vue";
@@ -436,3 +436,4 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
   z-index: 9999 !important;
 }
 </style>
+@/configs/query

@@ -36,6 +36,16 @@
         </template>
       </el-table-column>
       <el-table-column
+        prop="connectedAt"
+        label="Last Connected Time"
+        align="center"
+        min-width="180"
+      >
+        <template #default="scope">{{
+          formatTime(scope.row.connectedAt)
+        }}</template></el-table-column
+      >
+      <el-table-column
         prop="remoteAddr"
         label="Remote Address"
         align="center"
@@ -98,7 +108,7 @@ import useMqtt from "@/reactives/useMqtt";
 import { notifyDone } from "@/utils/layout";
 
 const formatTime = (time) => {
-  return dayjs(time).format("YYYY-MM-DD HH:mm:ss");
+  return time ? dayjs(time).format("YYYY-MM-DD HH:mm:ss") : "-";
 };
 
 const isSolved = (thing) => {
