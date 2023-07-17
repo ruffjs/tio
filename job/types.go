@@ -85,6 +85,63 @@ type TTaskSummary struct {
 	Version int `json:"version"`
 }
 
+// The following types are the concrete types for the interaction between Thing and Job, witch contain types above.
+
+type TTasksNotify struct {
+	Tasks     []TTaskSummary `json:"tasks"`
+	Timestamp int64          `json:"timestamp"`
+}
+
+type TTaskNotifyNext struct {
+	Task      TTask `json:"task"`
+	Timestamp int64 `json:"timestamp"`
+}
+
+type TPendingTasksResp struct {
+	InProgressTasks []TTaskSummary `json:"inProgressTasks"`
+	QueuedTasks     []TTaskSummary `json:"queuedTasks"`
+	Timestamp       int64          `json:"timestamp"`
+	ClientToken     string         `json:"clientToken"`
+}
+
+type TStartNextPendingTaskReq struct {
+	StatusDetails StatusDetails `json:"statusDetails"`
+	ClientToken   string        `json:"clientToken"`
+}
+
+type TGetTaskReq struct {
+	JobId         string `json:"jobId"`
+	ThingId       string `json:"thingId"`
+	TaskId        int64  `json:"taskId"`
+	IncludeJobDoc bool   `json:"includeJobDoc"`
+	ClientToken   string `json:"clientToken"`
+}
+
+type TGetTaskResp struct {
+	Task        TTask  `json:"task"`
+	Timestamp   int64  `json:"timestamp"`
+	ClientToken string `json:"clientToken"`
+}
+
+type TUpdateTaskReq struct {
+	TaskId        int64         `json:"taskId"`
+	Status        TaskStatus    `json:"status"`
+	StatusDetails StatusDetails `json:"statusDetails"`
+	Progress      int           `json:"progress"` // 0 - 100
+	Version       int           `json:"version"`
+
+	IncludeJobDoc    bool   `json:"includeJobDoc"`
+	IncludeTaskState bool   `json:"includeTaskState"`
+	ClientToken      string `json:"clientToken"`
+}
+
+type TUpdateTaskResp struct {
+	TaskState   TTaskState `json:"taskState"`
+	JobDoc      string     `json:"jobDoc"`
+	Timestamp   int64      `json:"timestamp"`
+	ClientToken string     `json:"clientToken"`
+}
+
 // The following data types are used by management and control applications to communicate with to Jobs.
 
 type Status string
@@ -259,4 +316,8 @@ type CancelParameters struct {
 type CancelTaskParameters struct {
 	Version       int           `json:"version"`       // optional, expected version
 	StatusDetails StatusDetails `json:"statusDetails"` // optional
+}
+
+type IdResp struct {
+	JobId string `json:"jobId"`
 }
