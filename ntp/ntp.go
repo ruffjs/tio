@@ -2,7 +2,14 @@ package ntp
 
 import (
 	"context"
+	"ruff.io/tio/connector"
+	"ruff.io/tio/shadow"
 	"strings"
+	"time"
+
+	"encoding/json"
+
+	"ruff.io/tio/pkg/log"
 )
 
 // Client publish a message `NtpReq` to server via topic `TopicReq`
@@ -14,6 +21,8 @@ import (
 // timeSpendForReq = client ==> server
 // timeSpendForResp = server ==> client
 // When timeSpendForReq and timeSpendForResp are close, the calculation time is very accurate.
+
+const DefaultQos = 1
 
 const (
 	TopicThingsPrefix = "$iothub/things/"
@@ -43,4 +52,46 @@ func TopicResp(thingId string) string {
 
 func TopicReq(thingId string) string {
 	return strings.Replace(TopicReqTmpl, "{thingId}", thingId, -1)
+}
+
+func NewNtpHandler(cl connector.PubSub) Handler {
+	return &ntpHandler{cl}
+}
+
+type ntpHandler struct {
+	client connector.PubSub
+}
+
+func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
+	topic := TopicReqAll
+	err := h.client.Subscribe(ctx, topic, DefaultQos, func(msg connector.Message) {
+		go func() {
+			serverRecvTime := time.Now().UnixMilli()
+			thingId, err := shadow.GetThingIdFromTopic(msg.Topic())
+			if err != nil {
+				log.Errorf("Got wrong topic msg topic for ntp request: %s, topic=%q", err, msg.Topic())
+				return
+			}
+			var r Req
+			err = json.Unmarshal(msg.Payload(), &r)
+			if err != nil {
+				log.Errorf("Invalid message payload for ntp request: %s, topic=%q", msg.Payload(), msg.Topic())
+				return
+			}
+			serverSendTime := time.Now().UnixMilli()
+			res := Resp{
+				ClientSendTime: r.ClientSendTime,
+				ServerRecvTime: serverRecvTime,
+				ServerSendTime: serverSendTime,
+			}
+			j, err := json.Marshal(res)
+			if err != nil {
+				log.Errorf("Marshal ntp response %#v error: %s, topic=%q", res, err, msg.Topic())
+			}
+			if err := h.client.Publish(TopicResp(thingId), 0, false, j); err != nil {
+				log.Errorf("Ntp handler publish result error: %v, topic=%q", err, msg.Topic())
+			}
+		}()
+	})
+	return err
 }

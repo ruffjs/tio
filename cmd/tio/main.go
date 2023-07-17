@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"ruff.io/tio/ntp"
 	"syscall"
 	"time"
 
@@ -82,6 +83,10 @@ func main() {
 	mqttClient := client.NewClient(cfg.Connector.MqttClient)
 	connector := mq.InitConnector(cfg.Connector, mqttClient)
 
+	methodHandler := shadow.NewMethodHandler(connector)
+	shadowStateHandler := shadow.NewShadowHandler(connector)
+	ntpHandler := ntp.NewNtpHandler(connector)
+
 	// services
 	shadowSvc := shadowWire.InitSvc(dbConn, connector)
 	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
@@ -99,13 +104,14 @@ func main() {
 	if err := shadowSvc.SyncConnStatus(ctx); err != nil {
 		log.Fatalf("Sync Conn Status error: %v", err)
 	}
-	if err := connector.InitMethodHandler(ctx); err != nil {
-		log.Fatalf("Connector init method handler error: %v", err)
+	if err := methodHandler.InitMethodHandler(ctx); err != nil {
+		log.Fatalf("Init method handler error: %v", err)
 	}
-	if err := connector.InitNtpHandler(ctx); err != nil {
-		log.Fatalf("Connector init ntp handler error: %v", err)
+	if err := ntpHandler.InitNtpHandler(ctx); err != nil {
+		log.Fatalf("Init ntp handler error: %v", err)
 	}
-	if err := shadow.Link(ctx, connector, shadowSvc); err != nil {
+
+	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
 	if err := mqttClient.Connect(ctx); err != nil {
@@ -120,7 +126,7 @@ func main() {
 	thingWs := thingApi.Service(ctx, thingSvc).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
-	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, connector)
+	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
 
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
 

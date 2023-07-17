@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"ruff.io/tio/connector"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,7 +21,6 @@ import (
 	"ruff.io/tio/connector/mqtt/emqx"
 	mockmq "ruff.io/tio/connector/mqtt/mock"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
 )
 
 const (
@@ -75,7 +75,7 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 
 	latestPub := struct {
 		topic string
-		event shadow.Event
+		event connector.Event
 	}{}
 	// mock mqtt client
 	pubCallback := func(topic string, qos byte, retained bool, payload interface{}) {
@@ -104,14 +104,14 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 		thingId string
 		typ     string
 	}{
-		{"ccc1", shadow.EventConnected},
-		{"ccc2", shadow.EventDisconnected},
-		{"ccc3", shadow.EventConnected},
+		{"ccc1", connector.EventConnected},
+		{"ccc2", connector.EventDisconnected},
+		{"ccc3", connector.EventConnected},
 	}
 	for _, c := range cases {
 		log.Debugf("====== thing %v ", c.thingId)
 		var pubData []byte
-		if c.typ == shadow.EventConnected {
+		if c.typ == connector.EventConnected {
 			pubData = genMqttConnectedMsg(c.thingId)
 			mockMqtt.Publish(emqxTopicConn(c.thingId), mq.DefaultQos, false, pubData)
 		} else {
@@ -119,7 +119,7 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 			mockMqtt.Publish(emqxTopicDisc(c.thingId), mq.DefaultQos, false, pubData)
 		}
 		time.Sleep(time.Millisecond * 5)
-		topic := shadow.TopicPresence(c.thingId)
+		topic := connector.TopicPresence(c.thingId)
 		require.Equal(t, topic, latestPub.topic, "presence topic")
 		require.Equal(t, c.typ, latestPub.event.EventType, "presence type")
 		d := time.Now().UnixMilli() - latestPub.event.Timestamp
@@ -137,7 +137,7 @@ func mockMqClient(clientId string, pc mockmq.PubCallback, sc mockmq.SubCallback)
 	return mqCl
 }
 
-func setup(mqCl client.Client) (shadow.Connectivity, *httptest.Server) {
+func setup(mqCl client.Client) (connector.Connectivity, *httptest.Server) {
 	hSvr := mockEmqxApiSvr()
 	a := emqx.NewEmqxAdapter(config.EmqxAdapterConfig{
 		ApiPrefix:   hSvr.URL, // "http://localhost:18083",

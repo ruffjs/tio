@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"ruff.io/tio/connector"
 	"sync"
 	"time"
 
@@ -67,7 +68,7 @@ type Repo interface {
 	Get(ctx context.Context, thingId string) (*Shadow, error)
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[Entity], error)
 
-	UpdateConnStatus(ctx context.Context, s []ClientInfo) error
+	UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error
 	UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error
 }
 
@@ -75,7 +76,7 @@ var _ Service = (*shadowSvc)(nil)
 
 type shadowSvc struct {
 	repo                Repo
-	connectorChecker    ConnectChecker
+	connectorChecker    connector.ConnectChecker
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
 	acceptedSubscribers []StateAcceptedSubscribe
@@ -85,7 +86,7 @@ type shadowSvc struct {
 var svcSingleton *shadowSvc
 var svcOnce sync.Once
 
-func NewSvc(r Repo, a ConnectChecker) Service {
+func NewSvc(r Repo, a connector.ConnectChecker) Service {
 	svcOnce.Do(func() {
 		u := make([]StateUpdateSubscribe, 0)
 		d := make([]StateDeltaSubscribe, 0)
@@ -151,7 +152,7 @@ func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
 			select {
 			case e := <-connEventCh:
 				c := toClientInfo(e)
-				err := s.repo.UpdateConnStatus(ctx, []ClientInfo{c})
+				err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{c})
 				if err != nil {
 					log.Errorf("update conn for %s error: %v", c.ClientId, err)
 				} else {
@@ -461,13 +462,13 @@ func DeepCopyMap(src map[string]any) map[string]any {
 	return tgt
 }
 
-func toClientInfo(e Event) ClientInfo {
+func toClientInfo(e connector.Event) connector.ClientInfo {
 	conn := false
-	if e.EventType == EventConnected {
+	if e.EventType == connector.EventConnected {
 		conn = true
 	}
 	t := time.UnixMilli(e.Timestamp)
-	c := ClientInfo{
+	c := connector.ClientInfo{
 		ClientId:         e.ThingId,
 		Connected:        conn,
 		DisconnectReason: e.DisconnectReason,

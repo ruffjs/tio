@@ -9,6 +9,7 @@ package wire
 import (
 	"context"
 	"gorm.io/gorm"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/uuid"
 	"ruff.io/tio/shadow"
 	"ruff.io/tio/thing"
@@ -16,7 +17,7 @@ import (
 
 // Injectors from wire.go:
 
-func InitSvc(ctx context.Context, dbConn *gorm.DB, shadowSvc shadow.Service, connector shadow.Connectivity) thing.Service {
+func InitSvc(ctx context.Context, dbConn *gorm.DB, shadowSvc shadow.Service, connector connector.Connectivity) thing.Service {
 	repo := thing.NewThingRepo(dbConn)
 	idProvider := uuid.New()
 	service := thing.NewSvc(repo, idProvider, shadowSvc, connector)

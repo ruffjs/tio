@@ -3,6 +3,7 @@ package emqx
 import (
 	"context"
 	"encoding/json"
+	"ruff.io/tio/connector"
 	"sync"
 	"time"
 
@@ -55,9 +56,9 @@ func syncPresence(ctx context.Context, mqCl mq.Client,
 }
 
 func receivePresence(ctx context.Context, mqCl mq.Client) {
-	topic := shadow.TopicPresenceAll
-	err := mqCl.Subscribe(ctx, shadow.TopicPresenceAll, 1, func(c mqtt.Client, m mqtt.Message) {
-		var e shadow.Event
+	topic := connector.TopicPresenceAll
+	err := mqCl.Subscribe(ctx, connector.TopicPresenceAll, 1, func(c mqtt.Client, m mqtt.Message) {
+		var e connector.Event
 		// log.Debugf("Got presence event: %s %s", m.Topic(), m.Payload())
 		err := json.Unmarshal(m.Payload(), &e)
 		if err != nil {
@@ -77,14 +78,14 @@ func receivePresence(ctx context.Context, mqCl mq.Client) {
 	}
 }
 
-func (s *presenceSyncImpl) updateLocalPresence(id string, e shadow.Event) {
+func (s *presenceSyncImpl) updateLocalPresence(id string, e connector.Event) {
 	s.RLock()
 	defer s.RUnlock()
 	if old, ok := s.presenceEvents[id]; ok {
 		if e.Timestamp < old.connectedAt || e.Timestamp < old.disconnectedAt {
 			return
 		}
-		old.connected = e.EventType == shadow.EventConnected
+		old.connected = e.EventType == connector.EventConnected
 		if old.connected {
 			old.connectedAt = e.Timestamp
 		} else {
@@ -92,7 +93,7 @@ func (s *presenceSyncImpl) updateLocalPresence(id string, e shadow.Event) {
 		}
 	} else {
 		st := &clientState{
-			connected: e.EventType == shadow.EventConnected,
+			connected: e.EventType == connector.EventConnected,
 		}
 		if st.connected {
 			st.connectedAt = e.Timestamp
@@ -109,11 +110,11 @@ func (s *presenceSyncImpl) diffAndPub(
 	getClient func(id string) (client, bool),
 	mqCl mq.Client) {
 	for thingId, c := range s.presenceEvents {
-		var e shadow.Event
+		var e connector.Event
 		if c.connected {
-			e = shadow.Event{EventType: shadow.EventConnected, Timestamp: c.connectedAt}
+			e = connector.Event{EventType: connector.EventConnected, Timestamp: c.connectedAt}
 		} else {
-			e = shadow.Event{EventType: shadow.EventDisconnected, Timestamp: c.disconnectedAt}
+			e = connector.Event{EventType: connector.EventDisconnected, Timestamp: c.disconnectedAt}
 		}
 		s.diffAndPubForThing(ctx, startTime, thingId, e, getClient, mqCl)
 	}
@@ -123,40 +124,40 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 	ctx context.Context,
 	startTime time.Time,
 	thingId string,
-	retainedEvent shadow.Event,
+	retainedEvent connector.Event,
 	getClient func(id string) (client, bool),
 	mqCl mq.Client,
 ) {
 	if n, ok := getClient(thingId); ok {
 		// time and connect state diff
 		if n.info.Connected && n.info.ConnectedAt.UnixMilli() > retainedEvent.Timestamp {
-			evt := shadow.Event{
-				EventType:  shadow.EventConnected,
+			evt := connector.Event{
+				EventType:  connector.EventConnected,
 				Timestamp:  n.info.ConnectedAt.UnixMilli(),
 				ThingId:    n.info.Username,
 				RemoteAddr: n.info.IpAddress,
 			}
-			notifyEvent(ctx, mqCl, thingId, shadow.TopicPresence(thingId), evt)
+			notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
 			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
 		} else if !n.info.Connected && n.info.DisconnectedAt.UnixMilli() > retainedEvent.Timestamp {
-			evt := shadow.Event{
-				EventType:  shadow.EventDisconnected,
+			evt := connector.Event{
+				EventType:  connector.EventDisconnected,
 				Timestamp:  n.info.DisconnectedAt.UnixMilli(),
 				ThingId:    n.info.Username,
 				RemoteAddr: n.info.IpAddress,
 			}
-			notifyEvent(ctx, mqCl, thingId, shadow.TopicPresence(thingId), evt)
+			notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
 			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
 		}
 	} else {
-		if retainedEvent.EventType == shadow.EventDisconnected {
+		if retainedEvent.EventType == connector.EventDisconnected {
 			// ignore —— cause the last retained presence message is disconnected
 			return
 		}
 
 		// no client connected now means that the client has been disconnected at some time before
-		evt := shadow.Event{
-			EventType:        shadow.EventDisconnected,
+		evt := connector.Event{
+			EventType:        connector.EventDisconnected,
 			Timestamp:        startTime.UnixMilli(),
 			ThingId:          thingId,
 			DisconnectReason: "disconnected during tio downtime",
@@ -164,7 +165,7 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 		log.Debugf(
 			"Sync presence: to publish thing %q disconnected: %#v, it is disconnected when server is down",
 			thingId, evt)
-		notifyEvent(ctx, mqCl, thingId, shadow.TopicPresence(thingId), evt)
+		notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
 	}
 }
 
@@ -182,24 +183,24 @@ func (s *presenceSyncImpl) pubNewEvents(
 			}
 			// get it again because it may have been updated.
 			if n, ok := getClient(c.info.ClientId); ok {
-				var evt shadow.Event
+				var evt connector.Event
 				if n.info.Connected {
-					evt = shadow.Event{
-						EventType:  shadow.EventConnected,
+					evt = connector.Event{
+						EventType:  connector.EventConnected,
 						Timestamp:  n.info.ConnectedAt.UnixMilli(),
 						ThingId:    n.info.Username,
 						RemoteAddr: n.info.IpAddress,
 					}
 				} else {
-					evt = shadow.Event{
-						EventType:  shadow.EventDisconnected,
+					evt = connector.Event{
+						EventType:  connector.EventDisconnected,
 						Timestamp:  n.info.DisconnectedAt.UnixMilli(),
 						ThingId:    n.info.Username,
 						RemoteAddr: n.info.IpAddress,
 					}
 				}
 				log.Debugf("Sync presence: to publish thing %q new event: %#v", c.info.ClientId, evt)
-				notifyEvent(ctx, mqCl, c.info.ClientId, shadow.TopicPresence(c.info.ClientId), evt)
+				notifyEvent(ctx, mqCl, c.info.ClientId, connector.TopicPresence(c.info.ClientId), evt)
 			}
 		}
 	}

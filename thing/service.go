@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"ruff.io/tio/connector"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -34,12 +35,12 @@ type thingSvc struct {
 	repo       Repo
 	idProvider tio.IdProvider
 	shadowSvc  shadow.Service
-	connector  shadow.Connectivity
+	connector  connector.Connectivity
 }
 
 var _ Service = (*thingSvc)(nil)
 
-func NewSvc(repo Repo, idProvider tio.IdProvider, ss shadow.Service, connector shadow.Connectivity) Service {
+func NewSvc(repo Repo, idProvider tio.IdProvider, ss shadow.Service, connector connector.Connectivity) Service {
 	return &thingSvc{repo: repo, idProvider: idProvider, shadowSvc: ss, connector: connector}
 }
 

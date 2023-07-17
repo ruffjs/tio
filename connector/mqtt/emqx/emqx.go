@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"ruff.io/tio/connector"
 	"sync"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
 )
 
 const (
@@ -93,16 +93,16 @@ type emqxAdapter struct {
 	mqttClient       mq.Client
 	apiToken         string
 	clients          sync.Map // map[string]client
-	presenceEventBus *eventbus.EventBus[shadow.Event]
+	presenceEventBus *eventbus.EventBus[connector.Event]
 }
 
-var _ shadow.Connectivity = (*emqxAdapter)(nil)
+var _ connector.Connectivity = (*emqxAdapter)(nil)
 
-func NewEmqxAdapter(cfg config.EmqxAdapterConfig, mqCl mq.Client) shadow.Connectivity {
+func NewEmqxAdapter(cfg config.EmqxAdapterConfig, mqCl mq.Client) connector.Connectivity {
 	return &emqxAdapter{
 		config:           cfg,
 		mqttClient:       mqCl,
-		presenceEventBus: eventbus.NewEventBus[shadow.Event](),
+		presenceEventBus: eventbus.NewEventBus[connector.Event](),
 	}
 }
 
@@ -133,23 +133,23 @@ func (e *emqxAdapter) IsConnected(thingId string) (bool, error) {
 	return info.Connected, nil
 }
 
-func (e *emqxAdapter) OnConnect() <-chan shadow.Event {
+func (e *emqxAdapter) OnConnect() <-chan connector.Event {
 	return e.presenceEventBus.Subscribe(presenceEventName)
 }
 
-func (e *emqxAdapter) ClientInfo(thingId string) (shadow.ClientInfo, error) {
+func (e *emqxAdapter) ClientInfo(thingId string) (connector.ClientInfo, error) {
 	if cl, ok := e.clients.Load(thingId); ok {
 		return toClientInfo(cl.(client).info), nil
 	}
 	info, err := e.loadClientInfo(thingId)
 	if err != nil {
-		return shadow.ClientInfo{}, err
+		return connector.ClientInfo{}, err
 	}
 	return toClientInfo(*info), nil
 }
 
-func (e *emqxAdapter) AllClientInfo() ([]shadow.ClientInfo, error) {
-	clients := make([]shadow.ClientInfo, 0)
+func (e *emqxAdapter) AllClientInfo() ([]connector.ClientInfo, error) {
+	clients := make([]connector.ClientInfo, 0)
 	e.clients.Range(func(key, value any) bool {
 		i := toClientInfo(value.(client).info)
 		clients = append(clients, i)
@@ -158,8 +158,8 @@ func (e *emqxAdapter) AllClientInfo() ([]shadow.ClientInfo, error) {
 	return clients, nil
 }
 
-func toClientInfo(c ClientInfo) shadow.ClientInfo {
-	return shadow.ClientInfo{
+func toClientInfo(c ClientInfo) connector.ClientInfo {
+	return connector.ClientInfo{
 		ClientId:         c.ClientId,
 		Username:         c.Username,
 		Connected:        c.Connected,
@@ -179,7 +179,7 @@ func (e *emqxAdapter) Remove(thingId string) error {
 	go func() {
 		// wait for thing connection closed
 		time.Sleep(time.Second)
-		e.mqttClient.Publish(shadow.TopicPresence(thingId), 0, true, nil)
+		e.mqttClient.Publish(connector.TopicPresence(thingId), 0, true, nil)
 	}()
 	return nil
 }
@@ -264,7 +264,7 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 			})
 			evt := toConnectEvent(d)
 			e.presenceEventBus.Publish(presenceEventName, evt)
-			notifyEvent(ctx, e.mqttClient, d.ClientId, shadow.TopicPresence(d.ClientId), evt)
+			notifyEvent(ctx, e.mqttClient, d.ClientId, connector.TopicPresence(d.ClientId), evt)
 		}()
 	})
 	if err != nil {
@@ -296,7 +296,7 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 			})
 			evt := toDisconnectEvent(d)
 			e.presenceEventBus.Publish(presenceEventName, evt)
-			notifyEvent(ctx, e.mqttClient, d.ClientId, shadow.TopicPresence(d.ClientId), evt)
+			notifyEvent(ctx, e.mqttClient, d.ClientId, connector.TopicPresence(d.ClientId), evt)
 		}()
 	})
 	if err != nil {
@@ -305,7 +305,7 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 	return nil
 }
 
-func notifyEvent(ctx context.Context, mqCl mq.Client, clientId, topic string, evt shadow.Event) {
+func notifyEvent(ctx context.Context, mqCl mq.Client, clientId, topic string, evt connector.Event) {
 	if mq.IsSysClient(clientId) {
 		log.Debugf("Ignored system mqtt client event %q", clientId)
 		return
@@ -334,9 +334,9 @@ func genAuthToken(user, password string) string {
 	return "Basic " + tk
 }
 
-func toConnectEvent(d MqttConnectedEvent) shadow.Event {
-	evt := shadow.Event{
-		EventType:  shadow.EventConnected,
+func toConnectEvent(d MqttConnectedEvent) connector.Event {
+	evt := connector.Event{
+		EventType:  connector.EventConnected,
 		Timestamp:  d.ConnectedAt,
 		ThingId:    d.Username,
 		RemoteAddr: d.IpAddress,
@@ -344,9 +344,9 @@ func toConnectEvent(d MqttConnectedEvent) shadow.Event {
 	return evt
 }
 
-func toDisconnectEvent(d MqttDisconnectedEvent) shadow.Event {
-	evt := shadow.Event{
-		EventType:        shadow.EventDisconnected,
+func toDisconnectEvent(d MqttDisconnectedEvent) connector.Event {
+	evt := connector.Event{
+		EventType:        connector.EventDisconnected,
 		Timestamp:        d.DisconnectedAt,
 		ThingId:          d.Username,
 		RemoteAddr:       d.IpAddress,

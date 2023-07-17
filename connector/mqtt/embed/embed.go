@@ -4,18 +4,18 @@ package embed
 import (
 	"context"
 	"fmt"
+	"ruff.io/tio/connector"
 	"time"
 
 	"github.com/pkg/errors"
-	"ruff.io/tio/shadow"
 )
 
 type embedMqttAdapter struct {
 }
 
-var _ shadow.Connectivity = (*embedMqttAdapter)(nil)
+var _ connector.Connectivity = (*embedMqttAdapter)(nil)
 
-func NewEmbedAdapter() shadow.Connectivity {
+func NewEmbedAdapter() connector.Connectivity {
 	return &embedMqttAdapter{}
 }
 
@@ -26,15 +26,15 @@ func (m *embedMqttAdapter) IsConnected(thingId string) (bool, error) {
 	return BrokerInstance().IsConnected(thingId), nil
 }
 
-func (m *embedMqttAdapter) OnConnect() <-chan shadow.Event {
+func (m *embedMqttAdapter) OnConnect() <-chan connector.Event {
 	return BrokerInstance().OnConnect()
 }
 
-func (m *embedMqttAdapter) ClientInfo(thingId string) (shadow.ClientInfo, error) {
+func (m *embedMqttAdapter) ClientInfo(thingId string) (connector.ClientInfo, error) {
 	return BrokerInstance().ClientInfo(thingId)
 }
 
-func (m *embedMqttAdapter) AllClientInfo() ([]shadow.ClientInfo, error) {
+func (m *embedMqttAdapter) AllClientInfo() ([]connector.ClientInfo, error) {
 	return BrokerInstance().AllClientInfo()
 }
 
@@ -55,7 +55,7 @@ func (m *embedMqttAdapter) Remove(thingId string) error {
 	go func() {
 		// wait for thing connection closed
 		time.Sleep(time.Second)
-		_ = BrokerInstance().Publish(shadow.TopicPresence(thingId), nil, true, 0)
+		_ = BrokerInstance().Publish(connector.TopicPresence(thingId), nil, true, 0)
 	}()
 	return nil
 }

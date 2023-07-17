@@ -2,17 +2,17 @@ package mock
 
 import (
 	"context"
+	"ruff.io/tio/connector"
 
 	"github.com/stretchr/testify/mock"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
 )
 
 type Connectivity struct {
 	mock.Mock
 }
 
-func (g *Connectivity) AllClientInfo() ([]shadow.ClientInfo, error) {
+func (g *Connectivity) AllClientInfo() ([]connector.ClientInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -21,7 +21,7 @@ func NewConnectivity() *Connectivity {
 	return &Connectivity{}
 }
 
-func (g *Connectivity) OnConnect() <-chan shadow.Event {
+func (g *Connectivity) OnConnect() <-chan connector.Event {
 	panic("implement me")
 }
 
@@ -33,8 +33,8 @@ func (g *Connectivity) IsConnected(thingId string) (bool, error) {
 	return true, nil
 }
 
-func (g *Connectivity) ClientInfo(thingId string) (shadow.ClientInfo, error) {
-	return shadow.ClientInfo{ClientId: thingId}, nil
+func (g *Connectivity) ClientInfo(thingId string) (connector.ClientInfo, error) {
+	return connector.ClientInfo{ClientId: thingId}, nil
 }
 
 func (g *Connectivity) Close(thingId string) error {
@@ -62,4 +62,4 @@ func (g *Connectivity) Remove(thingId string) error {
 	}
 }
 
-var _ shadow.Connectivity = (*Connectivity)(nil)
+var _ connector.Connectivity = (*Connectivity)(nil)

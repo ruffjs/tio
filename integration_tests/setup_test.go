@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	connector2 "ruff.io/tio/connector"
 	"testing"
 
 	"ruff.io/tio/connector/mqtt/embed"
@@ -37,7 +38,7 @@ var (
 
 	thingSvc  thing.Service
 	shadowSvc shadow.Service
-	connector shadow.Connector
+	connector connector2.Connector
 )
 
 func TestMain(m *testing.M) {
@@ -62,6 +63,9 @@ func setup() {
 
 	connector = mq.InitConnector(cfg.Connector, mqttClient)
 
+	methodHandler := shadow.NewMethodHandler(connector)
+	shadowStateHandler := shadow.NewShadowHandler(connector)
+
 	shadowSvc = shadowWire.InitSvc(dbConn, connector)
 	thingSvc = thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
 
@@ -73,17 +77,17 @@ func setup() {
 	if err := mqttClient.Connect(ctx); err != nil {
 		log.Fatalf("Mqtt client start error: %v", err)
 	}
-	if err := connector.InitMethodHandler(ctx); err != nil {
-		log.Fatalf("Connector init method handler error: %v", err)
+	if err := methodHandler.InitMethodHandler(ctx); err != nil {
+		log.Fatalf("Init method handler error: %v", err)
 	}
-	if err := shadow.Link(ctx, connector, shadowSvc); err != nil {
+	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
 
 	container := restful.NewContainer()
 	container.ServeMux = http.NewServeMux()
 	thingWs := thingApi.Service(context.Background(), thingSvc)
-	shadowApi.Service(context.Background(), thingWs, shadowSvc, thingSvc, connector)
+	shadowApi.Service(context.Background(), thingWs, shadowSvc, thingSvc, methodHandler)
 	container.Add(thingWs)
 	container.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 

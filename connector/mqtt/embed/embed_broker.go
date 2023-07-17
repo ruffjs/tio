@@ -8,15 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"ruff.io/tio/connector"
 	"sync"
-
-	"ruff.io/tio/config"
-	"ruff.io/tio/shadow"
 
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/listeners"
 	"github.com/mochi-co/mqtt/v2/system"
 	"github.com/pkg/errors"
+	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
 	"ruff.io/tio/pkg/log"
 )
@@ -43,9 +42,9 @@ var broker *embedBroker
 type Broker interface {
 	Publish(topic string, payload []byte, retain bool, qos byte) error
 	IsConnected(clientId string) bool
-	OnConnect() <-chan shadow.Event
-	ClientInfo(clientId string) (shadow.ClientInfo, error)
-	AllClientInfo() ([]shadow.ClientInfo, error)
+	OnConnect() <-chan connector.Event
+	ClientInfo(clientId string) (connector.ClientInfo, error)
+	AllClientInfo() ([]connector.ClientInfo, error)
 	Close() error
 	CloseClient(clientId string) bool
 	StatsInfo() *system.Info
@@ -58,7 +57,7 @@ func BrokerInstance() Broker {
 func InitBroker(c MochiConfig) Broker {
 	newOnce.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		evtBus := eventbus.NewEventBus[shadow.Event]()
+		evtBus := eventbus.NewEventBus[connector.Event]()
 		s := initBroker(ctx, c, evtBus)
 		broker = &embedBroker{
 			impl:             s,
@@ -72,7 +71,7 @@ func InitBroker(c MochiConfig) Broker {
 type embedBroker struct {
 	impl             *mqtt.Server
 	clients          sync.Map // map[string]shadow.ClientInfo
-	presenceEventBus *eventbus.EventBus[shadow.Event]
+	presenceEventBus *eventbus.EventBus[connector.Event]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -100,28 +99,28 @@ func (e *embedBroker) IsConnected(clientId string) bool {
 	return false
 }
 
-func (e *embedBroker) OnConnect() <-chan shadow.Event {
+func (e *embedBroker) OnConnect() <-chan connector.Event {
 	return e.presenceEventBus.Subscribe(presenceEventName)
 }
 
-func (e *embedBroker) ClientInfo(clientId string) (shadow.ClientInfo, error) {
+func (e *embedBroker) ClientInfo(clientId string) (connector.ClientInfo, error) {
 	if c, ok := e.clients.Load(clientId); ok {
-		return c.(shadow.ClientInfo), nil
+		return c.(connector.ClientInfo), nil
 	}
-	return shadow.ClientInfo{ClientId: clientId}, fmt.Errorf("not found")
+	return connector.ClientInfo{ClientId: clientId}, fmt.Errorf("not found")
 }
 
-func (e *embedBroker) AllClientInfo() ([]shadow.ClientInfo, error) {
-	clients := make([]shadow.ClientInfo, 0)
+func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
+	clients := make([]connector.ClientInfo, 0)
 	e.clients.Range(func(key, value any) bool {
-		i := value.(shadow.ClientInfo)
+		i := value.(connector.ClientInfo)
 		clients = append(clients, i)
 		return true
 	})
 	return clients, nil
 }
 
-func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[shadow.Event]) *mqtt.Server {
+func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.Event]) *mqtt.Server {
 	svr := mqtt.New(nil)
 
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
@@ -209,9 +208,9 @@ func readCert(keyFile, certFile string) tls.Certificate {
 	return cert
 }
 
-func (e *embedBroker) updateClient(c shadow.ClientInfo) {
+func (e *embedBroker) updateClient(c connector.ClientInfo) {
 	if old, ok := e.clients.Load(c.ClientId); ok {
-		old := old.(shadow.ClientInfo)
+		old := old.(connector.ClientInfo)
 		// not the latest info, ignore it
 		oldTime := old.ConnectedAt
 		if old.DisconnectedAt != nil && old.ConnectedAt != nil &&
@@ -243,8 +242,8 @@ func (e *embedBroker) CloseClient(clientId string) bool {
 	return false
 }
 
-func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[shadow.Event]) func(topic string, evt shadow.Event) {
-	return func(topic string, evt shadow.Event) {
+func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.Event]) func(topic string, evt connector.Event) {
+	return func(topic string, evt connector.Event) {
 		payload, err := json.Marshal(evt)
 		if err != nil {
 			log.Errorf("Unmarshal event payload %#v: %v", evt, err)

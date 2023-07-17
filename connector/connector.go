@@ -1,11 +1,9 @@
-package shadow
+package connector
 
 import (
 	"context"
 	"strings"
 	"time"
-
-	"ruff.io/tio/ntp"
 )
 
 // presence topic
@@ -34,9 +32,35 @@ type ClientInfo struct {
 
 type Connector interface {
 	Connectivity
-	StateHandler
-	MethodHandler
-	ntp.Handler
+	PubSub
+}
+
+type PublishData struct {
+	QoS      uint // optional
+	Retained bool // optional, work for MQTT
+	Payload  []byte
+}
+
+type Message interface {
+	Qos() byte
+	Retained() bool
+	Topic() string
+	MessageID() uint16
+	Payload() []byte
+	Ack()
+}
+
+type PubSub interface {
+	Subscriber
+	Publisher
+}
+
+type Publisher interface {
+	Publish(topic string, qos byte, retained bool, payload []byte) error
+}
+
+type Subscriber interface {
+	Subscribe(ctx context.Context, topic string, qos byte, callback func(msg Message)) error
 }
 
 type Connectivity interface {

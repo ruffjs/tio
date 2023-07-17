@@ -3,6 +3,7 @@ package shadow
 import (
 	"context"
 	"fmt"
+	"ruff.io/tio/connector"
 	"strings"
 	"time"
 
@@ -95,7 +96,7 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 }
 
 // UpdateConnStatus batch update in a transaction
-func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error {
+func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		for _, c := range s {
 			en := ConnStatusEntity{
