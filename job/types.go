@@ -1,50 +1,81 @@
 package job
 
-// Types for Job and Execution
+import "errors"
 
-// The following data types are used to communicate with the tio Jobs service over the MQTT
-// Their names start with T which means thing.
+// Types for Job and Task
+// Tasks arise from Job, and the operation of Job consists of Tasks specific to each Thing
 
-type ExecStatus string
-
+// The operation retained by the system starts with $
 const (
-	ExecQueued     ExecStatus = "QUEUED"
-	ExecInProgress ExecStatus = "IN_PROGRESS"
-	ExecFailed     ExecStatus = "FAILED"
-	ExecSucceeded  ExecStatus = "SUCCEEDED"
-	ExecCanceled   ExecStatus = "CANCELED"
-	ExecTimeOut    ExecStatus = "TIMED_OUT"
-	ExecRejected   ExecStatus = "REJECTED"
-	ExecRemoved    ExecStatus = "REMOVED"
+	SysOpDirectMethod = "$directMethod"
+	SysOpUpdateShadow = "$updateShadow"
 )
 
-type TExec struct {
-	JobId       string `json:"jobId"`
-	ThingId     string `json:"thingId"`
-	ExecId      int64  `json:"execId"`
-	JobDocument string `json:"jobDocument"`
-	Priority    uint8  `json:"priority"` // 1-10
-	Operation   string `json:"operation"`
+type StatusDetails map[string]any
 
-	Status        ExecStatus        `json:"status"`
-	StatusDetails map[string]string `json:"statusDetails"`
-	QueuedAt      int64             `json:"queuedAt"` // timestamp in ms
-	StartedAt     int64             `json:"startedAt"`
-	UpdatedAt     int64             `json:"updatedAt"`
+// The following data types are used to communicate with the tio Jobs service over the MQTT
+
+type TaskStatus string
+
+const (
+	TaskQueued     TaskStatus = "QUEUED"
+	TaskInProgress TaskStatus = "IN_PROGRESS"
+	TaskFailed     TaskStatus = "FAILED"
+	TaskSucceeded  TaskStatus = "SUCCEEDED"
+	TaskCanceled   TaskStatus = "CANCELED"
+	TaskTimeOut    TaskStatus = "TIMED_OUT"
+	TaskRejected   TaskStatus = "REJECTED"
+	TaskRemoved    TaskStatus = "REMOVED"
+)
+
+func (TaskStatus) Values() []string {
+	return []string{
+		string(TaskQueued), string(TaskInProgress),
+		string(TaskFailed), string(TaskSucceeded),
+		string(TaskRejected), string(TaskTimeOut),
+		string(TaskCanceled), string(TaskRemoved),
+	}
+}
+
+var ErrUnknownStatus = errors.New("unknown task status")
+
+func (s TaskStatus) Of(value string) (TaskStatus, error) {
+	l := s.Values()
+	for _, v := range l {
+		if v == value {
+			return TaskStatus(v), nil
+		}
+	}
+	return "", ErrUnknownStatus
+}
+
+type TTask struct {
+	JobId     string `json:"jobId"`
+	ThingId   string `json:"thingId"`
+	TaskId    int64  `json:"taskId"`
+	JobDoc    string `json:"jobDoc"`
+	Operation string `json:"operation"`
+
+	Status        TaskStatus    `json:"status"`
+	StatusDetails StatusDetails `json:"statusDetails"`
+	Progress      int           `json:"progress"` // 0 - 100
+	QueuedAt      int64         `json:"queuedAt"` // timestamp in ms
+	StartedAt     int64         `json:"startedAt"`
+	UpdatedAt     int64         `json:"updatedAt"`
 
 	Version int `json:"version"`
 }
 
-type TExecState struct {
-	Status        ExecStatus        `json:"status"`
-	StatusDetails map[string]string `json:"statusDetails"`
-	Version       int               `json:"version"`
+type TTaskState struct {
+	Status        TaskStatus    `json:"status"`
+	StatusDetails StatusDetails `json:"statusDetails"`
+	Progress      int           `json:"progress"` // 0 - 100
+	Version       int           `json:"version"`
 }
 
-type TExecSummary struct {
+type TTaskSummary struct {
 	JobId     string `json:"jobId"`
-	ExecId    int64  `json:"execId"`
-	Priority  uint8  `json:"priority"` // 1-10
+	TaskId    int64  `json:"taskId"`
 	Operation string `json:"operation"`
 
 	QueuedAt  int64 `json:"queuedAt"` // timestamp in ms
@@ -59,21 +90,40 @@ type TExecSummary struct {
 type Status string
 
 const (
+	StatusScheduled  Status = "SCHEDULED"
 	StatusInProgress Status = "IN_PROGRESS"
 	StatusCanceled   Status = "CANCELED"
 	StatusSucceeded  Status = "SUCCEEDED"
-	StatusScheduled  Status = "SCHEDULED"
 )
+
+func (Status) Values() []string {
+	return []string{
+		string(StatusScheduled), string(StatusInProgress),
+		string(StatusCanceled), string(StatusSucceeded),
+	}
+}
+
+func (s Status) Of(value string) (Status, error) {
+	l := s.Values()
+	for _, v := range l {
+		if v == value {
+			return Status(v), nil
+		}
+	}
+	return "", ErrUnknownStatus
+}
 
 type MaintenanceWindow struct {
 	StartTime         string `json:"startTime"` //  cron, eg: "cron(0 0 18 ? * MON *)" means "every monday at 18:00"
 	DurationInMinutes int    `json:"durationInMinutes"`
 }
 type SchedulingConfig struct {
-	StartTime          string              `json:"startTime"`
-	EndTime            string              `json:"endTime"`
-	EndBehavior        string              `json:"endBehavior"`
-	MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
+	StartTime   string `json:"startTime"`
+	EndTime     string `json:"endTime"`
+	EndBehavior string `json:"endBehavior"`
+
+	// To be implemented later
+	//MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
 }
 
 type RetryConfig struct {
@@ -85,31 +135,35 @@ type RetryConfigItem struct {
 }
 
 type TimeoutConfig struct {
-	InProgressMinutes int64 `json:"inProgressMinutes"` // max time for executions stay in "IN_PROGRESS" status
+	InProgressMinutes int64 `json:"inProgressMinutes"` // max time for taskutions stay in "IN_PROGRESS" status
 }
 
 type ProcessDetails struct {
-	ProcessingTargets []string // The target things to which the job execution is being rolled out
+	ProcessingTargets []string // The target things to which the job taskution is being rolled out
 
 	// Status statistics with Thing as the statistical unit
 
-	CountOfCanceled   int `json:"countOfCanceled"`
-	CountOfFailed     int `json:"countOfFailed"`
-	CountOfInProgress int `json:"countOfInProgress"`
-	CountOfQueued     int `json:"countOfQueued"`
-	CountOfRejected   int `json:"countOfRejected"`
-	CountOfRemoved    int `json:"countOfRemoved"`
-	CountOfSucceeded  int `json:"countOfSucceeded"`
-	CountOfTimedOut   int `json:"countOfTimedOut"`
+	Canceled   int `json:"canceled"`
+	Failed     int `json:"failed"`
+	InProgress int `json:"inProgress"`
+	Queued     int `json:"queued"`
+	Rejected   int `json:"rejected"`
+	Removed    int `json:"removed"`
+	Succeeded  int `json:"succeeded"`
+	TimedOut   int `json:"timedOut"`
+}
+
+type TargetConfig struct {
+	Type   string   `json:"type"` // "THING_ID". Or can be "GROUP" in future ?
+	Things []string `json:"things"`
 }
 
 type Detail struct {
 	JobId string `json:"jobId"`
 
-	Targets          []string         `json:"targets"`
-	Document         string           `json:"document"`
+	TargetConfig     TargetConfig     `json:"targetConfig"`
+	JobDoc           string           `json:"jobDoc"`
 	Description      string           `json:"description"`
-	Priority         uint8            `json:"priority"`
 	Operation        string           `json:"operation"`
 	SchedulingConfig SchedulingConfig `json:"schedulingConfig"`
 	RetryConfig      RetryConfig      `json:"retryConfig"`
@@ -130,7 +184,6 @@ type Detail struct {
 
 type Summary struct {
 	JobId     string `json:"jobId"`
-	Priority  uint8  `json:"priority"`
 	Operation string `json:"operation"`
 
 	Status      Status `json:"status"`
@@ -141,56 +194,55 @@ type Summary struct {
 	Version int `json:"version"`
 }
 
-type Exec struct {
+type Task struct {
 	JobId     string `json:"jobId"`
-	ExecId    int64  `json:"execId"`
-	Priority  uint8  `json:"priority"`
+	TaskId    int64  `json:"taskId"`
 	Operation string `json:"operation"`
 
-	ForceCanceled bool              `json:"forceCanceled"`
-	Status        ExecStatus        `json:"status"`
-	StatusDetails map[string]string `json:"statusDetails"`
-	QueuedAt      int64             `json:"queuedAt"`
-	StartedAt     int64             `json:"startedAt"`
-	UpdatedAt     int64             `json:"updatedAt"`
+	ForceCanceled bool          `json:"forceCanceled"`
+	Status        TaskStatus    `json:"status"`
+	StatusDetails StatusDetails `json:"statusDetails"`
+	Progress      int           `json:"progress"`
+	QueuedAt      int64         `json:"queuedAt"`
+	StartedAt     int64         `json:"startedAt"`
+	UpdatedAt     int64         `json:"updatedAt"`
 
 	Version int `json:"version"`
 }
 
-type ExecSummary struct {
-	ExecId    int64  `json:"execId"`
-	Priority  uint8  `json:"priority"`
+type TaskSummary struct {
+	TaskId    int64  `json:"taskId"`
 	Operation string `json:"operation"`
 
 	RetryAttempt uint8      `json:"retryAttempt"`
-	Status       ExecStatus `json:"status"`
+	Status       TaskStatus `json:"status"`
+	Progress     int        `json:"progress"`
 	QueuedAt     int64      `json:"queuedAt"`
 	StartedAt    int64      `json:"startedAt"`
 	UpdatedAt    int64      `json:"updatedAt"`
 }
 
-type ExecSummaryForJob struct {
+type TaskSummaryForJob struct {
 	ThingId     string      `json:"thingId"`
-	ExecSummary ExecSummary `json:"execSummary"`
+	TaskSummary TaskSummary `json:"taskSummary"`
 }
 
-type ExecSummaryForThing struct {
+type TaskSummaryForThing struct {
 	JobId       string      `json:"jobId"`
-	ExecSummary ExecSummary `json:"execSummary"`
+	TaskSummary TaskSummary `json:"taskSummary"`
 }
 
 // The following is used by http api request body
 
 type CreateParameters struct {
-	JobId            string   `json:"jobId"`            // optional
-	Targets          []string `json:"targets"`          // thingId list , eg ["thing/test", "thing/demo"]
-	Document         string   `json:"document"`         // job doc
-	Description      string   `json:"description"`      // optional
-	Priority         uint8    `json:"priority"`         // optional
-	Operation        string   `json:"operation"`        // optional
-	SchedulingConfig any      `json:"schedulingConfig"` // optional
-	RetryConfig      any      `json:"retryConfig"`      // optional, executions retry config
-	TimeoutConfig    any      `json:"timeoutConfig"`    // optional
+	JobId            string       `json:"jobId"` // optional
+	TargetConfig     TargetConfig `json:"targetConfig"`
+	Operation        string       `json:"operation"`        // optional
+	JobDoc           string       `json:"jobDoc"`           // optional
+	Description      string       `json:"description"`      // optional
+	SchedulingConfig any          `json:"schedulingConfig"` // optional
+	RetryConfig      any          `json:"retryConfig"`      // optional, taskutions retry config
+	TimeoutConfig    any          `json:"timeoutConfig"`    // optional
 }
 
 type UpdateParameters struct {
@@ -204,7 +256,7 @@ type CancelParameters struct {
 	ReasonCode string `json:"reasonCode"` // optional
 }
 
-type CancelExecParameters struct {
-	Version       int               `json:"version"`       // optional, expected version
-	StatusDetails map[string]string `json:"statusDetails"` // optional
+type CancelTaskParameters struct {
+	Version       int           `json:"version"`       // optional, expected version
+	StatusDetails StatusDetails `json:"statusDetails"` // optional
 }
