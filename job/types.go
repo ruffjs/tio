@@ -291,29 +291,29 @@ type TaskSummaryForThing struct {
 
 // The following is used by http api request body
 
-type CreateParameters struct {
+type CreateReq struct {
 	JobId            string       `json:"jobId"` // optional
 	TargetConfig     TargetConfig `json:"targetConfig"`
 	Operation        string       `json:"operation"`        // optional
 	JobDoc           string       `json:"jobDoc"`           // optional
 	Description      string       `json:"description"`      // optional
 	SchedulingConfig any          `json:"schedulingConfig"` // optional
-	RetryConfig      any          `json:"retryConfig"`      // optional, taskutions retry config
+	RetryConfig      any          `json:"retryConfig"`      // optional, tasks retry config
 	TimeoutConfig    any          `json:"timeoutConfig"`    // optional
 }
 
-type UpdateParameters struct {
+type UpdateReq struct {
 	Description   string `json:"description"`   // optional
 	RetryConfig   any    `json:"retryConfig"`   // optional
 	TimeoutConfig any    `json:"timeoutConfig"` // optional
 }
 
-type CancelParameters struct {
+type CancelReq struct {
 	Comment    string `json:"comment"`    // optional
 	ReasonCode string `json:"reasonCode"` // optional
 }
 
-type CancelTaskParameters struct {
+type CancelTaskReq struct {
 	Version       int           `json:"version"`       // optional, expected version
 	StatusDetails StatusDetails `json:"statusDetails"` // optional
 }

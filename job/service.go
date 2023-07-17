@@ -22,9 +22,9 @@ type TaskPageForJob model.PageData[TaskSummaryForJob]
 type Service interface {
 	// Job API
 
-	CreateJob(ctx context.Context, p CreateParameters) (IdResp, error)
-	UpdateJob(ctx context.Context, p UpdateParameters) error
-	CancelJob(ctx context.Context, p CancelParameters, force bool) error
+	CreateJob(ctx context.Context, p CreateReq) (IdResp, error)
+	UpdateJob(ctx context.Context, p UpdateReq) error
+	CancelJob(ctx context.Context, p CancelReq, force bool) error
 	DeleteJob(ctx context.Context, id string, force bool) error
 	GetJob(ctx context.Context, id string) (Detail, error)
 	QueryJob(ctx context.Context, q PageQuery) (Page, error)
