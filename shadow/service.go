@@ -395,6 +395,10 @@ func cloneMetadata(src Metadata) Metadata {
 func DeepCopyMap(src map[string]any) map[string]any {
 	tgt := make(map[string]any)
 	for k, v := range src {
+		if v == nil {
+			tgt[k] = v
+			continue
+		}
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Map:
 			vm, ok := v.(map[string]any)
