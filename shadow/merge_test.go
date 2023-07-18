@@ -116,6 +116,32 @@ var cases = []struct {
 	},
 }
 
+func TestDeepCopyMap(t *testing.T) {
+	cases := []map[string]any{
+		{
+			"a": nil,
+			"b": struct {
+				c string
+			}{c: "ss"},
+		},
+		{
+			"a": "a",
+			"b": 1,
+			"c": 1.3,
+			"d": true,
+			"e": []string{"1", "2"},
+			"f": map[string]any{
+				"x": 1,
+				"y": "y",
+			},
+		},
+	}
+	for _, c := range cases {
+		r := shadow.DeepCopyMap(c)
+		require.Equal(t, c, r)
+	}
+}
+
 func TestMergeState(t *testing.T) {
 	for i, c := range cases {
 		var meta shadow.MetaValue
