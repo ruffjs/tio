@@ -60,9 +60,9 @@ type TaskEntity struct {
 	Operation     string     `gorm:"size:64; NOT NULL;"`
 	Status        TaskStatus `gorm:"NOT NULL;default:QUEUED;"`
 	Progress      uint8
-	ForceCanceled bool           `gorm:"NOT NULL; DEFAULT: 0"`
-	StatusDetails datatypes.JSON `gorm:"NOT NULL;"`
-	RetryAttempt  uint8          `gorm:"NOT NULL; DEFAULT: 0"`
+	ForceCanceled bool `gorm:"NOT NULL; DEFAULT: 0"`
+	StatusDetails datatypes.JSON
+	RetryAttempt  uint8 `gorm:"NOT NULL; DEFAULT: 0"`
 
 	QueuedAt  time.Time
 	StartedAt time.Time
@@ -70,9 +70,6 @@ type TaskEntity struct {
 	CreatedAt time.Time `gorm:"autoCreateTime; NOT NULL;"`
 
 	Version int `gorm:"NOT NULL; DEFAULT: 1"`
-
-	//Job Entity `gorm:"foreignKey:JobId;references:JobId"`
-	//Job Entity `gorm:"foreignKey:job_id; references: job_id, constraint:OnDelete:CASCADE;"`
 }
 
 func (t TaskEntity) TableName() string {

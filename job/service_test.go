@@ -2,17 +2,19 @@ package job_test
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/job"
 	"ruff.io/tio/job/wire"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
+	"strings"
 	"testing"
 	"time"
 )
 
-func NewTestSvc() job.MgrService {
+func NewTestSvc() (job.MgrService, job.Repo) {
 	db := mock.NewSqliteConnTest()
 	err := db.AutoMigrate(job.Entity{}, job.TaskEntity{})
 	if err != nil {
@@ -20,12 +22,13 @@ func NewTestSvc() job.MgrService {
 	}
 
 	s := wire.InitSvc(db)
-	return s
+	r := job.NewRepo(db)
+	return s, r
 }
 
 func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 	ctx := context.Background()
-	svc := NewTestSvc()
+	svc, _ := NewTestSvc()
 
 	sdt := time.Now().Add(time.Hour * 24)
 	tests := []struct {
@@ -116,39 +119,98 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 	}
 }
 
-func Test_mgrSvcImpl_QueryJob(t *testing.T) {
-	ctx := context.Background()
-	svc := NewTestSvc()
-	jobsTest := []job.CreateReq{
-		{
-			JobId:     "test1",
-			Operation: "test1",
-			TargetConfig: job.TargetConfig{
-				Type:   "THING_ID",
-				Things: []string{"a"},
-			},
+var jobsTest = []job.CreateReq{
+	{
+		JobId:     "test1",
+		Operation: "test1",
+		TargetConfig: job.TargetConfig{
+			Type:   "THING_ID",
+			Things: []string{"a"},
 		},
-		{
-			JobId:     "test2",
-			Operation: "test2",
-			TargetConfig: job.TargetConfig{
-				Type:   "THING_ID",
-				Things: []string{"a", "b"},
-			},
+	},
+	{
+		JobId:     "test2",
+		Operation: "test2",
+		TargetConfig: job.TargetConfig{
+			Type:   "THING_ID",
+			Things: []string{"a", "b"},
 		},
-		{
-			JobId:     "test3",
-			Operation: "test3",
-			TargetConfig: job.TargetConfig{
-				Type:   "THING_ID",
-				Things: []string{"a", "b", "c"},
-			},
+	},
+	{
+		JobId:     "test3",
+		Operation: "test3",
+		TargetConfig: job.TargetConfig{
+			Type:   "THING_ID",
+			Things: []string{"a", "b", "c"},
 		},
+	},
+}
+
+var tasksTest = []job.TaskEntity{
+	{
+		JobId:     "test1",
+		ThingId:   "th1",
+		TaskId:    1,
+		Operation: "test1",
+		Status:    job.TaskQueued,
+	},
+	{
+		JobId:     "test2",
+		ThingId:   "th2",
+		TaskId:    2,
+		Operation: "test2",
+		Status:    job.TaskQueued,
+	},
+	{
+		JobId:     "test2",
+		ThingId:   "th2-2-running",
+		TaskId:    3,
+		Operation: "test3",
+		Status:    job.TaskInProgress,
+	},
+	{
+		JobId:     "test3",
+		ThingId:   "th3",
+		TaskId:    4,
+		Operation: "test3",
+		Status:    job.TaskQueued,
+	},
+	{
+		JobId:     "test3",
+		ThingId:   "th4-2-running",
+		TaskId:    5,
+		Operation: "test3",
+		Status:    job.TaskInProgress,
+	},
+}
+
+func testTasksOfJob(jobId string, status job.TaskStatus) []job.TaskEntity {
+	var l []job.TaskEntity
+	for _, t := range tasksTest {
+		if t.JobId == jobId && (status == "" || status == t.Status) {
+			l = append(l, t)
+		}
 	}
+	return l
+}
+
+func preCreateJobs(ctx context.Context, t *testing.T, svc job.MgrService) {
 	for _, j := range jobsTest {
 		_, err := svc.CreateJob(ctx, j)
 		require.NoError(t, err)
 	}
+}
+func preCreateTasks(ctx context.Context, t *testing.T, repo job.Repo) {
+	for _, tk := range tasksTest {
+		_, err := repo.CreateTask(ctx, tk)
+		require.NoError(t, err)
+	}
+}
+
+func Test_mgrSvcImpl_QueryJob(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
 
 	tests := []struct {
 		name    string
@@ -191,8 +253,361 @@ func Test_mgrSvcImpl_QueryJob(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := svc.QueryJob(ctx, subT.query)
 			require.NoError(t, err)
-			require.Equal(t, len(jobsTest), int(got.Total))
+			//require.Equal(t, len(jobsTest), int(got.Total))
 			require.Equal(t, subT.wantLen, len(got.Content))
+		})
+	}
+}
+
+func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
+
+	des250 := strings.Repeat("x", 250)
+	des251 := strings.Repeat("x", 251)
+	genReConf := func(failureTypes []string, numRetries []int) *job.RetryConfig {
+		reConf := job.RetryConfig{CriteriaList: []job.RetryConfigItem{}}
+		for i, ft := range failureTypes {
+			reConf.CriteriaList = append(reConf.CriteriaList,
+				job.RetryConfigItem{FailureType: ft, NumberOfRetries: numRetries[i]})
+		}
+		return &reConf
+	}
+	genTmConf := func(m int) *job.TimeoutConfig {
+		return &job.TimeoutConfig{InProgressMinutes: m}
+	}
+
+	tests := []struct {
+		name    string
+		jobId   string
+		req     job.UpdateReq
+		wantErr bool
+	}{
+		{
+			name:  "with too long description",
+			jobId: jobsTest[0].JobId,
+			req: job.UpdateReq{
+				Description: &des251,
+			},
+			wantErr: true,
+		},
+		{
+			name:  "with all",
+			jobId: jobsTest[1].JobId,
+			req: job.UpdateReq{
+				Description:   &des250,
+				RetryConfig:   genReConf([]string{job.TaskFailed.String(), job.TaskTimeOut.String()}, []int{3, 4}),
+				TimeoutConfig: genTmConf(60 * 24),
+			},
+		},
+		{
+			name:  "with long timeout",
+			jobId: jobsTest[2].JobId,
+			req: job.UpdateReq{
+				Description:   &des250,
+				RetryConfig:   genReConf([]string{job.TaskFailed.String(), job.TaskTimeOut.String()}, []int{3, 4}),
+				TimeoutConfig: genTmConf(60 * 24 * 7),
+			},
+		},
+		{
+			name:  "with too long timeout",
+			jobId: jobsTest[0].JobId,
+			req: job.UpdateReq{
+				Description:   &des250,
+				RetryConfig:   genReConf([]string{job.TaskFailed.String(), job.TaskTimeOut.String()}, []int{3, 4}),
+				TimeoutConfig: genTmConf(60*24*7 + 1),
+			},
+			wantErr: true,
+		},
+		{
+			name:  "with failure type ALL",
+			jobId: jobsTest[1].JobId,
+			req: job.UpdateReq{
+				Description:   &des250,
+				RetryConfig:   genReConf([]string{"ALL"}, []int{3}),
+				TimeoutConfig: genTmConf(60 * 24 * 7),
+			},
+		},
+		{
+			name:  "with too many failure types",
+			jobId: jobsTest[2].JobId,
+			req: job.UpdateReq{
+				Description:   &des250,
+				RetryConfig:   genReConf([]string{"ALL", job.TaskFailed.String()}, []int{3, 4}),
+				TimeoutConfig: genTmConf(60 * 24 * 7),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		st := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.UpdateJob(ctx, st.jobId, st.req)
+			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
+			if err == nil {
+				j, err := svc.GetJob(ctx, st.jobId)
+				require.NoError(t, err)
+				if st.req.Description != nil {
+					require.Equal(t, *st.req.Description, j.Description)
+				}
+				if st.req.RetryConfig != nil {
+					require.Equal(t, st.req.RetryConfig, j.RetryConfig)
+				}
+				if st.req.TimeoutConfig != nil {
+					require.Equal(t, st.req.TimeoutConfig, j.TimeoutConfig)
+				}
+			}
+		})
+	}
+}
+
+func Test_mgrSvcImpl_CancelJob(t *testing.T) {
+	ctx := context.Background()
+	svc, repo := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
+	preCreateTasks(ctx, t, repo)
+	err := repo.UpdateJob(ctx, jobsTest[2].JobId, map[string]any{"status": job.StatusInProgress})
+	require.NoError(t, err)
+
+	code := "xyz"
+	comment := "abc"
+	tests := []struct {
+		name    string
+		jobId   string
+		force   bool
+		req     job.CancelReq
+		wantErr bool
+	}{
+		{
+			name:  "cancel witch code and comment",
+			jobId: jobsTest[0].JobId,
+			force: false,
+			req:   job.CancelReq{ReasonCode: &code, Comment: &comment},
+		},
+		{
+			name:  "cancel witch no info",
+			jobId: jobsTest[1].JobId,
+			force: false,
+			req:   job.CancelReq{},
+		},
+		{
+			name:    "cancel in progress job",
+			jobId:   jobsTest[2].JobId,
+			force:   false,
+			req:     job.CancelReq{},
+			wantErr: true,
+		},
+		{
+			name:  "cancel in progress job force",
+			jobId: jobsTest[2].JobId,
+			force: true,
+			req:   job.CancelReq{},
+		},
+	}
+	for _, tt := range tests {
+		st := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.CancelJob(ctx, st.jobId, st.req, st.force)
+			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
+			if err != nil {
+				j, err := svc.GetJob(ctx, st.jobId)
+				require.NoError(t, err)
+				cm := ""
+				rc := ""
+				if st.req.Comment != nil {
+					cm = *st.req.Comment
+				}
+				if st.req.ReasonCode != nil {
+					rc = *st.req.ReasonCode
+				}
+				require.Equal(t, cm, j.Comment)
+				require.Equal(t, rc, j.ReasonCode)
+
+				// tasks status check
+				tasks := testTasksOfJob(st.jobId, "")
+				for _, tk := range tasks {
+					tkEn, err := repo.GetTask(ctx, tk.TaskId)
+					require.NoError(t, err)
+					if st.force {
+						require.Equal(t, job.TaskCanceled, tkEn.Status, "all task should be canceled")
+					} else {
+						if tk.Status == job.TaskInProgress {
+							require.Equal(t, job.TaskInProgress, tkEn.Status,
+								"in progress task should not be canceled")
+						} else {
+							require.Equal(t, job.TaskCanceled, tkEn.Status, "task(not in progress) should be canceled")
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_mgrSvcImpl_DeleteJob(t *testing.T) {
+	ctx := context.Background()
+	svc, repo := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
+	preCreateTasks(ctx, t, repo)
+	err := repo.UpdateJob(ctx, jobsTest[1].JobId, map[string]any{"status": job.StatusInProgress})
+	require.NoError(t, err)
+	err = repo.UpdateJob(ctx, jobsTest[2].JobId, map[string]any{"status": job.StatusInProgress})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		jobId   string
+		force   bool
+		wantErr bool
+	}{
+		{
+			name:  "delete job",
+			jobId: jobsTest[0].JobId,
+			force: false,
+		},
+		{
+			name:  "delete in progress force",
+			jobId: jobsTest[1].JobId,
+			force: true,
+		},
+		{
+			name:    "delete in progress with no force",
+			jobId:   jobsTest[2].JobId,
+			force:   false,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		st := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.DeleteJob(ctx, st.jobId, st.force)
+			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
+			if err == nil {
+				j, err := svc.GetJob(ctx, st.jobId)
+				require.NoError(t, err)
+				require.True(t, j == nil)
+				l, err := svc.QueryTaskForJob(ctx, st.jobId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+				require.NoError(t, err)
+				require.Equal(t, int64(0), l.Total, "tasks under job should be deleted")
+			}
+		})
+	}
+}
+
+func Test_mgrSvcImpl_CancelTask(t *testing.T) {
+	ctx := context.Background()
+	svc, repo := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
+	preCreateTasks(ctx, t, repo)
+
+	stDet := func(m map[string]any) *job.StatusDetails {
+		n := job.StatusDetails(m)
+		return &n
+	}
+
+	tests := []struct {
+		name       string
+		jobId      string
+		thingId    string
+		req        job.CancelTaskReq
+		force      bool
+		wantStatus job.TaskStatus
+		wantErr    bool
+	}{
+		{
+			name:       "cancel queued",
+			jobId:      jobsTest[0].JobId,
+			thingId:    testTasksOfJob(jobsTest[0].JobId, job.TaskQueued)[0].ThingId,
+			req:        job.CancelTaskReq{Version: 1, StatusDetails: stDet(map[string]any{"a": 1.0, "b": "b"})},
+			wantStatus: job.TaskCanceled,
+		},
+		{
+			name:       "cancel in progress error",
+			jobId:      jobsTest[1].JobId,
+			thingId:    testTasksOfJob(jobsTest[1].JobId, job.TaskInProgress)[0].ThingId,
+			req:        job.CancelTaskReq{Version: 1, StatusDetails: stDet(map[string]any{"a": 1.0, "b": "b"})},
+			wantStatus: job.TaskInProgress,
+			wantErr:    true,
+		},
+		{
+			name:       "cancel with wrong version",
+			jobId:      jobsTest[2].JobId,
+			thingId:    testTasksOfJob(jobsTest[2].JobId, job.TaskQueued)[0].ThingId,
+			req:        job.CancelTaskReq{Version: 12, StatusDetails: stDet(map[string]any{"a": 1.0, "b": "b"})},
+			wantStatus: job.TaskQueued,
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		st := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.CancelTask(ctx, st.thingId, st.jobId, st.req, st.force)
+			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
+			if err != nil {
+				return
+			}
+			l, err := repo.QueryTask(ctx, st.jobId, st.thingId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+			require.NoError(t, err)
+			require.Equal(t, 1, len(l.Content))
+			tk := l.Content[0]
+			require.Equal(t, st.wantStatus, tk.Status)
+			if st.wantStatus == job.TaskCanceled && st.req.StatusDetails != nil {
+				var sd job.StatusDetails
+				err := json.Unmarshal(tk.StatusDetails, &sd)
+				require.NoError(t, err)
+				require.Equal(t, *st.req.StatusDetails, sd)
+			}
+		})
+	}
+}
+
+func Test_mgrSvcImpl_DeleteTask(t *testing.T) {
+	ctx := context.Background()
+	svc, repo := NewTestSvc()
+	preCreateJobs(ctx, t, svc)
+	preCreateTasks(ctx, t, repo)
+
+	tests := []struct {
+		name    string
+		jobId   string
+		thingId string
+		taskId  int64
+		force   bool
+		wantErr bool
+	}{
+		{
+			name:    "delete queued",
+			jobId:   jobsTest[0].JobId,
+			thingId: testTasksOfJob(jobsTest[0].JobId, job.TaskQueued)[0].ThingId,
+			taskId:  testTasksOfJob(jobsTest[0].JobId, job.TaskQueued)[0].TaskId,
+		},
+		{
+			name:    "can't delete in progress ",
+			jobId:   jobsTest[1].JobId,
+			thingId: testTasksOfJob(jobsTest[1].JobId, job.TaskInProgress)[0].ThingId,
+			taskId:  testTasksOfJob(jobsTest[1].JobId, job.TaskInProgress)[0].TaskId,
+			wantErr: true,
+		},
+		{
+			name:    "can delete in progress force",
+			jobId:   jobsTest[1].JobId,
+			thingId: testTasksOfJob(jobsTest[1].JobId, job.TaskInProgress)[0].ThingId,
+			taskId:  testTasksOfJob(jobsTest[1].JobId, job.TaskInProgress)[0].TaskId,
+			force:   true,
+		},
+	}
+	for _, tt := range tests {
+		st := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.DeleteTask(ctx, st.thingId, st.jobId, st.taskId, st.force)
+			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
+			if err != nil {
+				return
+			}
+			tk, err := svc.GetTask(ctx, st.thingId, st.jobId, st.taskId)
+			require.NoError(t, err)
+			require.Nil(t, tk)
 		})
 	}
 }

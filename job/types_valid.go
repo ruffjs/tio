@@ -70,7 +70,7 @@ func (r CreateReq) valid() error {
 }
 
 func (r UpdateReq) valid() error {
-	if len(r.Description) > 250 {
+	if r.Description != nil && len(*r.Description) > 250 {
 		return errors.WithMessage(model.ErrInvalidParams, "field `description` length should be less than 250")
 	}
 	if err := r.TimeoutConfig.valid(); err != nil {
@@ -83,11 +83,11 @@ func (r UpdateReq) valid() error {
 }
 
 func (r CancelReq) valid() error {
-	if len(r.ReasonCode) > 64 {
+	if r.ReasonCode != nil && len(*r.ReasonCode) > 64 {
 		return errors.WithMessage(model.ErrInvalidParams,
 			"reasonCode length should be less than 64")
 	}
-	if len(r.Comment) > 250 {
+	if r.Comment != nil && len(*r.Comment) > 250 {
 		return errors.WithMessage(model.ErrInvalidParams,
 			"comment length should be less than 250")
 	}
@@ -128,7 +128,16 @@ func (c *RetryConfig) valid() error {
 	if c == nil {
 		return nil
 	}
+	if len(c.CriteriaList) == 0 || len(c.CriteriaList) > 2 {
+		return errors.WithMessage(model.ErrInvalidParams,
+			fmt.Sprintf("retryConfig wrong failure type count %d", len(c.CriteriaList)))
+	}
+	var typeList []string
+	hasAll := false
 	for _, l := range c.CriteriaList {
+		if l.FailureType == "ALL" {
+			hasAll = true
+		}
 		if l.FailureType != TaskFailed.String() && l.FailureType != TaskTimeOut.String() && l.FailureType != "ALL" {
 			return errors.WithMessage(model.ErrInvalidParams,
 				fmt.Sprintf("retryConfig failureType should be ALL, %s or %s", TaskFailed, TaskTimeOut))
@@ -137,6 +146,16 @@ func (c *RetryConfig) valid() error {
 			return errors.WithMessage(model.ErrInvalidParams,
 				"retryConfig numberOfRetries should between 0 and 10")
 		}
+		for _, hasType := range typeList {
+			if hasType == l.FailureType {
+				return errors.WithMessage(model.ErrInvalidParams, "retryConfig duplicated failure type "+l.FailureType)
+			}
+		}
+		typeList = append(typeList, l.FailureType)
+	}
+	if len(typeList) > 1 && hasAll {
+		return errors.WithMessage(model.ErrInvalidParams,
+			"retryConfig failure type can't contain \"ALL\" and other")
 	}
 	return nil
 }

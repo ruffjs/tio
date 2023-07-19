@@ -160,15 +160,17 @@ type TUpdateTaskResp struct {
 type Status string
 
 const (
-	StatusScheduled  Status = "SCHEDULED"
-	StatusInProgress Status = "IN_PROGRESS"
-	StatusCanceled   Status = "CANCELED"
-	StatusSucceeded  Status = "SUCCEEDED"
+	StatusScheduled          Status = "SCHEDULED"
+	StatusInProgress         Status = "IN_PROGRESS"
+	StatusCanceled           Status = "CANCELED"
+	StatusCompleted          Status = "COMPLETED"
+	StatusDeletionInProgress Status = "DELETION_IN_PROGRESS"
 )
 
 var statusScheduledValues = []string{
 	string(StatusScheduled), string(StatusInProgress),
-	string(StatusCanceled), string(StatusSucceeded),
+	string(StatusCanceled), string(StatusCompleted),
+	string(StatusDeletionInProgress),
 }
 
 func (Status) Values() []string {
@@ -239,7 +241,7 @@ type RetryConfigItem struct {
 }
 
 type TimeoutConfig struct {
-	InProgressMinutes int64 `json:"inProgressMinutes"` // max time for task stay in "IN_PROGRESS" status
+	InProgressMinutes int `json:"inProgressMinutes"` // max time for task stay in "IN_PROGRESS" status
 }
 
 type ProcessDetails struct {
@@ -361,14 +363,14 @@ type InvokeDirectMethodReq struct {
 }
 
 type UpdateReq struct {
-	Description   string         `json:"description"`   // optional
+	Description   *string        `json:"description"`   // optional
 	RetryConfig   *RetryConfig   `json:"retryConfig"`   // optional
 	TimeoutConfig *TimeoutConfig `json:"timeoutConfig"` // optional
 }
 
 type CancelReq struct {
-	Comment    string `json:"comment"`    // optional
-	ReasonCode string `json:"reasonCode"` // optional
+	Comment    *string `json:"comment"`    // optional
+	ReasonCode *string `json:"reasonCode"` // optional
 }
 
 type CancelTaskReq struct {

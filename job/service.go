@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"ruff.io/tio"
@@ -26,40 +27,66 @@ type TaskPageQuery struct {
 }
 type TaskPage model.PageData[TaskSummary]
 
+// MgrService Management Service
 type MgrService interface {
 	// Job API
 
 	CreateJob(ctx context.Context, r CreateReq) (Detail, error)
-	UpdateJob(ctx context.Context, r UpdateReq) error
-	CancelJob(ctx context.Context, r CancelReq, force bool) error
-	DeleteJob(ctx context.Context, id string, force bool) error
-	GetJob(ctx context.Context, id string) (Detail, error)
+
+	// UpdateJob Updated values for timeoutConfig take effect for only newly in-progress tasks.
+	// Currently, in-progress tasks continue to launch with the previous timeout configuration.
+	UpdateJob(ctx context.Context, jobId string, r UpdateReq) error
+
+	// CancelJob  If  force is true, tasks with status "IN_PROGRESS" and "QUEUED" are canceled,
+	// otherwise only tasks with status "QUEUED" are canceled.
+	CancelJob(ctx context.Context, jobId string, r CancelReq, force bool) error
+
+	// DeleteJob Deleting a job can take time, depending on the number of job executions created for the job and various other factors.
+	// While the job is being deleted, the status of the job is shown as "DELETION_IN_PROGRESS".
+	// Attempting to delete or cancel a job whose status is already "DELETION_IN_PROGRESS" results in an error.
+	//
+	// When force is true, you can delete a job which is "IN_PROGRESS".
+	// Otherwise, you can only delete a job which is in a terminal state ("COMPLETED" or "CANCELED")
+	DeleteJob(ctx context.Context, jobId string, force bool) error
+
+	GetJob(ctx context.Context, jobId string) (*Detail, error)
 	QueryJob(ctx context.Context, q PageQuery) (Page, error)
 
 	// Task API
 
+	// CancelTask Task with QUEUED status can be canceled,
+	// when force is true, task with QUEUED or IN_PROGRESS status can be canceled
 	CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error
+
+	// DeleteTask When force is true, you can delete a task which is "IN_PROGRESS".
+	// Otherwise, you can only delete a task which is in a terminal state ("SUCCEEDED", "FAILED", "REJECTED", "REMOVED" or "CANCELED")
 	DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) error
-	GetTask(ctx context.Context, thingId, jobId string, taskId int64) (Task, error)
+
+	GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error)
 	QueryTaskForThing(ctx context.Context, thingId string, q TaskPageQuery) (TaskPage, error)
 	QueryTaskForJob(ctx context.Context, jobId string, q TaskPageQuery) (TaskPage, error)
 }
 
 type Repo interface {
+	ExecWithTx(func(txRepo Repo) error) error
+
 	// Job API
 
 	CreateJob(ctx context.Context, j Entity) (Entity, error)
-	UpdateJob(ctx context.Context, m map[string]any) error
-	DeleteJob(ctx context.Context, id string, force bool) error
-	GetJob(ctx context.Context, id string) (Entity, error)
+	UpdateJob(ctx context.Context, jobId string, m map[string]any) error
+
+	// DeleteJob Tasks under the job will be deleted together
+	DeleteJob(ctx context.Context, jobId string, force bool) error
+	GetJob(ctx context.Context, jobId string) (*Entity, error)
 	QueryJob(ctx context.Context, q PageQuery) (model.PageData[Entity], error)
 
 	// Task API
 
 	CreateTask(ctx context.Context, t TaskEntity) (TaskEntity, error)
 	UpdateTask(ctx context.Context, taskId int64, m map[string]any) error
+	CancelTasks(ctx context.Context, jobId string, force bool) error
 	DeleteTask(ctx context.Context, taskId int64) error
-	GetTask(ctx context.Context, taskId int64) (TaskEntity, error)
+	GetTask(ctx context.Context, taskId int64) (*TaskEntity, error)
 	QueryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (model.PageData[TaskEntity], error)
 }
 
@@ -100,37 +127,105 @@ func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) 
 	// TODO: notify job runner
 }
 
-func (s mgrSvcImpl) UpdateJob(ctx context.Context, r UpdateReq) error {
+// UpdateJob Updated values for timeoutConfig take effect for only newly in-progress tasks.
+// Currently, in-progress tasks continue to launch with the previous timeout configuration.
+func (s mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) error {
 	if err := r.valid(); err != nil {
 		return err
 	}
-	// TODO update job by job runner
-	panic("implement me")
+	toUpdate := map[string]any{}
+	if r.Description != nil {
+		toUpdate["description"] = *r.Description
+	}
+	if r.TimeoutConfig != nil {
+		if buf, err := json.Marshal(*r.TimeoutConfig); err == nil {
+			toUpdate["timeout_config"] = buf
+		} else {
+			return errors.WithMessage(model.ErrInvalidParams, "timeoutConfig: "+err.Error())
+		}
+	}
+	if r.RetryConfig != nil {
+		if buf, err := json.Marshal(*r.RetryConfig); err == nil {
+			toUpdate["retry_config"] = buf
+		} else {
+			return errors.WithMessage(model.ErrInvalidParams, "retryConfig: "+err.Error())
+		}
+	}
+
+	if len(toUpdate) == 0 {
+		return nil
+	}
+	if err := s.repo.UpdateJob(ctx, jobId, toUpdate); err != nil {
+		return errors.WithMessage(err, "update job")
+	}
+	// TODO notify job runner update
+	return nil
 }
 
-func (s mgrSvcImpl) CancelJob(ctx context.Context, r CancelReq, force bool) error {
+func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, force bool) error {
 	if err := r.valid(); err != nil {
 		return err
 	}
-	// TODO: do cancel job by job runner
-	panic("implement me")
+
+	toUpdate := map[string]any{
+		"status":         StatusCanceled,
+		"force_canceled": force,
+	}
+	if r.Comment != nil {
+		toUpdate["comment"] = *r.Comment
+	}
+	if r.ReasonCode != nil {
+		toUpdate["reason_code"] = r.ReasonCode
+	}
+
+	err := s.repo.ExecWithTx(func(txRepo Repo) error {
+		j, err := txRepo.GetJob(ctx, jobId)
+		if err != nil {
+			return err
+		}
+		if j == nil {
+			return errors.WithMessage(model.ErrNotFound, "job")
+		}
+		if !force && j.Status == StatusInProgress {
+			return errors.WithMessage(model.ErrInvalidParams, "can't cancel job which is in progress")
+		}
+		if err := txRepo.UpdateJob(ctx, jobId, toUpdate); err != nil {
+			return err
+		}
+		if err := txRepo.CancelTasks(ctx, jobId, force); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "update db when cancel job")
+	}
+	// TODO: notify job runner cancel job
+
+	return nil
 }
 
-func (s mgrSvcImpl) DeleteJob(ctx context.Context, id string, force bool) error {
-	// TODO: do delete job by job runner
-	panic("implement me")
+func (s mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) error {
+	if err := s.repo.DeleteJob(ctx, jobId, force); err != nil {
+		return errors.WithMessagef(err, "delete job")
+	}
+	// TODO: notify job runner delete job
+	return nil
 }
 
-func (s mgrSvcImpl) GetJob(ctx context.Context, id string) (Detail, error) {
-	e, err := s.repo.GetJob(ctx, id)
+func (s mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
+	e, err := s.repo.GetJob(ctx, jobId)
 	if err != nil {
-		return Detail{}, err
+		return nil, err
 	}
-	d, err := toDetail(e)
+	if e == nil {
+		return nil, nil
+	}
+	d, err := toDetail(*e)
 	if err != nil {
-		return Detail{}, err
+		return nil, err
 	}
-	return d, nil
+	return &d, nil
 }
 
 func (s mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
@@ -147,29 +242,91 @@ func (s mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 }
 
 func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
+	err := s.repo.ExecWithTx(func(txRepo Repo) error {
+		l, err := txRepo.QueryTask(ctx, jobId, thingId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+		if err != nil {
+			return err
+		}
+		if l.Total == 0 {
+			return errors.WithMessage(model.ErrNotFound, "task")
+		}
+		t := l.Content[0]
+		if !force && t.Status == TaskInProgress {
+			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
+		}
+		toUpdate := map[string]any{
+			"force_canceled": force,
+			"status":         TaskCanceled,
+		}
+		if r.Version > 0 && t.Version != r.Version {
+			return errors.WithMessage(model.ErrVersionConflict,
+				fmt.Sprintf("current version %d, expect version %d", t.Version, r.Version))
+		}
+		if r.StatusDetails != nil {
+			if sdBuf, err := json.Marshal(*r.StatusDetails); err == nil {
+				toUpdate["status_details"] = sdBuf
+			} else {
+				return errors.WithMessage(model.ErrInvalidParams, "statusDetails: "+err.Error())
+			}
+		}
+		return txRepo.UpdateTask(ctx, t.TaskId, toUpdate)
+	})
+	if err != nil {
+		return err
+	}
 	// TODO: do cancel task by job runner
-	panic("implement me")
+	return nil
 }
 
 func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) error {
-	// TODO: do delete task by job runner
-	panic("implement me")
+	err := s.repo.ExecWithTx(func(txRepo Repo) error {
+		t, err := txRepo.GetTask(ctx, taskId)
+		if err != nil {
+			return err
+		}
+		if t == nil {
+			return model.ErrNotFound
+		}
+		if t.ThingId != thingId {
+			return errors.WithMessage(model.ErrInvalidParams,
+				fmt.Sprintf("task %d is not belong to thing %q", taskId, thingId))
+		}
+		if t.JobId != jobId {
+			return errors.WithMessage(model.ErrInvalidParams,
+				fmt.Sprintf("task %d is not belong to job %q", taskId, jobId))
+		}
+		if !force && t.Status == TaskInProgress {
+			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
+		}
+		return txRepo.DeleteTask(ctx, t.TaskId)
+	})
+	if err != nil {
+		return err
+	}
+	// TODO: notify job runner task delete
+	return nil
 }
 
-func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId int64) (Task, error) {
+func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error) {
 	e, err := s.repo.GetTask(ctx, taskId)
 	if err != nil {
-		return Task{}, err
+		return nil, err
+	}
+	if e == nil {
+		return nil, nil
 	}
 	if e.JobId != thingId || e.ThingId != thingId {
-		return Task{}, errors.WithMessage(
+		return nil, errors.WithMessage(
 			model.ErrInvalidParams,
 			fmt.Sprintf("task %d is not belong job %q or thing %q", taskId, jobId, thingId))
 	}
-	if t, err := toTask(e); err != nil {
-		return Task{}, err
+	if e == nil {
+		return nil, nil
+	}
+	if t, err := toTask(*e); err != nil {
+		return nil, err
 	} else {
-		return t, nil
+		return &t, nil
 	}
 }
 

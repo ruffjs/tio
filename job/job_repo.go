@@ -16,6 +16,13 @@ func NewRepo(db *gorm.DB) Repo {
 	return jobRepo{db}
 }
 
+func (r jobRepo) ExecWithTx(f func(r Repo) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := NewRepo(tx)
+		return f(txRepo)
+	})
+}
+
 func (r jobRepo) CreateJob(ctx context.Context, j Entity) (Entity, error) {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var oldId = ""
@@ -41,43 +48,53 @@ func (r jobRepo) CreateJob(ctx context.Context, j Entity) (Entity, error) {
 	if err != nil {
 		return Entity{}, err
 	}
-	return e, nil
+	return *e, nil
 }
 
-func (r jobRepo) UpdateJob(ctx context.Context, m map[string]any) error {
+func (r jobRepo) UpdateJob(ctx context.Context, id string, m map[string]any) error {
 	for k := range m {
 		lk := strings.ToLower(k)
 		if lk == "jobid" || lk == "job_id" {
 			return errors.New("can't update jobId")
 		}
 	}
-	if err := r.db.WithContext(ctx).Model(Entity{}).Updates(m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(Entity{JobId: id}).Updates(m).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
+// DeleteJob The tasks under the job will be deleted together cause `ON DELETE CASCADE`
 func (r jobRepo) DeleteJob(ctx context.Context, id string, force bool) error {
 	if force {
 		if err := r.db.WithContext(ctx).Delete(Entity{JobId: id}).Error; err != nil {
 			return err
 		}
 	} else {
-		if err := r.db.WithContext(ctx).
+		if res := r.db.WithContext(ctx).
 			Where("status != ?", StatusInProgress).
-			Delete(Entity{JobId: id}).Error; err != nil {
-			return err
+			Delete(Entity{JobId: id}); res.Error != nil {
+			return res.Error
+		} else if res.RowsAffected == 0 {
+			return errors.WithMessage(model.ErrInvalidParams, "job is IN_PROGRESS or not exist")
 		}
+	}
+	// sqlite does not support CASCADE
+	if r.db.Dialector.Name() == "sqlite" {
+		r.db.Where("job_id=?", id).Delete(&TaskEntity{})
 	}
 	return nil
 }
 
-func (r jobRepo) GetJob(ctx context.Context, id string) (Entity, error) {
+func (r jobRepo) GetJob(ctx context.Context, id string) (*Entity, error) {
 	e := Entity{JobId: id}
 	if err := r.db.WithContext(ctx).First(&e).Error; err != nil {
-		return Entity{}, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return &Entity{}, err
 	} else {
-		return e, nil
+		return &e, nil
 	}
 }
 
@@ -85,23 +102,24 @@ func (r jobRepo) QueryJob(ctx context.Context, pq PageQuery) (model.PageData[Ent
 	offset := pq.Offset()
 	limit := pq.Limit()
 	var page model.PageData[Entity]
-	var total int64
-	r.db.WithContext(ctx).Model(&Entity{}).Count(&total)
-	if total == 0 {
-		page.Content = []Entity{}
-		return page, nil
-	}
-	page.Total = total
 	q := r.db.WithContext(ctx).Model(&Entity{}).
-		Order("created_at ASC").
-		Offset(offset).
-		Limit(limit)
+		Order("created_at ASC")
 	if pq.Status != "" {
 		q.Where("status=?", pq.Status)
 	}
 	if pq.Operation != "" {
 		q.Where("operation=?", pq.Operation)
 	}
+
+	var total int64
+	q.Count(&total)
+	if total == 0 {
+		page.Content = []Entity{}
+		return page, nil
+	}
+	page.Total = total
+
+	q.Offset(offset).Limit(limit)
 	if err := q.Find(&page.Content).Error; err != nil {
 		return page, err
 	}
@@ -115,9 +133,24 @@ func (r jobRepo) CreateTask(ctx context.Context, t TaskEntity) (TaskEntity, erro
 		if e, err := r.GetTask(ctx, t.TaskId); err != nil {
 			return TaskEntity{}, err
 		} else {
-			return e, nil
+			return *e, nil
 		}
 	}
+}
+
+func (r jobRepo) CancelTasks(ctx context.Context, jobId string, force bool) error {
+	up := r.db.WithContext(ctx).Model(TaskEntity{JobId: jobId})
+	if force {
+		up.Where("status in (?, ?)", TaskQueued, TaskInProgress)
+	} else {
+		up.Where("status = ?", TaskQueued)
+	}
+
+	res := up.Updates(map[string]any{
+		"force_canceled": force,
+		"status":         TaskCanceled,
+	})
+	return res.Error
 }
 
 func (r jobRepo) UpdateTask(ctx context.Context, taskId int64, m map[string]any) error {
@@ -141,12 +174,15 @@ func (r jobRepo) DeleteTask(ctx context.Context, taskId int64) error {
 	return nil
 }
 
-func (r jobRepo) GetTask(ctx context.Context, taskId int64) (TaskEntity, error) {
+func (r jobRepo) GetTask(ctx context.Context, taskId int64) (*TaskEntity, error) {
 	e := TaskEntity{TaskId: taskId}
 	if err := r.db.WithContext(ctx).First(&e).Error; err != nil {
-		return e, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return &TaskEntity{}, err
 	}
-	return e, nil
+	return &e, nil
 }
 
 func (r jobRepo) QueryTask(
@@ -158,17 +194,8 @@ func (r jobRepo) QueryTask(
 	offset := pq.Offset()
 	limit := pq.Limit()
 	var page model.PageData[TaskEntity]
-	var total int64
-	r.db.WithContext(ctx).Model(&TaskEntity{}).Count(&total)
-	if total == 0 {
-		page.Content = []TaskEntity{}
-		return page, nil
-	}
-	page.Total = total
 	q := r.db.WithContext(ctx).Model(&TaskEntity{}).
-		Order("created_at ASC").
-		Offset(offset).
-		Limit(limit)
+		Order("created_at ASC")
 	if pq.Status != "" {
 		q.Where("status=?", pq.Status)
 	}
@@ -181,6 +208,16 @@ func (r jobRepo) QueryTask(
 	if thingId != "" {
 		q.Where("thing_id=?", thingId)
 	}
+
+	var total int64
+	q.Count(&total)
+	if total == 0 {
+		page.Content = []TaskEntity{}
+		return page, nil
+	}
+	page.Total = total
+
+	q.Offset(offset).Limit(limit)
 	if err := q.Find(&page.Content).Error; err != nil {
 		return page, err
 	}
