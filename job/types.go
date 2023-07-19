@@ -1,6 +1,10 @@
 package job
 
-import "errors"
+import (
+	"github.com/pkg/errors"
+	"ruff.io/tio/shadow"
+	"time"
+)
 
 // Types for Job and Task
 // Tasks arise from Job, and the operation of Job consists of Tasks specific to each Thing
@@ -9,6 +13,9 @@ import "errors"
 const (
 	SysOpDirectMethod = "$directMethod"
 	SysOpUpdateShadow = "$updateShadow"
+
+	TargetTypeThingId = "THING_ID"
+	TargetTypeGroup   = "GROUP"
 )
 
 type StatusDetails map[string]any
@@ -28,16 +35,22 @@ const (
 	TaskRemoved    TaskStatus = "REMOVED"
 )
 
-func (TaskStatus) Values() []string {
-	return []string{
-		string(TaskQueued), string(TaskInProgress),
-		string(TaskFailed), string(TaskSucceeded),
-		string(TaskRejected), string(TaskTimeOut),
-		string(TaskCanceled), string(TaskRemoved),
-	}
+var taskStatusValues = []string{
+	string(TaskQueued), string(TaskInProgress),
+	string(TaskFailed), string(TaskSucceeded),
+	string(TaskRejected), string(TaskTimeOut),
+	string(TaskCanceled), string(TaskRemoved),
 }
 
-var ErrUnknownStatus = errors.New("unknown task status")
+func (TaskStatus) Values() []string {
+	return taskStatusValues
+}
+
+func (s TaskStatus) String() string {
+	return string(s)
+}
+
+var ErrUnknownEnum = errors.New("unknown enum")
 
 func (s TaskStatus) Of(value string) (TaskStatus, error) {
 	l := s.Values()
@@ -46,7 +59,7 @@ func (s TaskStatus) Of(value string) (TaskStatus, error) {
 			return TaskStatus(v), nil
 		}
 	}
-	return "", ErrUnknownStatus
+	return "", errors.WithMessage(ErrUnknownEnum, "TaskStatus")
 }
 
 type TTask struct {
@@ -59,8 +72,8 @@ type TTask struct {
 	Status        TaskStatus    `json:"status"`
 	StatusDetails StatusDetails `json:"statusDetails"`
 	Progress      int           `json:"progress"` // 0 - 100
-	QueuedAt      int64         `json:"queuedAt"` // timestamp in ms
-	StartedAt     int64         `json:"startedAt"`
+	QueuedAt      *int64        `json:"queuedAt"` // timestamp in ms
+	StartedAt     *int64        `json:"startedAt"`
 	UpdatedAt     int64         `json:"updatedAt"`
 
 	Version int `json:"version"`
@@ -78,9 +91,9 @@ type TTaskSummary struct {
 	TaskId    int64  `json:"taskId"`
 	Operation string `json:"operation"`
 
-	QueuedAt  int64 `json:"queuedAt"` // timestamp in ms
-	StartedAt int64 `json:"startedAt"`
-	UpdatedAt int64 `json:"updatedAt"`
+	QueuedAt  *int64 `json:"queuedAt"` // timestamp in ms
+	StartedAt *int64 `json:"startedAt"`
+	UpdatedAt int64  `json:"updatedAt"`
 
 	Version int `json:"version"`
 }
@@ -153,13 +166,17 @@ const (
 	StatusSucceeded  Status = "SUCCEEDED"
 )
 
-func (Status) Values() []string {
-	return []string{
-		string(StatusScheduled), string(StatusInProgress),
-		string(StatusCanceled), string(StatusSucceeded),
-	}
+var statusScheduledValues = []string{
+	string(StatusScheduled), string(StatusInProgress),
+	string(StatusCanceled), string(StatusSucceeded),
 }
 
+func (Status) Values() []string {
+	return statusScheduledValues
+}
+func (s Status) String() string {
+	return string(s)
+}
 func (s Status) Of(value string) (Status, error) {
 	l := s.Values()
 	for _, v := range l {
@@ -167,7 +184,37 @@ func (s Status) Of(value string) (Status, error) {
 			return Status(v), nil
 		}
 	}
-	return "", ErrUnknownStatus
+	return "", errors.WithMessagef(ErrUnknownEnum, "Status")
+}
+
+type ScheduleEndBehavior string
+
+const (
+	ScheduleEndBehaviorStopRollout ScheduleEndBehavior = "STOP_ROLLOUT"
+	ScheduleEndBehaviorCancel      ScheduleEndBehavior = "CANCEL"
+	ScheduleEndBehaviorForceCancel ScheduleEndBehavior = "FORCE_CANCEL"
+)
+
+var scheduleEndBehaviorValues = []string{
+	string(ScheduleEndBehaviorStopRollout),
+	string(ScheduleEndBehaviorCancel),
+	string(ScheduleEndBehaviorForceCancel),
+}
+
+func (ScheduleEndBehavior) Values() []string {
+	return scheduleEndBehaviorValues
+}
+func (b ScheduleEndBehavior) String() string {
+	return string(b)
+}
+func (b ScheduleEndBehavior) Of(value string) (ScheduleEndBehavior, error) {
+	l := b.Values()
+	for _, v := range l {
+		if v == value {
+			return ScheduleEndBehavior(v), nil
+		}
+	}
+	return "", errors.Wrap(ErrUnknownEnum, "ScheduleEndBehavior")
 }
 
 type MaintenanceWindow struct {
@@ -175,9 +222,9 @@ type MaintenanceWindow struct {
 	DurationInMinutes int    `json:"durationInMinutes"`
 }
 type SchedulingConfig struct {
-	StartTime   string `json:"startTime"`
-	EndTime     string `json:"endTime"`
-	EndBehavior string `json:"endBehavior"`
+	StartTime   time.Time           `json:"startTime"`   // ISO-8601 date time
+	EndTime     *time.Time          `json:"endTime"`     // optional, ISO8601 date time
+	EndBehavior ScheduleEndBehavior `json:"endBehavior"` // STOP_ROLLOUT | CANCEL | FORCE_CANCEL
 
 	// To be implemented later
 	//MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
@@ -192,11 +239,11 @@ type RetryConfigItem struct {
 }
 
 type TimeoutConfig struct {
-	InProgressMinutes int64 `json:"inProgressMinutes"` // max time for taskutions stay in "IN_PROGRESS" status
+	InProgressMinutes int64 `json:"inProgressMinutes"` // max time for task stay in "IN_PROGRESS" status
 }
 
 type ProcessDetails struct {
-	ProcessingTargets []string // The target things to which the job taskution is being rolled out
+	ProcessingTargets []string // The target things to which the job task is being rolled out
 
 	// Status statistics with Thing as the statistical unit
 
@@ -218,13 +265,13 @@ type TargetConfig struct {
 type Detail struct {
 	JobId string `json:"jobId"`
 
-	TargetConfig     TargetConfig     `json:"targetConfig"`
-	JobDoc           string           `json:"jobDoc"`
-	Description      string           `json:"description"`
-	Operation        string           `json:"operation"`
-	SchedulingConfig SchedulingConfig `json:"schedulingConfig"`
-	RetryConfig      RetryConfig      `json:"retryConfig"`
-	TimeoutConfig    TimeoutConfig    `json:"timeoutConfig"`
+	TargetConfig     TargetConfig      `json:"targetConfig"`
+	JobDoc           string            `json:"jobDoc"`
+	Description      string            `json:"description"`
+	Operation        string            `json:"operation"`
+	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"`
+	RetryConfig      *RetryConfig      `json:"retryConfig"`
+	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"`
 
 	Status         Status         `json:"status"`
 	ForceCanceled  bool           `json:"forceCanceled"`
@@ -232,9 +279,10 @@ type Detail struct {
 	Comment        string         `json:"comment"`
 	ReasonCode     string         `json:"reasonCode"`
 
-	StartedAt   int64 `json:"startedAt"`
-	CompletedAt int64 `json:"completedAt"`
-	UpdatedAt   int64 `json:"updatedAt"`
+	StartedAt   *int64 `json:"startedAt"`
+	CompletedAt *int64 `json:"completedAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
+	CreatedAt   int64  `json:"createdAt"`
 
 	Version int `json:"version"`
 }
@@ -244,9 +292,10 @@ type Summary struct {
 	Operation string `json:"operation"`
 
 	Status      Status `json:"status"`
-	StartedAt   int64  `json:"startedAt"`
-	CompletedAt int64  `json:"completedAt"`
+	StartedAt   *int64 `json:"startedAt"`
+	CompletedAt *int64 `json:"completedAt"`
 	UpdatedAt   int64  `json:"updatedAt"`
+	CreatedAt   int64  `json:"createdAt"`
 
 	Version int `json:"version"`
 }
@@ -259,53 +308,62 @@ type Task struct {
 	ForceCanceled bool          `json:"forceCanceled"`
 	Status        TaskStatus    `json:"status"`
 	StatusDetails StatusDetails `json:"statusDetails"`
-	Progress      int           `json:"progress"`
-	QueuedAt      int64         `json:"queuedAt"`
-	StartedAt     int64         `json:"startedAt"`
+	Progress      uint8         `json:"progress"`
+	QueuedAt      *int64        `json:"queuedAt"`
+	StartedAt     *int64        `json:"startedAt"`
 	UpdatedAt     int64         `json:"updatedAt"`
+	CreatedAt     int64         `json:"createdAt"`
 
 	Version int `json:"version"`
 }
 
 type TaskSummary struct {
 	TaskId    int64  `json:"taskId"`
+	JobId     string `json:"jobId"`
+	ThingId   string `json:"thingId"`
 	Operation string `json:"operation"`
 
 	RetryAttempt uint8      `json:"retryAttempt"`
 	Status       TaskStatus `json:"status"`
-	Progress     int        `json:"progress"`
-	QueuedAt     int64      `json:"queuedAt"`
-	StartedAt    int64      `json:"startedAt"`
+	Progress     uint8      `json:"progress"`
+	QueuedAt     *int64     `json:"queuedAt"`
+	StartedAt    *int64     `json:"startedAt"`
 	UpdatedAt    int64      `json:"updatedAt"`
-}
-
-type TaskSummaryForJob struct {
-	ThingId     string      `json:"thingId"`
-	TaskSummary TaskSummary `json:"taskSummary"`
-}
-
-type TaskSummaryForThing struct {
-	JobId       string      `json:"jobId"`
-	TaskSummary TaskSummary `json:"taskSummary"`
+	CreatedAt    int64      `json:"createdAt"`
 }
 
 // The following is used by http api request body
 
 type CreateReq struct {
-	JobId            string       `json:"jobId"` // optional
-	TargetConfig     TargetConfig `json:"targetConfig"`
-	Operation        string       `json:"operation"`        // optional
-	JobDoc           string       `json:"jobDoc"`           // optional
-	Description      string       `json:"description"`      // optional
-	SchedulingConfig any          `json:"schedulingConfig"` // optional
-	RetryConfig      any          `json:"retryConfig"`      // optional, tasks retry config
-	TimeoutConfig    any          `json:"timeoutConfig"`    // optional
+	JobId        string       `json:"jobId"` // optional
+	TargetConfig TargetConfig `json:"targetConfig"`
+	Operation    string       `json:"operation"`
+	Description  string       `json:"description"` // optional
+
+	// JobDoc optional, when operation is "$updateShadow" or "$updateShadow",
+	// job doc should be json string of UpdateShadowReq or InvokeDirectMethodReq
+	JobDoc string `json:"jobDoc"`
+
+	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"` // optional
+	RetryConfig      *RetryConfig      `json:"retryConfig"`      // optional, tasks retry config
+	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"`    // optional
+}
+type UpdateShadowReq struct {
+	State struct {
+		Desired shadow.StateValue `json:"desired"`
+	} `json:"state"`
+}
+type InvokeDirectMethodReq struct {
+	Method      string `json:"method"`
+	ConnTimeout int    `json:"connTimeout"`     // in second
+	RespTimeout int    `json:"responseTimeout"` // in second
+	Payload     any    `json:"payload"`
 }
 
 type UpdateReq struct {
-	Description   string `json:"description"`   // optional
-	RetryConfig   any    `json:"retryConfig"`   // optional
-	TimeoutConfig any    `json:"timeoutConfig"` // optional
+	Description   string         `json:"description"`   // optional
+	RetryConfig   *RetryConfig   `json:"retryConfig"`   // optional
+	TimeoutConfig *TimeoutConfig `json:"timeoutConfig"` // optional
 }
 
 type CancelReq struct {
@@ -314,8 +372,8 @@ type CancelReq struct {
 }
 
 type CancelTaskReq struct {
-	Version       int           `json:"version"`       // optional, expected version
-	StatusDetails StatusDetails `json:"statusDetails"` // optional
+	Version       int            `json:"version"`       // optional, expected version
+	StatusDetails *StatusDetails `json:"statusDetails"` // optional
 }
 
 type IdResp struct {

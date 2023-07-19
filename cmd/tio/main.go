@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"ruff.io/tio/job"
 	"ruff.io/tio/ntp"
 	"syscall"
 	"time"
@@ -168,7 +169,13 @@ func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) 
 }
 
 func autoMigrate(conn *gorm.DB) {
-	err := conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
+	err := conn.AutoMigrate(
+		&thing.Entity{},
+		&shadow.Entity{},
+		&shadow.ConnStatusEntity{},
+		&job.Entity{},
+		&job.TaskEntity{},
+	)
 	if err != nil {
 		log.Fatalf("auto migrate db error: %v", err)
 	}

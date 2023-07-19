@@ -28,6 +28,8 @@ var (
 	ErrInvalidStateTransition = MkHttpErr("an invalid state transition was attempted", 409, 409)
 	ErrPayloadTooLarge        = MkHttpErr("payload too large", 413, 413)
 
+	ErrInternal = MkHttpErr("server internal error", 500, 500)
+
 	ErrShadowFormat = MkHttpErr("invalid shadow format", 400, 400)
 
 	ErrDirectMethodThingOffline = MkHttpErr("thing is offline", 200, ErrCodeThingOffline)
