@@ -30,13 +30,17 @@ type StateAcceptedSubscribe func(thingId string, msg StateAcceptedRespMsg)
 type StateRejectedSubscribe func(thingId string, msg ErrRespMsg)
 
 type StateService interface {
-	SetDesired(ctx context.Context, thingId string, sr StateReq) (Shadow, error)
+	StateDesiredSetter
 	SetReported(ctx context.Context, thingId string, sr StateReq) (Shadow, error)
 	SubscribeUpdate(StateUpdateSubscribe)
 	SubscribeDelta(StateDeltaSubscribe)
 	SubAccepted(StateAcceptedSubscribe)
 	SubRejected(StateRejectedSubscribe)
 	SyncConnStatus(ctx context.Context) error
+}
+
+type StateDesiredSetter interface {
+	SetDesired(ctx context.Context, thingId string, sr StateReq) (Shadow, error)
 }
 
 type CrudService interface {

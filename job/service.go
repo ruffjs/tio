@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/pkg/errors"
 	"ruff.io/tio"
 	"ruff.io/tio/pkg/model"
@@ -27,6 +28,11 @@ type TaskPageQuery struct {
 }
 type TaskPage model.PageData[TaskSummary]
 
+type TaskStatusCount struct {
+	Status TaskStatus
+	Count  int
+}
+
 // MgrService Management Service
 type MgrService interface {
 	// Job API
@@ -42,8 +48,8 @@ type MgrService interface {
 	CancelJob(ctx context.Context, jobId string, r CancelReq, force bool) error
 
 	// DeleteJob Deleting a job can take time, depending on the number of job executions created for the job and various other factors.
-	// While the job is being deleted, the status of the job is shown as "DELETION_IN_PROGRESS".
-	// Attempting to delete or cancel a job whose status is already "DELETION_IN_PROGRESS" results in an error.
+	// While the job is being deleted, the status of the job is shown as "REMOVING".
+	// Attempting to delete or cancel a job whose status is already "REMOVING" results in an error.
 	//
 	// When force is true, you can delete a job which is "IN_PROGRESS".
 	// Otherwise, you can only delete a job which is in a terminal state ("COMPLETED" or "CANCELED")
@@ -82,16 +88,18 @@ type Repo interface {
 
 	// Task API
 
-	CreateTask(ctx context.Context, t TaskEntity) (TaskEntity, error)
+	CreateTasks(ctx context.Context, l []TaskEntity) ([]TaskEntity, error)
 	UpdateTask(ctx context.Context, taskId int64, m map[string]any) error
 	CancelTasks(ctx context.Context, jobId string, force bool) error
 	DeleteTask(ctx context.Context, taskId int64) error
 	GetTask(ctx context.Context, taskId int64) (*TaskEntity, error)
 	QueryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (model.PageData[TaskEntity], error)
+
+	CountTaskStatus(ctx context.Context, jobId string) ([]TaskStatusCount, error)
 }
 
-func NewMgrService(repo Repo, idProvider tio.IdProvider) MgrService {
-	return mgrSvcImpl{repo, idProvider}
+func NewMgrService(repo Repo, idProvider tio.IdProvider, jc Center) MgrService {
+	return mgrSvcImpl{repo, idProvider, jc}
 }
 
 var _ MgrService = &mgrSvcImpl{}
@@ -99,6 +107,7 @@ var _ MgrService = &mgrSvcImpl{}
 type mgrSvcImpl struct {
 	repo       Repo
 	idProvider tio.IdProvider
+	jobCenter  Center
 }
 
 func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) {
@@ -116,15 +125,26 @@ func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) 
 		}
 	}
 	res, err := s.repo.CreateJob(ctx, e)
+	// log.Debugf("CreateJob", val ...interface{})
 	if err != nil {
 		return Detail{}, err
 	}
-	if d, err := toDetail(res); err != nil {
+	if d, err := toDetail(res, []TaskStatusCount{}); err != nil {
 		return Detail{}, errors.WithMessage(model.ErrInternal, "to job detail")
 	} else {
+		s.jobCenter.ReceiveMgrMsg(MgrMsg{
+			Typ: MgrTypeCreateJob,
+			Data: MgrMsgCreateJob{
+				TargetConfig: d.TargetConfig,
+				JobContext: JobContext{
+					JobId: d.JobId, Operation: d.Operation, JobDoc: d.JobDoc,
+					SchedulingConfig: d.SchedulingConfig, RetryConfig: d.RetryConfig, TimeoutConfig: d.TimeoutConfig,
+					Status: d.Status, StartedAt: d.StartedAt,
+				},
+			},
+		})
 		return d, nil
 	}
-	// TODO: notify job runner
 }
 
 // UpdateJob Updated values for timeoutConfig take effect for only newly in-progress tasks.
@@ -221,7 +241,11 @@ func (s mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
 	if e == nil {
 		return nil, nil
 	}
-	d, err := toDetail(*e)
+	tsCount, err := s.repo.CountTaskStatus(ctx, jobId)
+	if err != nil {
+		return nil, err
+	}
+	d, err := toDetail(*e, tsCount)
 	if err != nil {
 		return nil, err
 	}
@@ -323,11 +347,8 @@ func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId i
 	if e == nil {
 		return nil, nil
 	}
-	if t, err := toTask(*e); err != nil {
-		return nil, err
-	} else {
-		return &t, nil
-	}
+	t := toTask(*e)
+	return &t, nil
 }
 
 func (s mgrSvcImpl) QueryTaskForThing(ctx context.Context, thingId string, q TaskPageQuery) (TaskPage, error) {

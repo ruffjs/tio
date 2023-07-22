@@ -1,9 +1,10 @@
 package job
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	"ruff.io/tio/shadow"
-	"time"
 )
 
 // Types for Job and Task
@@ -25,21 +26,20 @@ type StatusDetails map[string]any
 type TaskStatus string
 
 const (
-	TaskQueued     TaskStatus = "QUEUED"
-	TaskInProgress TaskStatus = "IN_PROGRESS"
-	TaskFailed     TaskStatus = "FAILED"
-	TaskSucceeded  TaskStatus = "SUCCEEDED"
-	TaskCanceled   TaskStatus = "CANCELED"
-	TaskTimeOut    TaskStatus = "TIMED_OUT"
-	TaskRejected   TaskStatus = "REJECTED"
-	TaskRemoved    TaskStatus = "REMOVED"
+	TaskQueued     TaskStatus = "QUEUED"      // waiting to schedule
+	TaskSent       TaskStatus = "SENT"        // scheduled task, can be sent to device
+	TaskInProgress TaskStatus = "IN_PROGRESS" // device report task in progress
+	TaskFailed     TaskStatus = "FAILED"      // device report task failed
+	TaskSucceeded  TaskStatus = "SUCCEEDED"   // device report task succeeded
+	TaskCanceled   TaskStatus = "CANCELED"    // canceled by api or schedule
+	TaskTimeOut    TaskStatus = "TIMED_OUT"   // takes too long time to stay in IN_PROGRESS status
+	TaskRejected   TaskStatus = "REJECTED"    // rejected by device
 )
 
 var taskStatusValues = []string{
-	string(TaskQueued), string(TaskInProgress),
-	string(TaskFailed), string(TaskSucceeded),
-	string(TaskRejected), string(TaskTimeOut),
-	string(TaskCanceled), string(TaskRemoved),
+	string(TaskQueued), string(TaskSent),
+	string(TaskInProgress), string(TaskFailed), string(TaskSucceeded), string(TaskRejected),
+	string(TaskTimeOut), string(TaskCanceled),
 }
 
 func (TaskStatus) Values() []string {
@@ -60,6 +60,13 @@ func (s TaskStatus) Of(value string) (TaskStatus, error) {
 		}
 	}
 	return "", errors.WithMessage(ErrUnknownEnum, "TaskStatus")
+}
+
+type TErrResp struct {
+	Code        int    `json:"code"`
+	Message     string `json:"message"`
+	Timestamp   int64  `json:"timestamp"`
+	ClientToken string `json:"clientToken"`
 }
 
 type TTask struct {
@@ -160,21 +167,23 @@ type TUpdateTaskResp struct {
 type Status string
 
 const (
-	StatusScheduled          Status = "SCHEDULED"
-	StatusInProgress         Status = "IN_PROGRESS"
-	StatusCanceled           Status = "CANCELED"
-	StatusCompleted          Status = "COMPLETED"
-	StatusDeletionInProgress Status = "DELETION_IN_PROGRESS"
+	StatusWaiting    Status = "WAITING"     // waiting to schedule
+	StatusInProgress Status = "IN_PROGRESS" // tasks under job can be sent to device
+	StatusCanceling  Status = "CANCELING"   // canceling, cancel tasks or has tasks running that can not be canceled
+	StatusCanceled   Status = "CANCELED"    // canceled by api or schedule
+	StatusCompleted  Status = "COMPLETED"   // all task in terminal status
+	StatusRemoving   Status = "REMOVING"    // job is removing, job will be deleted after this status
 )
 
-var statusScheduledValues = []string{
-	string(StatusScheduled), string(StatusInProgress),
+var statusValues = []string{
+	string(StatusWaiting),
+	string(StatusInProgress),
 	string(StatusCanceled), string(StatusCompleted),
-	string(StatusDeletionInProgress),
+	string(StatusCanceling), string(StatusRemoving),
 }
 
 func (Status) Values() []string {
-	return statusScheduledValues
+	return statusValues
 }
 func (s Status) String() string {
 	return string(s)
@@ -224,11 +233,13 @@ type MaintenanceWindow struct {
 	DurationInMinutes int    `json:"durationInMinutes"`
 }
 type SchedulingConfig struct {
-	StartTime   time.Time           `json:"startTime"`   // ISO-8601 date time
+	StartTime time.Time `json:"startTime"` // ISO-8601 date time
+
+	// To be implemented later
+
 	EndTime     *time.Time          `json:"endTime"`     // optional, ISO8601 date time
 	EndBehavior ScheduleEndBehavior `json:"endBehavior"` // STOP_ROLLOUT | CANCEL | FORCE_CANCEL
 
-	// To be implemented later
 	//MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
 }
 
@@ -249,13 +260,14 @@ type ProcessDetails struct {
 
 	// Status statistics with Thing as the statistical unit
 
-	Canceled   int `json:"canceled"`
-	Failed     int `json:"failed"`
-	InProgress int `json:"inProgress"`
 	Queued     int `json:"queued"`
+	Sent       int `json:"sent"`
+	InProgress int `json:"inProgress"`
+	Failed     int `json:"failed"`
+	Succeeded  int `json:"succeeded"`
+	Canceled   int `json:"canceled"`
 	Rejected   int `json:"rejected"`
 	Removed    int `json:"removed"`
-	Succeeded  int `json:"succeeded"`
 	TimedOut   int `json:"timedOut"`
 }
 
@@ -268,7 +280,7 @@ type Detail struct {
 	JobId string `json:"jobId"`
 
 	TargetConfig     TargetConfig      `json:"targetConfig"`
-	JobDoc           string            `json:"jobDoc"`
+	JobDoc           map[string]any    `json:"jobDoc"`
 	Description      string            `json:"description"`
 	Operation        string            `json:"operation"`
 	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"`
@@ -305,6 +317,7 @@ type Summary struct {
 type Task struct {
 	JobId     string `json:"jobId"`
 	TaskId    int64  `json:"taskId"`
+	ThingId   string `json:"thingId"`
 	Operation string `json:"operation"`
 
 	ForceCanceled bool          `json:"forceCanceled"`
@@ -344,7 +357,7 @@ type CreateReq struct {
 
 	// JobDoc optional, when operation is "$updateShadow" or "$updateShadow",
 	// job doc should be json string of UpdateShadowReq or InvokeDirectMethodReq
-	JobDoc string `json:"jobDoc"`
+	JobDoc any `json:"jobDoc"`
 
 	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"` // optional
 	RetryConfig      *RetryConfig      `json:"retryConfig"`      // optional, tasks retry config
@@ -357,9 +370,8 @@ type UpdateShadowReq struct {
 }
 type InvokeDirectMethodReq struct {
 	Method      string `json:"method"`
-	ConnTimeout int    `json:"connTimeout"`     // in second
 	RespTimeout int    `json:"responseTimeout"` // in second
-	Payload     any    `json:"payload"`
+	Data        any    `json:"data"`
 }
 
 type UpdateReq struct {

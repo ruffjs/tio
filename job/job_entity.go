@@ -3,26 +3,28 @@ package job
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/pkg/errors"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
-	"strings"
-	"time"
 )
 
 type Entity struct {
 	JobId            string         `gorm:"primaryKey;size:64"`
 	TargetConfig     datatypes.JSON `gorm:"NOT NULL;"`
-	JobDoc           string         `gorm:"type:text; NOT NULL;"`
-	Description      string         `gorm:"size:256"`
-	Operation        string         `gorm:"NOT NULL;"`
+	JobDoc           datatypes.JSON
+	Description      string `gorm:"size:256"`
+	Operation        string `gorm:"NOT NULL;"`
 	SchedulingConfig datatypes.JSON
 	RetryConfig      datatypes.JSON
 	TimeoutConfig    datatypes.JSON
 
-	Status         Status `gorm:"NOT NULL;default:SCHEDULED;"`
+	Status         Status `gorm:"NOT NULL;default:WAITING;"`
 	ForceCanceled  bool   `gorm:"NOT NULL; DEFAULT: 0"`
 	ProcessDetails datatypes.JSON
 	Comment        string `gorm:"size:256"`
@@ -110,12 +112,19 @@ func toEntity(r CreateReq) (Entity, error) {
 		}
 	}
 
+	var jd []byte
+	if r.JobDoc != nil {
+		if jd, err = json.Marshal(r.JobDoc); err != nil {
+			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field jobDoc: "+err.Error())
+		}
+	}
+
 	e := Entity{
 		JobId:        r.JobId,
 		TargetConfig: targetConf,
 		Operation:    r.Operation,
 		Description:  r.Description,
-		JobDoc:       r.JobDoc,
+		JobDoc:       jd,
 
 		SchedulingConfig: schConfig,
 		RetryConfig:      retryConf,
@@ -125,25 +134,69 @@ func toEntity(r CreateReq) (Entity, error) {
 	return e, nil
 }
 
-func toDetail(e Entity) (Detail, error) {
+func toTaskEntities(jobId, operation string, tgt TargetConfig) []TaskEntity {
+	var l []TaskEntity
+	for _, t := range tgt.Things {
+		t := TaskEntity{
+			JobId:     jobId,
+			ThingId:   t,
+			Operation: operation,
+		}
+		l = append(l, t)
+	}
+	return l
+}
+
+func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 	var targetConf TargetConfig
 	var schConf SchedulingConfig
 	var retryConf RetryConfig
 	var timeoutConf TimeoutConfig
-	//var procDetails ProcessDetails = ProcessDetails{} // TODO
+
+	pd := ProcessDetails{}
+	for _, sc := range tsc {
+		switch sc.Status {
+		case TaskQueued:
+			pd.Queued = sc.Count
+		case TaskSent:
+			pd.Sent = sc.Count
+		case TaskInProgress:
+			pd.InProgress = sc.Count
+		case TaskFailed:
+			pd.Failed = sc.Count
+		case TaskSucceeded:
+			pd.Succeeded = sc.Count
+		case TaskCanceled:
+			pd.Canceled = sc.Count
+		case TaskTimeOut:
+			pd.TimedOut = sc.Count
+		case TaskRejected:
+			pd.TimedOut = sc.Count
+		default:
+			log.Errorf("unexpected task status %q", sc.Status)
+		}
+	}
+
+	var jd map[string]any
+	if len(e.JobDoc) != 0 {
+		if err := json.Unmarshal(e.JobDoc, &jd); err != nil {
+			return Detail{}, err
+		}
+	}
 
 	d := Detail{
-		JobId:         e.JobId,
-		Operation:     e.Operation,
-		Description:   e.Description,
-		JobDoc:        e.JobDoc,
-		Status:        e.Status,
-		ForceCanceled: e.ForceCanceled,
-		Comment:       e.Comment,
-		ReasonCode:    e.ReasonCode,
-		UpdatedAt:     e.UpdatedAt.UnixMilli(),
-		CreatedAt:     e.CreatedAt.UnixMilli(),
-		Version:       e.Version,
+		JobId:          e.JobId,
+		Operation:      e.Operation,
+		Description:    e.Description,
+		JobDoc:         jd,
+		Status:         e.Status,
+		ForceCanceled:  e.ForceCanceled,
+		ProcessDetails: pd,
+		Comment:        e.Comment,
+		ReasonCode:     e.ReasonCode,
+		UpdatedAt:      e.UpdatedAt.UnixMilli(),
+		CreatedAt:      e.CreatedAt.UnixMilli(),
+		Version:        e.Version,
 	}
 
 	if !e.StartedAt.IsZero() {
@@ -206,11 +259,20 @@ func toSummary(e Entity) Summary {
 	return s
 }
 
-func toTask(e TaskEntity) (Task, error) {
+func toTasks(el []TaskEntity) []Task {
+	var l []Task
+	for _, e := range el {
+		l = append(l, toTask(e))
+	}
+	return l
+}
+
+func toTask(e TaskEntity) Task {
 	var stDetails StatusDetails
 	t := Task{
 		JobId:         e.JobId,
 		TaskId:        e.TaskId,
+		ThingId:       e.ThingId,
 		Operation:     e.Operation,
 		ForceCanceled: e.ForceCanceled,
 		Status:        e.Status,
@@ -231,11 +293,11 @@ func toTask(e TaskEntity) (Task, error) {
 	if e.StatusDetails != nil {
 		err := json.Unmarshal(e.StatusDetails, &stDetails)
 		if err != nil {
-			return Task{}, errors.WithMessage(model.ErrInternal, "field statusDetails")
+			log.Errorf("task entity statusDetails is invalid json, content=%s error: %v", e.StatusDetails, err)
 		}
 	}
 	t.StatusDetails = stDetails
-	return t, nil
+	return t
 }
 
 func toTaskSummary(e TaskEntity) TaskSummary {

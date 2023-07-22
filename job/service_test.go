@@ -3,32 +3,22 @@ package job_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/stretchr/testify/require"
-	"ruff.io/tio/db/mock"
-	"ruff.io/tio/job"
-	"ruff.io/tio/job/wire"
-	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/pkg/model"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"ruff.io/tio/job"
+	"ruff.io/tio/job/test"
+	"ruff.io/tio/pkg/model"
 )
-
-func NewTestSvc() (job.MgrService, job.Repo) {
-	db := mock.NewSqliteConnTest()
-	err := db.AutoMigrate(job.Entity{}, job.TaskEntity{})
-	if err != nil {
-		log.Fatalf("job auto migrate error: %v", err)
-	}
-
-	s := wire.InitSvc(db)
-	r := job.NewRepo(db)
-	return s, r
-}
 
 func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := NewTestSvc()
+	mockJc := test.NewMockJobCenter()
+	mockJc.On("ReceiveMgrMsg", mock.Anything, mock.Anything).Return(nil)
+	svc, _ := test.NewTestSvc(mockJc)
 
 	sdt := time.Now().Add(time.Hour * 24)
 	tests := []struct {
@@ -40,7 +30,9 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 			name: "create with jobId",
 			req: job.CreateReq{
 				Operation: "test",
-				JobId:     "test-job-001", TargetConfig: job.TargetConfig{
+				JobId:     "test-job-001",
+				JobDoc:    map[string]any{"hi": "you"},
+				TargetConfig: job.TargetConfig{
 					Type:   "THING_ID",
 					Things: []string{"a"},
 				}},
@@ -50,7 +42,9 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 			name: "create with duplicated jobId should error",
 			req: job.CreateReq{
 				Operation: "test",
-				JobId:     "test-job-001", TargetConfig: job.TargetConfig{
+				JobId:     "test-job-001",
+				JobDoc:    map[string]any{"hi": true},
+				TargetConfig: job.TargetConfig{
 					Type:   "THING_ID",
 					Things: []string{"b"},
 				}},
@@ -60,6 +54,7 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 			name: "create without jobId",
 			req: job.CreateReq{
 				Operation: "test",
+				JobDoc:    map[string]any{"hi": 332},
 				TargetConfig: job.TargetConfig{
 					Type:   "THING_ID",
 					Things: []string{"c"},
@@ -113,7 +108,7 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 				}
 				require.Equal(t, subT.req.TargetConfig, got.TargetConfig)
 				require.Equal(t, subT.req.Operation, got.Operation)
-				require.Equal(t, job.StatusScheduled, got.Status)
+				require.Equal(t, job.StatusWaiting, got.Status)
 			}
 		})
 	}
@@ -123,6 +118,7 @@ var jobsTest = []job.CreateReq{
 	{
 		JobId:     "test1",
 		Operation: "test1",
+		JobDoc:    map[string]any{"hi": "you"},
 		TargetConfig: job.TargetConfig{
 			Type:   "THING_ID",
 			Things: []string{"a"},
@@ -131,6 +127,7 @@ var jobsTest = []job.CreateReq{
 	{
 		JobId:     "test2",
 		Operation: "test2",
+		JobDoc:    map[string]any{"hi": 1},
 		TargetConfig: job.TargetConfig{
 			Type:   "THING_ID",
 			Things: []string{"a", "b"},
@@ -139,6 +136,7 @@ var jobsTest = []job.CreateReq{
 	{
 		JobId:     "test3",
 		Operation: "test3",
+		JobDoc:    map[string]any{"hi": true},
 		TargetConfig: job.TargetConfig{
 			Type:   "THING_ID",
 			Things: []string{"a", "b", "c"},
@@ -194,23 +192,23 @@ func testTasksOfJob(jobId string, status job.TaskStatus) []job.TaskEntity {
 	return l
 }
 
-func preCreateJobs(ctx context.Context, t *testing.T, svc job.MgrService) {
+func preCreateJobs(ctx context.Context, t *testing.T, svc job.MgrService, mockJc *test.JobCenter) {
 	for _, j := range jobsTest {
+		mockJc.On("ReceiveMgrMsg", mock.Anything, mock.Anything).Return(nil)
 		_, err := svc.CreateJob(ctx, j)
 		require.NoError(t, err)
 	}
 }
 func preCreateTasks(ctx context.Context, t *testing.T, repo job.Repo) {
-	for _, tk := range tasksTest {
-		_, err := repo.CreateTask(ctx, tk)
-		require.NoError(t, err)
-	}
+	_, err := repo.CreateTasks(ctx, tasksTest)
+	require.NoError(t, err)
 }
 
 func Test_mgrSvcImpl_QueryJob(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, _ := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 
 	tests := []struct {
 		name    string
@@ -229,7 +227,7 @@ func Test_mgrSvcImpl_QueryJob(t *testing.T) {
 		},
 		{
 			name:    "query page with status",
-			query:   job.PageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 3}, Status: job.StatusScheduled},
+			query:   job.PageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 3}, Status: job.StatusWaiting},
 			wantLen: 3,
 		},
 		{
@@ -261,8 +259,9 @@ func Test_mgrSvcImpl_QueryJob(t *testing.T) {
 
 func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, _ := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 
 	des250 := strings.Repeat("x", 250)
 	des251 := strings.Repeat("x", 251)
@@ -364,8 +363,9 @@ func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
 
 func Test_mgrSvcImpl_CancelJob(t *testing.T) {
 	ctx := context.Background()
-	svc, repo := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, repo := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 	preCreateTasks(ctx, t, repo)
 	err := repo.UpdateJob(ctx, jobsTest[2].JobId, map[string]any{"status": job.StatusInProgress})
 	require.NoError(t, err)
@@ -447,8 +447,9 @@ func Test_mgrSvcImpl_CancelJob(t *testing.T) {
 
 func Test_mgrSvcImpl_DeleteJob(t *testing.T) {
 	ctx := context.Background()
-	svc, repo := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, repo := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 	preCreateTasks(ctx, t, repo)
 	err := repo.UpdateJob(ctx, jobsTest[1].JobId, map[string]any{"status": job.StatusInProgress})
 	require.NoError(t, err)
@@ -497,8 +498,9 @@ func Test_mgrSvcImpl_DeleteJob(t *testing.T) {
 
 func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 	ctx := context.Background()
-	svc, repo := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, repo := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 	preCreateTasks(ctx, t, repo)
 
 	stDet := func(m map[string]any) *job.StatusDetails {
@@ -564,8 +566,9 @@ func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 
 func Test_mgrSvcImpl_DeleteTask(t *testing.T) {
 	ctx := context.Background()
-	svc, repo := NewTestSvc()
-	preCreateJobs(ctx, t, svc)
+	mockJc := test.NewMockJobCenter()
+	svc, repo := test.NewTestSvc(mockJc)
+	preCreateJobs(ctx, t, svc, mockJc)
 	preCreateTasks(ctx, t, repo)
 
 	tests := []struct {

@@ -14,9 +14,9 @@ import (
 
 // Injectors from wire.go:
 
-func InitSvc(dbConn *gorm.DB) job.MgrService {
+func InitSvc(dbConn *gorm.DB, jc job.Center) job.MgrService {
 	repo := job.NewRepo(dbConn)
 	idProvider := uuid.New()
-	mgrService := job.NewMgrService(repo, idProvider)
+	mgrService := job.NewMgrService(repo, idProvider, jc)
 	return mgrService
 }

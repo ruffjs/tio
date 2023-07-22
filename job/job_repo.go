@@ -2,10 +2,11 @@ package job
 
 import (
 	"context"
+	"strings"
+
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"ruff.io/tio/pkg/model"
-	"strings"
 )
 
 type jobRepo struct {
@@ -126,14 +127,19 @@ func (r jobRepo) QueryJob(ctx context.Context, pq PageQuery) (model.PageData[Ent
 	return page, nil
 }
 
-func (r jobRepo) CreateTask(ctx context.Context, t TaskEntity) (TaskEntity, error) {
-	if res := r.db.WithContext(ctx).Create(&t); res.Error != nil {
-		return TaskEntity{}, res.Error
+func (r jobRepo) CreateTasks(ctx context.Context, l []TaskEntity) ([]TaskEntity, error) {
+	if res := r.db.WithContext(ctx).Create(&l); res.Error != nil {
+		return []TaskEntity{}, res.Error
 	} else {
-		if e, err := r.GetTask(ctx, t.TaskId); err != nil {
-			return TaskEntity{}, err
+		var ids []int64
+		for _, t := range l {
+			ids = append(ids, t.TaskId)
+		}
+		var rl []TaskEntity
+		if err := r.db.Where("task_id in ?", ids).Find(&rl).Error; err != nil {
+			return []TaskEntity{}, err
 		} else {
-			return *e, nil
+			return rl, nil
 		}
 	}
 }
@@ -222,4 +228,17 @@ func (r jobRepo) QueryTask(
 		return page, err
 	}
 	return page, nil
+}
+
+func (r jobRepo) CountTaskStatus(ctx context.Context, jobId string) ([]TaskStatusCount, error) {
+	var tsc []TaskStatusCount
+	res := r.db.WithContext(ctx).Model(TaskEntity{}).
+		Where("job_id=?", jobId).
+		Select("status, COUNT(*) AS count").
+		Group("status").
+		Scan(&tsc)
+	if res.Error != nil {
+		return tsc, res.Error
+	}
+	return tsc, nil
 }

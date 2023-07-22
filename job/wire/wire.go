@@ -10,7 +10,7 @@ import (
 	"ruff.io/tio/pkg/uuid"
 )
 
-func InitSvc(dbConn *gorm.DB) job.MgrService {
+func InitSvc(dbConn *gorm.DB, jc job.Center) job.MgrService {
 	wire.Build(
 		uuid.New,
 		job.NewRepo,

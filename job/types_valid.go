@@ -1,6 +1,7 @@
 package job
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"regexp"
@@ -40,8 +41,10 @@ func (r CreateReq) valid() error {
 	if len(r.Description) > 250 {
 		return errors.WithMessage(model.ErrInvalidParams, "field `description` length should be less than 250")
 	}
-	if len(r.JobDoc) > 60000 {
-		return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` length should be less than 60000")
+	if jd, err := json.Marshal(r.JobDoc); err != nil {
+		return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` is not a json object")
+	} else if len(jd) > 60000 {
+		return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` size should be less than 60000 byte")
 	}
 
 	if r.TargetConfig.Type == "" {
