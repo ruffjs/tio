@@ -17,10 +17,10 @@ import (
 func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 	ctx := context.Background()
 	mockJc := test.NewMockJobCenter()
-	mockJc.On("ReceiveMgrMsg", mock.Anything, mock.Anything).Return(nil)
 	svc, _ := test.NewTestSvc(mockJc)
 
-	sdt := time.Now().Add(time.Hour * 24)
+	sdSt := time.Now().Truncate(time.Millisecond)
+	sdEt := sdSt.Add(time.Hour * 24)
 	tests := []struct {
 		name    string
 		req     job.CreateReq
@@ -54,7 +54,7 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 			name: "create without jobId",
 			req: job.CreateReq{
 				Operation: "test",
-				JobDoc:    map[string]any{"hi": 332},
+				JobDoc:    map[string]any{"hi": 332.0},
 				TargetConfig: job.TargetConfig{
 					Type:   "THING_ID",
 					Things: []string{"c"},
@@ -86,30 +86,52 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 					Things: []string{"e"},
 				},
 				SchedulingConfig: &job.SchedulingConfig{
-					StartTime:   time.Now(),
-					EndTime:     &sdt,
+					StartTime:   sdSt,
+					EndTime:     &sdEt,
 					EndBehavior: job.ScheduleEndBehaviorCancel,
 				},
+				RolloutConfig: &job.RolloutConfig{MaxPerMinute: 10},
 			},
 			wantErr: false,
 		},
 	}
 
+	c := 0
 	for _, tt := range tests {
 		subT := tt
+		mockJc.On("ReceiveMgrMsg", mock.AnythingOfType("job.MgrMsg")).Return(nil)
 		t.Run(subT.name, func(t *testing.T) {
 			got, err := svc.CreateJob(ctx, subT.req)
 			require.True(t, (err != nil) == subT.wantErr, "wantErr=%v error=%v", subT.wantErr, err)
-			if subT.name == "create without jobId" {
-				require.True(t, got.JobId != "", "job id is generated")
-			} else if err == nil {
+			if err == nil {
+				c += 1
 				if subT.req.JobId != "" {
 					require.Equal(t, subT.req.JobId, got.JobId, "create job id")
+				} else {
+					require.True(t, got.JobId != "", "job id is generated")
 				}
 				require.Equal(t, subT.req.TargetConfig, got.TargetConfig)
 				require.Equal(t, subT.req.Operation, got.Operation)
 				require.Equal(t, job.StatusWaiting, got.Status)
+
+				msg := job.MgrMsg{Typ: job.MgrTypeCreateJob, Data: job.MgrMsgCreateJob{
+					TargetConfig: subT.req.TargetConfig,
+					JobContext: job.JobContext{JobId: got.JobId, JobDoc: subT.req.JobDoc,
+						Operation:        subT.req.Operation,
+						SchedulingConfig: subT.req.SchedulingConfig,
+						RolloutConfig:    subT.req.RolloutConfig,
+						RetryConfig:      subT.req.RetryConfig,
+						TimeoutConfig:    subT.req.TimeoutConfig,
+						Status:           job.StatusWaiting,
+					},
+				},
+				}
+				require.Equal(t, c, len(mockJc.Calls))
+				c := mockJc.Calls[len(mockJc.Calls)-1]
+				require.Equal(t, "ReceiveMgrMsg", c.Method)
+				require.Equal(t, msg, c.Arguments[0])
 			}
+
 		})
 	}
 }
@@ -151,6 +173,7 @@ var tasksTest = []job.TaskEntity{
 		TaskId:    1,
 		Operation: "test1",
 		Status:    job.TaskQueued,
+		QueuedAt:  time.Now(),
 	},
 	{
 		JobId:     "test2",
@@ -158,6 +181,7 @@ var tasksTest = []job.TaskEntity{
 		TaskId:    2,
 		Operation: "test2",
 		Status:    job.TaskQueued,
+		QueuedAt:  time.Now(),
 	},
 	{
 		JobId:     "test2",
@@ -165,6 +189,7 @@ var tasksTest = []job.TaskEntity{
 		TaskId:    3,
 		Operation: "test3",
 		Status:    job.TaskInProgress,
+		QueuedAt:  time.Now(),
 	},
 	{
 		JobId:     "test3",
@@ -172,6 +197,7 @@ var tasksTest = []job.TaskEntity{
 		TaskId:    4,
 		Operation: "test3",
 		Status:    job.TaskQueued,
+		QueuedAt:  time.Now(),
 	},
 	{
 		JobId:     "test3",
@@ -179,6 +205,7 @@ var tasksTest = []job.TaskEntity{
 		TaskId:    5,
 		Operation: "test3",
 		Status:    job.TaskInProgress,
+		QueuedAt:  time.Now(),
 	},
 }
 
@@ -339,12 +366,16 @@ func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
+	mockJc.On("ReceiveMgrMsg", mock.AnythingOfType("job.MgrMsg")).Return(nil)
+	c := len(jobsTest)
 	for _, tt := range tests {
 		st := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := svc.UpdateJob(ctx, st.jobId, st.req)
 			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
 			if err == nil {
+				c++
 				j, err := svc.GetJob(ctx, st.jobId)
 				require.NoError(t, err)
 				if st.req.Description != nil {
@@ -356,6 +387,15 @@ func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
 				if st.req.TimeoutConfig != nil {
 					require.Equal(t, st.req.TimeoutConfig, j.TimeoutConfig)
 				}
+
+				msg := job.MgrMsg{
+					Typ:  job.MgrTypeUpdateJob,
+					Data: job.MgrMsgUpdateJob{JobId: st.jobId, RetryConfig: *st.req.RetryConfig, TimeoutConfig: *st.req.TimeoutConfig},
+				}
+				require.Equal(t, c, len(mockJc.Calls))
+				c := mockJc.Calls[len(mockJc.Calls)-1]
+				require.Equal(t, "ReceiveMgrMsg", c.Method)
+				require.Equal(t, msg, c.Arguments[0])
 			}
 		})
 	}
@@ -405,12 +445,16 @@ func Test_mgrSvcImpl_CancelJob(t *testing.T) {
 			req:   job.CancelReq{},
 		},
 	}
+
+	c := len(jobsTest)
+	mockJc.On("ReceiveMgrMsg", mock.Anything)
 	for _, tt := range tests {
 		st := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(st.name, func(t *testing.T) {
 			err := svc.CancelJob(ctx, st.jobId, st.req, st.force)
 			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
-			if err != nil {
+			if err == nil {
+				c++
 				j, err := svc.GetJob(ctx, st.jobId)
 				require.NoError(t, err)
 				cm := ""
@@ -423,6 +467,16 @@ func Test_mgrSvcImpl_CancelJob(t *testing.T) {
 				}
 				require.Equal(t, cm, j.Comment)
 				require.Equal(t, rc, j.ReasonCode)
+
+				// check notify
+				msg := job.MgrMsg{
+					Typ:  job.MgrTypeCancelJob,
+					Data: job.MgrMsgCancelJob{JobId: st.jobId, Operation: j.Operation, Force: st.force},
+				}
+				require.Equal(t, c, len(mockJc.Calls))
+				c := mockJc.Calls[len(mockJc.Calls)-1]
+				require.Equal(t, "ReceiveMgrMsg", c.Method)
+				require.Equal(t, msg, c.Arguments[0])
 
 				// tasks status check
 				tasks := testTasksOfJob(st.jobId, "")
@@ -479,18 +533,32 @@ func Test_mgrSvcImpl_DeleteJob(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
+	c := len(jobsTest)
+	mockJc.On("ReceiveMgrMsg", mock.Anything)
 	for _, tt := range tests {
 		st := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := svc.DeleteJob(ctx, st.jobId, st.force)
+			old, err := svc.DeleteJob(ctx, st.jobId, st.force)
 			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
 			if err == nil {
+				c++
 				j, err := svc.GetJob(ctx, st.jobId)
 				require.NoError(t, err)
 				require.True(t, j == nil)
 				l, err := svc.QueryTaskForJob(ctx, st.jobId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
 				require.NoError(t, err)
 				require.Equal(t, int64(0), l.Total, "tasks under job should be deleted")
+
+				// check notify
+				msg := job.MgrMsg{
+					Typ:  job.MgrTypeDeleteJob,
+					Data: job.MgrMsgDeleteJob{JobId: st.jobId, Operation: old.Operation, Force: st.force},
+				}
+				require.Equal(t, c, len(mockJc.Calls))
+				c := mockJc.Calls[len(mockJc.Calls)-1]
+				require.Equal(t, "ReceiveMgrMsg", c.Method)
+				require.Equal(t, msg, c.Arguments[0])
 			}
 		})
 	}
@@ -541,6 +609,8 @@ func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 			wantErr:    true,
 		},
 	}
+
+	c := len(jobsTest)
 	for _, tt := range tests {
 		st := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -559,6 +629,17 @@ func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 				err := json.Unmarshal(tk.StatusDetails, &sd)
 				require.NoError(t, err)
 				require.Equal(t, *st.req.StatusDetails, sd)
+
+				// check notify
+				c++
+				msg := job.MgrMsg{
+					Typ:  job.MgrTypeCancelTask,
+					Data: job.MgrMsgCancelTask{JobId: st.jobId, TaskId: tk.TaskId, Operation: tk.Operation, Force: st.force},
+				}
+				require.Equal(t, c, len(mockJc.Calls))
+				c := mockJc.Calls[len(mockJc.Calls)-1]
+				require.Equal(t, "ReceiveMgrMsg", c.Method)
+				require.Equal(t, msg, c.Arguments[0])
 			}
 		})
 	}
@@ -600,10 +681,13 @@ func Test_mgrSvcImpl_DeleteTask(t *testing.T) {
 			force:   true,
 		},
 	}
+
+	c := len(jobsTest)
+	mockJc.On("ReceiveMgrMsg", mock.Anything)
 	for _, tt := range tests {
 		st := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := svc.DeleteTask(ctx, st.thingId, st.jobId, st.taskId, st.force)
+			old, err := svc.DeleteTask(ctx, st.thingId, st.jobId, st.taskId, st.force)
 			require.True(t, (err != nil) == st.wantErr, "wantErr=%v error=%v", st.wantErr, err)
 			if err != nil {
 				return
@@ -611,6 +695,17 @@ func Test_mgrSvcImpl_DeleteTask(t *testing.T) {
 			tk, err := svc.GetTask(ctx, st.thingId, st.jobId, st.taskId)
 			require.NoError(t, err)
 			require.Nil(t, tk)
+
+			// check notify
+			c++
+			msg := job.MgrMsg{
+				Typ:  job.MgrTypeDeleteTask,
+				Data: job.MgrMsgDeleteTask{JobId: st.jobId, TaskId: st.taskId, Operation: old.Operation, Force: st.force},
+			}
+			require.Equal(t, c, len(mockJc.Calls))
+			c := mockJc.Calls[len(mockJc.Calls)-1]
+			require.Equal(t, "ReceiveMgrMsg", c.Method)
+			require.Equal(t, msg, c.Arguments[0])
 		})
 	}
 }

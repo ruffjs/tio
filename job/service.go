@@ -53,7 +53,7 @@ type MgrService interface {
 	//
 	// When force is true, you can delete a job which is "IN_PROGRESS".
 	// Otherwise, you can only delete a job which is in a terminal state ("COMPLETED" or "CANCELED")
-	DeleteJob(ctx context.Context, jobId string, force bool) error
+	DeleteJob(ctx context.Context, jobId string, force bool) (*Entity, error)
 
 	GetJob(ctx context.Context, jobId string) (*Detail, error)
 	QueryJob(ctx context.Context, q PageQuery) (Page, error)
@@ -66,7 +66,7 @@ type MgrService interface {
 
 	// DeleteTask When force is true, you can delete a task which is "IN_PROGRESS".
 	// Otherwise, you can only delete a task which is in a terminal state ("SUCCEEDED", "FAILED", "REJECTED", "REMOVED" or "CANCELED")
-	DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) error
+	DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) (*TaskEntity, error)
 
 	GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error)
 	QueryTaskForThing(ctx context.Context, thingId string, q TaskPageQuery) (TaskPage, error)
@@ -82,9 +82,11 @@ type Repo interface {
 	UpdateJob(ctx context.Context, jobId string, m map[string]any) error
 
 	// DeleteJob Tasks under the job will be deleted together
-	DeleteJob(ctx context.Context, jobId string, force bool) error
+	DeleteJob(ctx context.Context, jobId string, force bool) (*Entity, error)
 	GetJob(ctx context.Context, jobId string) (*Entity, error)
 	QueryJob(ctx context.Context, q PageQuery) (model.PageData[Entity], error)
+
+	GetPendingJobs(ctx context.Context) ([]Entity, error)
 
 	// Task API
 
@@ -96,6 +98,7 @@ type Repo interface {
 	QueryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (model.PageData[TaskEntity], error)
 
 	CountTaskStatus(ctx context.Context, jobId string) ([]TaskStatusCount, error)
+	GetTasksOfJob(ctx context.Context, jobId string, status []TaskStatus) ([]TaskEntity, error)
 }
 
 func NewMgrService(repo Repo, idProvider tio.IdProvider, jc Center) MgrService {
@@ -125,7 +128,6 @@ func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) 
 		}
 	}
 	res, err := s.repo.CreateJob(ctx, e)
-	// log.Debugf("CreateJob", val ...interface{})
 	if err != nil {
 		return Detail{}, err
 	}
@@ -138,7 +140,8 @@ func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) 
 				TargetConfig: d.TargetConfig,
 				JobContext: JobContext{
 					JobId: d.JobId, Operation: d.Operation, JobDoc: d.JobDoc,
-					SchedulingConfig: d.SchedulingConfig, RetryConfig: d.RetryConfig, TimeoutConfig: d.TimeoutConfig,
+					SchedulingConfig: d.SchedulingConfig, RolloutConfig: d.RolloutConfig,
+					RetryConfig: d.RetryConfig, TimeoutConfig: d.TimeoutConfig,
 					Status: d.Status, StartedAt: d.StartedAt,
 				},
 			},
@@ -178,7 +181,10 @@ func (s mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) er
 	if err := s.repo.UpdateJob(ctx, jobId, toUpdate); err != nil {
 		return errors.WithMessage(err, "update job")
 	}
-	// TODO notify job runner update
+	s.jobCenter.ReceiveMgrMsg(MgrMsg{
+		Typ:  MgrTypeUpdateJob,
+		Data: MgrMsgUpdateJob{JobId: jobId, TimeoutConfig: *r.TimeoutConfig, RetryConfig: *r.RetryConfig},
+	})
 	return nil
 }
 
@@ -188,7 +194,7 @@ func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, fo
 	}
 
 	toUpdate := map[string]any{
-		"status":         StatusCanceled,
+		"status":         StatusCanceling,
 		"force_canceled": force,
 	}
 	if r.Comment != nil {
@@ -198,8 +204,10 @@ func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, fo
 		toUpdate["reason_code"] = r.ReasonCode
 	}
 
+	var job *Entity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
 		j, err := txRepo.GetJob(ctx, jobId)
+		job = j
 		if err != nil {
 			return err
 		}
@@ -220,17 +228,24 @@ func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, fo
 	if err != nil {
 		return errors.Wrap(err, "update db when cancel job")
 	}
-	// TODO: notify job runner cancel job
+	s.jobCenter.ReceiveMgrMsg(MgrMsg{
+		Typ:  MgrTypeCancelJob,
+		Data: MgrMsgCancelJob{JobId: jobId, Force: force, Operation: job.Operation},
+	})
 
 	return nil
 }
 
-func (s mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) error {
-	if err := s.repo.DeleteJob(ctx, jobId, force); err != nil {
-		return errors.WithMessagef(err, "delete job")
+func (s mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) (*Entity, error) {
+	if j, err := s.repo.DeleteJob(ctx, jobId, force); err != nil {
+		return nil, errors.WithMessagef(err, "delete job")
+	} else {
+		s.jobCenter.ReceiveMgrMsg(MgrMsg{
+			Typ:  MgrTypeDeleteJob,
+			Data: MgrMsgDeleteJob{JobId: jobId, Force: force, Operation: j.Operation},
+		})
+		return j, nil
 	}
-	// TODO: notify job runner delete job
-	return nil
 }
 
 func (s mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
@@ -266,6 +281,7 @@ func (s mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 }
 
 func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
+	var t TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
 		l, err := txRepo.QueryTask(ctx, jobId, thingId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
 		if err != nil {
@@ -274,7 +290,7 @@ func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Can
 		if l.Total == 0 {
 			return errors.WithMessage(model.ErrNotFound, "task")
 		}
-		t := l.Content[0]
+		t = l.Content[0]
 		if !force && t.Status == TaskInProgress {
 			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
 		}
@@ -298,11 +314,15 @@ func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Can
 	if err != nil {
 		return err
 	}
-	// TODO: do cancel task by job runner
+	s.jobCenter.ReceiveMgrMsg(MgrMsg{
+		Typ:  MgrTypeCancelTask,
+		Data: MgrMsgCancelTask{JobId: jobId, TaskId: t.TaskId, Operation: t.Operation, Force: force},
+	})
 	return nil
 }
 
-func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) error {
+func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) (*TaskEntity, error) {
+	var en *TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
 		t, err := txRepo.GetTask(ctx, taskId)
 		if err != nil {
@@ -322,13 +342,17 @@ func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskI
 		if !force && t.Status == TaskInProgress {
 			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
 		}
+		en = t
 		return txRepo.DeleteTask(ctx, t.TaskId)
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// TODO: notify job runner task delete
-	return nil
+	s.jobCenter.ReceiveMgrMsg(MgrMsg{
+		Typ:  MgrTypeDeleteTask,
+		Data: MgrMsgDeleteTask{JobId: jobId, TaskId: en.TaskId, Operation: en.Operation, Force: force},
+	})
+	return en, nil
 }
 
 func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -66,25 +67,27 @@ func (r jobRepo) UpdateJob(ctx context.Context, id string, m map[string]any) err
 }
 
 // DeleteJob The tasks under the job will be deleted together cause `ON DELETE CASCADE`
-func (r jobRepo) DeleteJob(ctx context.Context, id string, force bool) error {
+func (r jobRepo) DeleteJob(ctx context.Context, id string, force bool) (*Entity, error) {
+	en := Entity{JobId: id}
 	if force {
 		if err := r.db.WithContext(ctx).Delete(Entity{JobId: id}).Error; err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		if res := r.db.WithContext(ctx).
+			Clauses(clause.Returning{}).
 			Where("status != ?", StatusInProgress).
-			Delete(Entity{JobId: id}); res.Error != nil {
-			return res.Error
+			Delete(&en); res.Error != nil {
+			return nil, res.Error
 		} else if res.RowsAffected == 0 {
-			return errors.WithMessage(model.ErrInvalidParams, "job is IN_PROGRESS or not exist")
+			return nil, errors.WithMessage(model.ErrInvalidParams, "job is IN_PROGRESS or not exist")
 		}
 	}
 	// sqlite does not support CASCADE
 	if r.db.Dialector.Name() == "sqlite" {
 		r.db.Where("job_id=?", id).Delete(&TaskEntity{})
 	}
-	return nil
+	return &en, nil
 }
 
 func (r jobRepo) GetJob(ctx context.Context, id string) (*Entity, error) {
@@ -145,9 +148,9 @@ func (r jobRepo) CreateTasks(ctx context.Context, l []TaskEntity) ([]TaskEntity,
 }
 
 func (r jobRepo) CancelTasks(ctx context.Context, jobId string, force bool) error {
-	up := r.db.WithContext(ctx).Model(TaskEntity{JobId: jobId})
+	up := r.db.WithContext(ctx).Model(TaskEntity{}).Where("job_id = ?", jobId)
 	if force {
-		up.Where("status in (?, ?)", TaskQueued, TaskInProgress)
+		up.Where("status in ?", []TaskStatus{TaskQueued, TaskSent, TaskInProgress})
 	} else {
 		up.Where("status = ?", TaskQueued)
 	}
@@ -241,4 +244,31 @@ func (r jobRepo) CountTaskStatus(ctx context.Context, jobId string) ([]TaskStatu
 		return tsc, res.Error
 	}
 	return tsc, nil
+}
+
+func (r jobRepo) GetTasksOfJob(ctx context.Context, jobId string, status []TaskStatus) ([]TaskEntity, error) {
+	var l []TaskEntity
+	q := r.db.WithContext(ctx).Model(TaskEntity{}).
+		Where("job_id=?", jobId)
+	if len(status) != 0 {
+		q.Where("status in ?", status)
+	}
+	if err := q.Scan(&l).Error; err != nil {
+		return l, err
+	}
+	return l, nil
+}
+
+func (r jobRepo) GetPendingJobs(ctx context.Context) ([]Entity, error) {
+	var l []Entity
+	q := r.db.WithContext(ctx).Model(Entity{}).
+		Joins("Tasks").
+		Preload("Tasks").
+		Where("job.status in ?", []Status{StatusWaiting, StatusInProgress, StatusCanceling, StatusRemoving}).
+		Where("(Tasks.status in ? OR  Tasks.status IS NULL)", []TaskStatus{TaskQueued, TaskSent, TaskInProgress})
+
+	if err := q.Scan(&l).Error; err != nil {
+		return l, err
+	}
+	return l, nil
 }

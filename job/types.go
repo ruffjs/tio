@@ -243,6 +243,10 @@ type SchedulingConfig struct {
 	//MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
 }
 
+type RolloutConfig struct {
+	MaxPerMinute int
+}
+
 type RetryConfig struct {
 	CriteriaList []RetryConfigItem
 }
@@ -284,6 +288,7 @@ type Detail struct {
 	Description      string            `json:"description"`
 	Operation        string            `json:"operation"`
 	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"`
+	RolloutConfig    *RolloutConfig    `json:"rolloutConfig"`
 	RetryConfig      *RetryConfig      `json:"retryConfig"`
 	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"`
 
@@ -357,11 +362,12 @@ type CreateReq struct {
 
 	// JobDoc optional, when operation is "$updateShadow" or "$updateShadow",
 	// job doc should be json string of UpdateShadowReq or InvokeDirectMethodReq
-	JobDoc any `json:"jobDoc"`
+	JobDoc map[string]any `json:"jobDoc"`
 
 	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"` // optional
-	RetryConfig      *RetryConfig      `json:"retryConfig"`      // optional, tasks retry config
-	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"`    // optional
+	RolloutConfig    *RolloutConfig    `json:"rolloutConfig"`
+	RetryConfig      *RetryConfig      `json:"retryConfig"`   // optional, tasks retry config
+	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"` // optional
 }
 type UpdateShadowReq struct {
 	State struct {

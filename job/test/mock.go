@@ -16,6 +16,16 @@ type JobCenter struct {
 	mock.Mock
 }
 
+func (c *JobCenter) GetPendingJobs() []job.PendingJobItem {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *JobCenter) GetPendingTasks(jobId string) []job.Task {
+	//TODO implement me
+	panic("implement me")
+}
+
 var _ job.Center = &JobCenter{}
 
 func (c *JobCenter) NotifyMgrMsg(ctx context.Context, j job.Detail) error {
@@ -32,6 +42,7 @@ func (c *JobCenter) Start(ctx context.Context) error {
 }
 
 func (c *JobCenter) ReceiveMgrMsg(msg job.MgrMsg) {
+	c.Called(msg)
 }
 
 // --------------------------------mock method handler--------------------------------

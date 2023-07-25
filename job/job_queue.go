@@ -96,3 +96,10 @@ func (q *TaskQueue) RemoveById(taskId int64) *Task {
 	}
 	return nil
 }
+func (q *TaskQueue) GetTasks() []Task {
+	var l []Task
+	for _, t := range q.q {
+		l = append(l, *t.Task)
+	}
+	return l
+}

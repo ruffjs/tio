@@ -61,6 +61,9 @@ func (r CreateReq) valid() error {
 	if err := r.SchedulingConfig.valid(); err != nil {
 		return err
 	}
+	if err := r.RolloutConfig.valid(); err != nil {
+		return err
+	}
 
 	if err := r.TimeoutConfig.valid(); err != nil {
 		return err
@@ -113,6 +116,16 @@ func (s *SchedulingConfig) valid() error {
 		return errors.WithMessage(model.ErrInvalidParams, "scheduleConfig startTime should before endTime")
 	}
 
+	return nil
+}
+
+func (c *RolloutConfig) valid() error {
+	if c == nil {
+		return nil
+	}
+	if c.MaxPerMinute <= 0 {
+		return errors.WithMessage(model.ErrInvalidParams, "rolloutConfig maxPerMinute must be positive")
+	}
 	return nil
 }
 

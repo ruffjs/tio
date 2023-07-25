@@ -21,17 +21,18 @@ type Entity struct {
 	Description      string `gorm:"size:256"`
 	Operation        string `gorm:"NOT NULL;"`
 	SchedulingConfig datatypes.JSON
+	RolloutConfig    datatypes.JSON
 	RetryConfig      datatypes.JSON
 	TimeoutConfig    datatypes.JSON
 
 	Status         Status `gorm:"NOT NULL;default:WAITING;"`
 	ForceCanceled  bool   `gorm:"NOT NULL; DEFAULT: 0"`
 	ProcessDetails datatypes.JSON
-	Comment        string `gorm:"size:256"`
-	ReasonCode     string `gorm:"size:64"`
+	Comment        string `gorm:"size:256; NOT NULL; default: ''"`
+	ReasonCode     string `gorm:"size:64; NOT NULL; default: ''"`
 
-	StartedAt   time.Time
-	CompletedAt time.Time
+	StartedAt   *time.Time
+	CompletedAt *time.Time
 	UpdatedAt   time.Time `gorm:"autoUpdateTime; NOT NULL;"`
 	CreatedAt   time.Time `gorm:"autoCreateTime; NOT NULL;"`
 
@@ -67,7 +68,7 @@ type TaskEntity struct {
 	RetryAttempt  uint8 `gorm:"NOT NULL; DEFAULT: 0"`
 
 	QueuedAt  time.Time
-	StartedAt time.Time
+	StartedAt *time.Time
 	UpdatedAt time.Time `gorm:"autoUpdateTime; NOT NULL"`
 	CreatedAt time.Time `gorm:"autoCreateTime; NOT NULL;"`
 
@@ -93,12 +94,19 @@ func toEntity(r CreateReq) (Entity, error) {
 		return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field targetConfig: "+err.Error())
 	}
 	var schConfig []byte = nil
+	var roConfig []byte = nil
 	var retryConf []byte = nil
 	var timeoutConf []byte = nil
 	if r.SchedulingConfig != nil {
 		schConfig, err = json.Marshal(*r.SchedulingConfig)
 		if err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field schedulingConfig: "+err.Error())
+		}
+	}
+	if r.RolloutConfig != nil {
+		roConfig, err = json.Marshal(*r.RolloutConfig)
+		if err != nil {
+			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "filed rolloutConfig: "+err.Error())
 		}
 	}
 	if r.RetryConfig != nil {
@@ -127,6 +135,7 @@ func toEntity(r CreateReq) (Entity, error) {
 		JobDoc:       jd,
 
 		SchedulingConfig: schConfig,
+		RolloutConfig:    roConfig,
 		RetryConfig:      retryConf,
 		TimeoutConfig:    timeoutConf,
 	}
@@ -141,6 +150,7 @@ func toTaskEntities(jobId, operation string, tgt TargetConfig) []TaskEntity {
 			JobId:     jobId,
 			ThingId:   t,
 			Operation: operation,
+			QueuedAt:  time.Now(),
 		}
 		l = append(l, t)
 	}
@@ -150,6 +160,7 @@ func toTaskEntities(jobId, operation string, tgt TargetConfig) []TaskEntity {
 func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 	var targetConf TargetConfig
 	var schConf SchedulingConfig
+	var roConf RolloutConfig
 	var retryConf RetryConfig
 	var timeoutConf TimeoutConfig
 
@@ -199,11 +210,11 @@ func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 		Version:        e.Version,
 	}
 
-	if !e.StartedAt.IsZero() {
+	if e.StartedAt != nil {
 		ts := e.StartedAt.UnixMilli()
 		d.StartedAt = &ts
 	}
-	if !e.CompletedAt.IsZero() {
+	if e.CompletedAt != nil {
 		ts := e.CompletedAt.UnixMilli()
 		d.CompletedAt = &ts
 	}
@@ -217,23 +228,26 @@ func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 	if e.SchedulingConfig != nil {
 		if err := json.Unmarshal(e.SchedulingConfig, &schConf); err != nil {
 			return Detail{}, errors.WithMessage(model.ErrInternal, "field schedulingConfig in db")
-		} else {
-			d.SchedulingConfig = &schConf
 		}
+		d.SchedulingConfig = &schConf
+	}
+	if e.RolloutConfig != nil {
+		if err := json.Unmarshal(e.RolloutConfig, &roConf); err != nil {
+			return Detail{}, errors.WithMessage(model.ErrInternal, "field rolloutConfig in db")
+		}
+		d.RolloutConfig = &roConf
 	}
 	if e.RetryConfig != nil {
 		if err := json.Unmarshal(e.RetryConfig, &retryConf); err != nil {
 			return Detail{}, errors.WithMessage(model.ErrInternal, "field retryConfig in db")
-		} else {
-			d.RetryConfig = &retryConf
 		}
+		d.RetryConfig = &retryConf
 	}
 	if e.TimeoutConfig != nil {
 		if err := json.Unmarshal(e.TimeoutConfig, &timeoutConf); err != nil {
 			return Detail{}, errors.WithMessage(model.ErrInternal, "field timeoutConfig in db")
-		} else {
-			d.TimeoutConfig = &timeoutConf
 		}
+		d.TimeoutConfig = &timeoutConf
 	}
 
 	return d, nil
@@ -248,11 +262,11 @@ func toSummary(e Entity) Summary {
 		Version:   e.Version,
 	}
 
-	if !e.StartedAt.IsZero() {
+	if e.StartedAt != nil {
 		ts := e.StartedAt.UnixMilli()
 		s.StartedAt = &ts
 	}
-	if !e.CompletedAt.IsZero() {
+	if e.CompletedAt != nil {
 		ts := e.CompletedAt.UnixMilli()
 		s.CompletedAt = &ts
 	}
@@ -281,11 +295,10 @@ func toTask(e TaskEntity) Task {
 		Version:       e.Version,
 	}
 
-	if !e.QueuedAt.IsZero() {
-		ts := e.QueuedAt.UnixMilli()
-		t.QueuedAt = &ts
-	}
-	if !e.StartedAt.IsZero() {
+	ts := e.QueuedAt.UnixMilli()
+	t.QueuedAt = &ts
+
+	if e.StartedAt != nil {
 		ts := e.StartedAt.UnixMilli()
 		t.StartedAt = &ts
 	}
@@ -312,12 +325,10 @@ func toTaskSummary(e TaskEntity) TaskSummary {
 		UpdatedAt:    e.UpdatedAt.UnixMilli(),
 		CreatedAt:    e.CreatedAt.UnixMilli(),
 	}
+	ts := e.QueuedAt.UnixMilli()
+	s.QueuedAt = &ts
 
-	if !e.QueuedAt.IsZero() {
-		ts := e.QueuedAt.UnixMilli()
-		s.QueuedAt = &ts
-	}
-	if !e.StartedAt.IsZero() {
+	if e.StartedAt != nil {
 		ts := e.StartedAt.UnixMilli()
 		s.StartedAt = &ts
 	}

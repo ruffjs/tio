@@ -10,7 +10,7 @@ import (
 )
 
 func (r *runnerImpl) doInvokeDirectMethod(jobId string, taskId int64, thingId string, req InvokeDirectMethodReq) (TaskChangeMsg, error) {
-	resp, er := r.methodHandler.InvokeMethod(r.ctx, shadow.MethodReqMsg{
+	resp, err := r.methodHandler.InvokeMethod(r.ctx, shadow.MethodReqMsg{
 		ThingId:     thingId,
 		Method:      req.Method,
 		RespTimeout: req.RespTimeout,
@@ -19,8 +19,9 @@ func (r *runnerImpl) doInvokeDirectMethod(jobId string, taskId int64, thingId st
 			Data:        req.Data,
 		},
 	})
-	if er != nil && errors.Is(er, model.ErrDirectMethodThingOffline) {
-		return TaskChangeMsg{}, er
+
+	if err != nil && errors.Is(err, model.ErrDirectMethodThingOffline) {
+		return TaskChangeMsg{}, err
 	}
 
 	tcMgr := TaskChangeMsg{
@@ -30,10 +31,10 @@ func (r *runnerImpl) doInvokeDirectMethod(jobId string, taskId int64, thingId st
 		Operation: SysOpDirectMethod,
 	}
 
-	if er != nil {
+	if err != nil {
 		sd := StatusDetails{
 			"code":    500,
-			"message": er.Error(),
+			"message": err.Error(),
 		}
 		tcMgr.Status = TaskFailed
 		tcMgr.StatusDetails = sd
