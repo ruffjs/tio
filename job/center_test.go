@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"ruff.io/tio/connector"
 	mqMock "ruff.io/tio/connector/mqtt/mock"
+	sdMock "ruff.io/tio/shadow/mock"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ func prepare(t *testing.T, mockJc bool) (
 	svc job.MgrService,
 	jc job.Center,
 	mkMethod *test.MethodHandler,
+	sdSetter *sdMock.StateDesiredSetter,
 	conn *mqMock.AdapterImpl,
 	onConnCh chan connector.Event,
 ) {
@@ -31,6 +33,7 @@ func prepare(t *testing.T, mockJc bool) (
 
 	m := test.NewMethodHandler()
 	mkMethod = &m
+	sdSetter = sdMock.NewShadowSetter()
 
 	mockMqtt := mqMock.NewMqttClient("", nil, nil)
 	c := mqMock.NewAdapter(mockMqtt)
@@ -49,7 +52,7 @@ func prepare(t *testing.T, mockJc bool) (
 			job.CenterOptions{
 				CheckJobStatusInterval: time.Millisecond * 2,
 				ScheduleInterval:       time.Millisecond * 2},
-			repo, nil, conn, mkMethod, nil)
+			repo, nil, conn, mkMethod, sdSetter)
 	}
 	svc, _ = test.NewTestSvcWithDB(db, jc)
 	err := jc.Start(ctx)
@@ -58,11 +61,12 @@ func prepare(t *testing.T, mockJc bool) (
 	return
 }
 
-func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
-	ctx, _, svc, _, mkMethod, conn, onConnCh := prepare(t, false)
+func Test_jobCenter_sysOperation(t *testing.T) {
+	ctx, _, svc, _, mkMethod, mkShadow, conn, onConnCh := prepare(t, false)
 	tests := []struct {
 		name     string
 		jobId    string
+		op       string
 		respCode []int
 		ok       int
 		fail     int
@@ -72,18 +76,21 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 		{
 			name:     "all success",
 			jobId:    "all-success",
+			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
 		},
 		{
 			name:     "all failed",
 			jobId:    "all-failed",
+			op:       job.SysOpDirectMethod,
 			respCode: []int{500, 400, 800, 720},
 			fail:     4,
 		},
 		{
 			name:     "failed part",
 			jobId:    "failed-part",
+			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 530, 700, 200},
 			ok:       2,
 			fail:     2,
@@ -91,17 +98,26 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 		{
 			name:     "re online",
 			jobId:    "re-online",
+			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
 			fail:     0,
 			offline:  true,
 			reOnline: true,
 		},
+		{
+			name:  "shadow update",
+			jobId: "shadow-update",
+			op:    job.SysOpUpdateShadow,
+			ok:    4,
+			fail:  0,
+		},
 	}
 
 	for _, tt := range tests {
 		st := tt
 		t.Run(st.name, func(t *testing.T) {
+			isDirectMethod := st.op == job.SysOpDirectMethod
 			jd := job.InvokeDirectMethodReq{
 				Method:      "testMethod",
 				Data:        "hi",
@@ -112,7 +128,7 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 			_ = json.Unmarshal(b, &m)
 			createReq := job.CreateReq{
 				JobId:     st.jobId,
-				Operation: job.SysOpDirectMethod,
+				Operation: st.op,
 				JobDoc:    m,
 				TargetConfig: job.TargetConfig{
 					Type:   job.TargetTypeThingId,
@@ -132,12 +148,17 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 				wg.Done()
 				return r, nil
 			}
+
+			sCall := mkShadow.On("SetDesired", ctx, mock.Anything, mock.Anything).Return(shadow.Shadow{}, nil)
 			mCall := mkMethod.On("InvokeMethod", ctx, mock.Anything).Return(shadow.MethodResp{}, nil)
 			mkMethod.SetReturnFunc(returnFunc)
 
 			connCall := conn.On("IsConnected", mock.Anything).Return(!st.offline, nil)
 
-			wg.Add(len(createReq.TargetConfig.Things))
+			if isDirectMethod {
+				wg.Add(len(createReq.TargetConfig.Things))
+			}
+
 			_, err := svc.CreateJob(ctx, createReq)
 			require.NoError(t, err)
 
@@ -146,7 +167,12 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 				wg.Wait()
 				// wait task state save
 				time.Sleep(time.Millisecond * 60)
-				mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+				if isDirectMethod {
+					mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+				} else {
+					time.Sleep(time.Millisecond * 60)
+					sCall.Parent.AssertCalled(t, "SetDesired", ctx, mock.Anything, mock.Anything)
+				}
 			} else if st.reOnline {
 				// wait task to be handled
 				time.Sleep(time.Millisecond * 60)
@@ -164,7 +190,11 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 				}
 				// wait task to be completed
 				time.Sleep(time.Millisecond * 60)
-				mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+				if isDirectMethod {
+					mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+				} else {
+					sCall.Parent.AssertCalled(t, "SetDesired", ctx, mock.Anything, mock.Anything)
+				}
 			} else {
 				time.Sleep(time.Second)
 				//mCall.Parent.AssertNumberOfCalls(t, "InvokeMethod", 0)
@@ -174,6 +204,8 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, st.ok, j.ProcessDetails.Succeeded)
 			require.Equal(t, st.fail, j.ProcessDetails.Failed)
+
+			sCall.Unset()
 			mCall.Unset()
 			connCall.Unset()
 		})
@@ -182,7 +214,7 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 }
 
 func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
-	ctx, _, svc, jc, mkMethod, conn, _ := prepare(t, false)
+	ctx, _, svc, jc, mkMethod, _, conn, _ := prepare(t, false)
 	conn.On("IsConnected", mock.Anything).Return(true, nil)
 
 	tests := []struct {
@@ -324,7 +356,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 }
 
 func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
-	ctx, _, svc, jc, mkMethod, conn, _ := prepare(t, false)
+	ctx, _, svc, jc, mkMethod, _, conn, _ := prepare(t, false)
 	conn.On("IsConnected", mock.Anything).Return(true, nil)
 
 	tests := []struct {
@@ -460,7 +492,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 
 func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
 	// mock JobCenter to avoid create tasks when creat job
-	ctx, repo, svc, _, mkMethod, conn, _ := prepare(t, true)
+	ctx, repo, svc, _, mkMethod, _, conn, _ := prepare(t, true)
 
 	// the real JobCenter for test
 	jc := job.NewCenter(job.CenterOptions{

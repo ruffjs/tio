@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/shadow"
 
 	"github.com/stretchr/testify/mock"
 	"ruff.io/tio/pkg/log"
@@ -63,3 +64,29 @@ func (g *Connectivity) Remove(thingId string) error {
 }
 
 var _ connector.Connectivity = (*Connectivity)(nil)
+
+// -------------------------------------- mock StateDesiredSetter --------------------------------------
+
+type StateDesiredSetter struct {
+	mock.Mock
+}
+
+func NewShadowSetter() *StateDesiredSetter {
+	return &StateDesiredSetter{}
+}
+
+func (s *StateDesiredSetter) SetDesired(
+	ctx context.Context, thingId string, sr shadow.StateReq,
+) (sd shadow.Shadow, err error) {
+	args := s.Called(ctx, thingId, sr)
+	sd = args.Get(0).(shadow.Shadow)
+	e := args.Get(1)
+	if e == nil {
+		err = nil
+	} else {
+		err = e.(error)
+	}
+	return
+}
+
+var _ shadow.StateDesiredSetter = (*StateDesiredSetter)(nil)

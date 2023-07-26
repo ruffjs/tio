@@ -325,8 +325,6 @@ func (c *centerImpl) scheduleJobLoop() {
 				rolloutTasks = v.Tasks[:rolloutCount]
 				v.Tasks = v.Tasks[rolloutCount:]
 
-				log.Infof("JobCenter scheduled jobId=%q, taskCount=%d, rolloutCount=%d",
-					jc.JobId, len(tasks), len(rolloutTasks))
 				v.RolloutStat = append(v.RolloutStat, struct {
 					Time  time.Time
 					Count int
@@ -334,6 +332,9 @@ func (c *centerImpl) scheduleJobLoop() {
 
 				// do rollout
 				c.runner.PutTasks(jc.Operation, rolloutTasks)
+
+				log.Infof("JobCenter scheduled jobId=%q, taskCount=%d, rolloutCount=%d",
+					jc.JobId, len(tasks), len(rolloutTasks))
 
 				// delete completed job
 				if len(v.Tasks) == 0 {

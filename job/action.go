@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 )
 
@@ -20,28 +18,20 @@ func (r *runnerImpl) doInvokeDirectMethod(t Task, req InvokeDirectMethodReq) Tas
 		},
 	})
 
-	if err != nil && errors.Is(err, model.ErrDirectMethodThingOffline) {
-		return TaskChangeMsg{
-			Task: Task{}, Err: err,
-		}
-	}
-
 	tcMgr := TaskChangeMsg{Task: t}
 
 	if err != nil {
-		sd := StatusDetails{
+		tcMgr.Status = TaskFailed
+		tcMgr.StatusDetails = StatusDetails{
 			"code":    500,
 			"message": err.Error(),
 		}
-		tcMgr.Status = TaskFailed
-		tcMgr.StatusDetails = sd
 	} else {
-		sd := StatusDetails{
+		tcMgr.StatusDetails = StatusDetails{
 			"code":    resp.Code,
 			"message": resp.Message,
 			"data":    resp.Data,
 		}
-		tcMgr.StatusDetails = sd
 		if resp.Code != 200 && resp.Code != 0 {
 			tcMgr.Status = TaskFailed
 		} else {
@@ -50,4 +40,27 @@ func (r *runnerImpl) doInvokeDirectMethod(t Task, req InvokeDirectMethodReq) Tas
 	}
 
 	return tcMgr
+}
+
+func (r *runnerImpl) doUpdateShadow(t Task, req UpdateShadowReq) TaskChangeMsg {
+	_, err := r.shadowSetter.SetDesired(r.ctx, t.ThingId, shadow.StateReq{
+		ClientToken: fmt.Sprintf("job-%d-%d", t.TaskId, time.Now().UnixNano()),
+		State:       shadow.StateDR{Desired: req.State.Desired},
+	})
+
+	if err != nil {
+		return TaskChangeMsg{
+			Task: t,
+			StatusDetails: StatusDetails{
+				"code":    500,
+				"message": err.Error(),
+			},
+			Status: TaskFailed,
+		}
+	} else {
+		return TaskChangeMsg{
+			Task:   t,
+			Status: TaskSucceeded,
+		}
+	}
 }

@@ -41,16 +41,14 @@ func NewRunner(
 		outTaskChangeCh:   make(chan TaskChangeMsg),
 
 		// channels for direct method task
-		directMethodCh:       make(chan []Task),
-		directMethodDeleteCh: make(chan []int64),
+		sysOpTaskCh:    make(chan []Task),
+		sysOpTaskDelCh: make(chan []int64),
 
 		// channels for get tasks
-		getPendingTasksOfCustomReqCh:        make(chan struct{}),
-		getPendingTasksOfCustomRespCh:       nil,
-		getPendingTasksOfDirectMethodReqCh:  make(chan struct{}),
-		getPendingTasksOfDirectMethodRespCh: nil,
-		getPendingTasksOfUpdateShadowReqCh:  make(chan struct{}),
-		getPendingTasksOfUpdateShadowRespCh: nil,
+		getPendingTasksOfCustomReqCh:  make(chan struct{}),
+		getPendingTasksOfCustomRespCh: nil,
+		getPendingTasksOfSysReqCh:     make(chan struct{}),
+		getPendingTasksOfSysRespCh:    nil,
 	}
 }
 
@@ -70,16 +68,14 @@ type runnerImpl struct {
 	innerTaskChangeCh chan TaskChangeMsg
 	outTaskChangeCh   chan TaskChangeMsg
 
-	directMethodCh       chan []Task
-	directMethodDeleteCh chan []int64
+	sysOpTaskCh    chan []Task
+	sysOpTaskDelCh chan []int64
 
 	// channels for get tasks
-	getPendingTasksOfCustomReqCh        chan struct{}
-	getPendingTasksOfCustomRespCh       chan []Task
-	getPendingTasksOfDirectMethodReqCh  chan struct{}
-	getPendingTasksOfDirectMethodRespCh chan []Task
-	getPendingTasksOfUpdateShadowReqCh  chan struct{}
-	getPendingTasksOfUpdateShadowRespCh chan []Task
+	getPendingTasksOfCustomReqCh  chan struct{}
+	getPendingTasksOfCustomRespCh chan []Task
+	getPendingTasksOfSysReqCh     chan struct{}
+	getPendingTasksOfSysRespCh    chan []Task
 
 	thingTaskQueues map[string]TaskQueue // thingId->[]Task, for general task
 
@@ -91,7 +87,7 @@ func (r *runnerImpl) Start(ctx context.Context, jcGetter ctxGetter) {
 	r.ctx = ctx
 	r.jcGetter = jcGetter
 	go r.watchTaskChangeLoop()
-	go r.directMethodLoop(r.directMethodCh, r.directMethodDeleteCh)
+	go r.sysOpTaskLoop(r.sysOpTaskCh, r.sysOpTaskDelCh)
 }
 
 func (r *runnerImpl) OnTaskChange() <-chan TaskChangeMsg {
@@ -100,10 +96,8 @@ func (r *runnerImpl) OnTaskChange() <-chan TaskChangeMsg {
 
 func (r *runnerImpl) PutTasks(operation string, l []Task) {
 	switch operation {
-	case SysOpDirectMethod:
-		r.directMethodCh <- l
-	case SysOpUpdateShadow:
-		// TODO set shadow
+	case SysOpDirectMethod, SysOpUpdateShadow:
+		r.sysOpTaskCh <- l
 	default:
 		// TODO custom
 	}
@@ -111,20 +105,14 @@ func (r *runnerImpl) PutTasks(operation string, l []Task) {
 
 func (r *runnerImpl) GetPendingTasksOfSys(op string) []Task {
 	switch op {
-	case SysOpDirectMethod:
-		r.getPendingTasksOfDirectMethodRespCh = make(chan []Task, 1)
+	case SysOpDirectMethod, SysOpUpdateShadow:
+		r.getPendingTasksOfSysRespCh = make(chan []Task, 1)
 		defer func() {
-			r.getPendingTasksOfDirectMethodRespCh = nil
+			r.getPendingTasksOfSysRespCh = nil
 		}()
-		r.getPendingTasksOfDirectMethodReqCh <- struct{}{}
-		return <-r.getPendingTasksOfDirectMethodRespCh
-	case SysOpUpdateShadow:
-		r.getPendingTasksOfUpdateShadowRespCh = make(chan []Task, 1)
-		defer func() {
-			r.getPendingTasksOfUpdateShadowRespCh = nil
-		}()
-		r.getPendingTasksOfUpdateShadowReqCh <- struct{}{}
-		return <-r.getPendingTasksOfUpdateShadowRespCh
+		r.getPendingTasksOfSysReqCh <- struct{}{}
+		return <-r.getPendingTasksOfSysRespCh
+
 	default:
 		return []Task{}
 	}
@@ -146,13 +134,12 @@ func (r *runnerImpl) DeleteTaskOfJob(jobId, operation string, force bool) {
 		return
 	}
 	switch operation {
-	case SysOpDirectMethod:
+	case SysOpDirectMethod, SysOpUpdateShadow:
 		var taskIds []int64
 		for _, t := range tl {
 			taskIds = append(taskIds, t.TaskId)
 		}
-		r.directMethodDeleteCh <- taskIds
-	case SysOpUpdateShadow:
+		r.sysOpTaskDelCh <- taskIds
 	default:
 	}
 }
@@ -164,32 +151,29 @@ func (r *runnerImpl) CancelTaskOfJob(jobId, operation string, force bool) {
 		return
 	}
 	switch operation {
-	case SysOpDirectMethod:
+	case SysOpDirectMethod, SysOpUpdateShadow:
 		var taskIds []int64
 		for _, t := range tl {
 			taskIds = append(taskIds, t.TaskId)
 		}
-		r.directMethodDeleteCh <- taskIds
+		r.sysOpTaskDelCh <- taskIds
 		log.Debugf("JobRunner sent msg for delete tasks of direct method: %v", taskIds)
-	case SysOpUpdateShadow:
 	default:
 	}
 }
 
 func (r *runnerImpl) DeleteTask(taskId int64, operation string, force bool) {
 	switch operation {
-	case SysOpDirectMethod:
-		r.directMethodDeleteCh <- []int64{taskId}
-	case SysOpUpdateShadow:
+	case SysOpDirectMethod, SysOpUpdateShadow:
+		r.sysOpTaskDelCh <- []int64{taskId}
 	default:
 	}
 }
 
 func (r *runnerImpl) CancelTask(taskId int64, operation string, force bool) {
 	switch operation {
-	case SysOpDirectMethod:
-		r.directMethodDeleteCh <- []int64{taskId}
-	case SysOpUpdateShadow:
+	case SysOpDirectMethod, SysOpUpdateShadow:
+		r.sysOpTaskDelCh <- []int64{taskId}
 	default:
 	}
 }
@@ -248,9 +232,9 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		msg.Task.JobId, msg.Task.TaskId, msg.Status, msg.Progress)
 }
 
-func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64) {
+func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan []int64) {
 	defer func() {
-		log.Info("JobRunner direct method loop exit")
+		log.Info("JobRunner system operation loop method loop exit")
 	}()
 	concurrentOnTick := 10
 	// The task queue is only used in this go routine for lock-free
@@ -262,7 +246,7 @@ func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64)
 	for {
 		select {
 		case <-r.ctx.Done():
-			log.Debugf("JobRunner direct method watcher exit cause context closed")
+			log.Debugf("JobRunner system operation exit cause context closed")
 			return
 		case tl := <-addCh:
 			for _, t := range tl {
@@ -288,9 +272,13 @@ func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64)
 						e.ThingId, len(l))
 				}
 			}
-		case <-r.getPendingTasksOfDirectMethodReqCh:
+		case <-r.getPendingTasksOfSysReqCh:
 			_ = r.pool.Submit(func() {
-				r.getPendingTasksOfDirectMethodRespCh <- curQ.GetTasks()
+				l := curQ.GetTasks()
+				for _, v := range offlineThingTasks {
+					l = append(l, v...)
+				}
+				r.getPendingTasksOfSysRespCh <- l
 			})
 		case <-tick.C:
 			// do task below
@@ -312,53 +300,34 @@ func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64)
 				continue
 			}
 
-			// check thing connection online
-			if online, err := r.conn.IsConnected(t.ThingId); err != nil {
-				log.Errorf("JobRunner check thing online, thingId=%q, error: %v", t.ThingId, err)
-			} else if !online {
-				if l, ok := offlineThingTasks[t.ThingId]; ok {
-					offlineThingTasks[t.ThingId] = append(l, *t)
-				} else {
-					offlineThingTasks[t.ThingId] = []Task{*t}
+			var submitErr error = nil
+			if t.Operation == SysOpDirectMethod {
+				// check thing connection online
+				if online, err := r.conn.IsConnected(t.ThingId); err != nil {
+					log.Errorf("JobRunner check thing online, thingId=%q, error: %v", t.ThingId, err)
+				} else if !online {
+					if l, ok := offlineThingTasks[t.ThingId]; ok {
+						offlineThingTasks[t.ThingId] = append(l, *t)
+					} else {
+						offlineThingTasks[t.ThingId] = []Task{*t}
+					}
+					log.Debugf("JobRunner put task to offline map taskId=%d", t.TaskId)
+					continue
 				}
-				log.Debugf("JobRunner put task to offline map taskId=%d", t.TaskId)
-				continue
+				submitErr = r.submitDirectMethodTaskToPool(jc, t)
+			} else if t.Operation == SysOpUpdateShadow {
+				submitErr = r.submitUpdateShadowTaskToPool(jc, t)
 			}
 
-			var req InvokeDirectMethodReq
-			if jc.JobDoc == nil {
-				log.Fatalf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
-					jc.JobId, jc.JobDoc)
-				continue
-			}
-
-			jBuf, err := json.Marshal(jc.JobDoc)
-			if err != nil {
-				log.Fatalf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
-					jc.JobId, jc.JobDoc)
-				continue
-			}
-			if err := json.Unmarshal(jBuf, &req); err != nil {
-				// job doc should be checked before job created
-				log.Fatalf("JobRunner unexpected job doc for invoke direct method! jobId=%q, jobDoc=%v",
-					jc.JobId, jc.JobDoc)
-				continue
-			}
-			err = r.pool.Submit(func() {
-				if re := r.doInvokeDirectMethod(*t, req); re.Err != nil {
-					log.Errorf("JobRunner do invoke direct method, jobId=%q taskId=%d thingId=%s : %v",
-						jc.JobId, t.TaskId, t.ThingId, re.Err)
-				} else {
-					// notify result
-					r.innerTaskChangeCh <- re
-				}
-			})
-			if err != nil {
-				log.Warnf("JobRunner direct method task submit error: %v", err)
+			if submitErr != nil {
+				log.Warnf("JobRunner submit task error, jobId=%q, taskId=%d, thingId=%q, error: %v",
+					t.JobId, t.TaskId, t.ThingId, submitErr)
 				curQ.Push(t)
+
+				// maybe pool is full, break for next tick
 				break
 			} else {
-				log.Infof("JobRunner direct method task submit success, jobId=%q, taskId=%d, thingId=%q",
+				log.Infof("JobRunner submit task success, jobId=%q, taskId=%d, thingId=%q",
 					jc.JobId, t.TaskId, t.ThingId)
 				if t.Status == TaskQueued {
 					r.innerTaskChangeCh <- TaskChangeMsg{Task: *t, Status: TaskSent}
@@ -366,6 +335,64 @@ func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64)
 			}
 		}
 	}
+}
+
+func (r *runnerImpl) submitDirectMethodTaskToPool(jc *JobContext, t *Task) error {
+	return r.pool.Submit(func() {
+		var req InvokeDirectMethodReq
+		if jc.JobDoc == nil {
+			log.Errorf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+
+		jBuf, err := json.Marshal(jc.JobDoc)
+		if err != nil {
+			log.Errorf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+		if err := json.Unmarshal(jBuf, &req); err != nil {
+			// job doc should be checked before job created
+			log.Errorf("JobRunner unexpected job doc for invoke direct method! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+
+		re := r.doInvokeDirectMethod(*t, req)
+		if re.Err != nil {
+			log.Errorf("JobRunner do invoke direct method, jobId=%q taskId=%d thingId=%s : %v",
+				jc.JobId, t.TaskId, t.ThingId, re.Err)
+		}
+		// notify result
+		r.innerTaskChangeCh <- re
+	})
+}
+
+func (r *runnerImpl) submitUpdateShadowTaskToPool(jc *JobContext, t *Task) error {
+	return r.pool.Submit(func() {
+		var req UpdateShadowReq
+		if jc.JobDoc == nil {
+			log.Errorf("JobRunner unexpected job doc is nil for update shadow! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+
+		jBuf, err := json.Marshal(jc.JobDoc)
+		if err != nil {
+			log.Errorf("JobRunner unexpected job doc is nil for update shadow! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+		if err := json.Unmarshal(jBuf, &req); err != nil {
+			// job doc should be checked before job created
+			log.Errorf("JobRunner unexpected job doc for update shadow! jobId=%q, jobDoc=%v",
+				jc.JobId, jc.JobDoc)
+		}
+
+		re := r.doUpdateShadow(*t, req)
+		if re.Err != nil {
+			log.Errorf("JobRunner do update shadow, jobId=%q taskId=%d thingId=%s : %v",
+				jc.JobId, t.TaskId, t.ThingId, re.Err)
+		}
+		// notify result
+		r.innerTaskChangeCh <- re
+	})
 }
 
 // ------------------------- helper func -------------------------
