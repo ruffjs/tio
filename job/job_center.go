@@ -358,7 +358,6 @@ func (c *centerImpl) removePendingJob(jobId string, force bool) {
 }
 
 func (c *centerImpl) scheduleJobLoop() {
-	tk := time.NewTicker(c.opt.ScheduleInterval)
 	var pendingJobs []*PendingJobItem
 	delPendingAt := func(index int) {
 		pendingJobs = append(pendingJobs[:index], pendingJobs[index+1:]...)
@@ -366,32 +365,34 @@ func (c *centerImpl) scheduleJobLoop() {
 
 	// preload pending jobs from db
 
-	//l, err := c.repo.GetPendingJobs(c.ctx)
-	//if err != nil {
-	//	log.Fatalf("JobCenter get pending jobs: %v", err)
-	//}
-	//for _, j := range l {
-	//	if len(j.Tasks) == 0 {
-	//		log.Warnf("JobCenter job has no pending task, to terminate it, jobId=%q", j.JobId)
-	//		// TODO finish job by current job status
-	//		continue
-	//	}
-	//	if d, err := toDetail(j, []TaskStatusCount{}); err != nil {
-	//		log.Fatalf("JobCenter convert entity to Detail, jobId=%q, error: %v", j.JobId, err)
-	//	} else {
-	//		p := PendingJobItem{
-	//			Context: JobContext{
-	//				JobId: d.JobId, Operation: d.Operation, JobDoc: d.JobDoc,
-	//				SchedulingConfig: d.SchedulingConfig, RolloutConfig: d.RolloutConfig,
-	//				RetryConfig: d.RetryConfig, TimeoutConfig: d.TimeoutConfig,
-	//				Status: d.Status, StartedAt: d.StartedAt,
-	//			},
-	//			Tasks: toTasks(j.Tasks),
-	//		}
-	//		pendingJobs = append(pendingJobs, &p)
-	//	}
-	//}
+	l, err := c.repo.GetPendingJobs(c.ctx)
+	if err != nil {
+		log.Fatalf("JobCenter get pending jobs: %v", err)
+	}
+	for _, j := range l {
+		if len(j.Tasks) == 0 {
+			log.Warnf("JobCenter job has no pending task, to terminate it, jobId=%q", j.JobId)
+			// TODO finish job by current job status
+			continue
+		}
+		if d, err := toDetail(j, []TaskStatusCount{}); err != nil {
+			log.Fatalf("JobCenter convert entity to Detail, jobId=%q, error: %v", j.JobId, err)
+		} else {
+			p := PendingJobItem{
+				Context: JobContext{
+					JobId: d.JobId, Operation: d.Operation, JobDoc: d.JobDoc,
+					SchedulingConfig: d.SchedulingConfig, RolloutConfig: d.RolloutConfig,
+					RetryConfig: d.RetryConfig, TimeoutConfig: d.TimeoutConfig,
+					Status: d.Status, StartedAt: d.StartedAt,
+				},
+				Tasks: toTasks(j.Tasks),
+			}
+			pendingJobs = append(pendingJobs, &p)
+		}
+	}
 
+	tick := time.NewTicker(c.opt.ScheduleInterval)
+	// schedule loop
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -428,7 +429,7 @@ func (c *centerImpl) scheduleJobLoop() {
 					c.getPendingRespCh <- cp
 				})
 			}
-		case <-tk.C:
+		case <-tick.C:
 		}
 		l := len(pendingJobs)
 		for i := 0; i < l; i++ {

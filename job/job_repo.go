@@ -262,12 +262,15 @@ func (r jobRepo) GetTasksOfJob(ctx context.Context, jobId string, status []TaskS
 func (r jobRepo) GetPendingJobs(ctx context.Context) ([]Entity, error) {
 	var l []Entity
 	q := r.db.WithContext(ctx).Model(Entity{}).
-		Joins("Tasks").
-		Preload("Tasks").
-		Where("job.status in ?", []Status{StatusWaiting, StatusInProgress, StatusCanceling, StatusRemoving}).
-		Where("(Tasks.status in ? OR  Tasks.status IS NULL)", []TaskStatus{TaskQueued, TaskSent, TaskInProgress})
+		//Joins("Tasks").
+		Preload(
+			"Tasks",
+			"(status in ? OR  status IS NULL)",
+			[]TaskStatus{TaskQueued, TaskSent, TaskInProgress},
+		).
+		Where("status in ?", []Status{StatusWaiting, StatusInProgress, StatusCanceling, StatusRemoving})
 
-	if err := q.Scan(&l).Error; err != nil {
+	if err := q.Find(&l).Error; err != nil {
 		return l, err
 	}
 	return l, nil
