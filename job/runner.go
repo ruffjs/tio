@@ -14,7 +14,7 @@ import (
 
 func NewRunner(
 	repo Repo,
-	pubSub connector.PubSub,
+	pubSub connector.PubSub, conn connector.ConnectChecker,
 	methodHandler shadow.MethodHandler,
 	shadowSetter shadow.StateDesiredSetter,
 ) Runner {
@@ -28,6 +28,13 @@ func NewRunner(
 
 		pool:            p,
 		thingTaskQueues: ttq,
+
+		// for actions
+
+		pubSub:        pubSub,
+		conn:          conn,
+		methodHandler: methodHandler,
+		shadowSetter:  shadowSetter,
 
 		// channels for task change
 		innerTaskChangeCh: make(chan TaskChangeMsg),
@@ -44,12 +51,6 @@ func NewRunner(
 		getPendingTasksOfDirectMethodRespCh: nil,
 		getPendingTasksOfUpdateShadowReqCh:  make(chan struct{}),
 		getPendingTasksOfUpdateShadowRespCh: nil,
-
-		// for actions
-
-		pubSub:        pubSub,
-		methodHandler: methodHandler,
-		shadowSetter:  shadowSetter,
 	}
 }
 
@@ -60,6 +61,11 @@ type runnerImpl struct {
 
 	jcGetter ctxGetter
 	pool     *ants.Pool
+
+	pubSub        connector.PubSub
+	conn          connector.ConnectChecker
+	methodHandler shadow.MethodHandler
+	shadowSetter  shadow.StateDesiredSetter
 
 	innerTaskChangeCh chan TaskChangeMsg
 	outTaskChangeCh   chan TaskChangeMsg
@@ -77,9 +83,6 @@ type runnerImpl struct {
 
 	thingTaskQueues map[string]TaskQueue // thingId->[]Task, for general task
 
-	pubSub        connector.PubSub
-	methodHandler shadow.MethodHandler
-	shadowSetter  shadow.StateDesiredSetter
 }
 
 var _ Runner = &runnerImpl{}
@@ -245,43 +248,58 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		msg.Task.JobId, msg.Task.TaskId, msg.Status, msg.Progress)
 }
 
-func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
+func (r *runnerImpl) directMethodLoop(addCh <-chan []Task, delCh <-chan []int64) {
 	defer func() {
 		log.Info("JobRunner direct method loop exit")
 	}()
 	concurrentOnTick := 10
 	// The task queue is only used in this go routine for lock-free
-	q := NewTaskQueue()
-	tk := time.NewTicker(time.Millisecond * 50)
+	curQ := NewTaskQueue()
+	offlineThingTasks := map[string][]Task{}
+
+	tick := time.NewTicker(time.Millisecond * 50)
+	onConn := r.conn.OnConnect()
 	for {
 		select {
 		case <-r.ctx.Done():
 			log.Debugf("JobRunner direct method watcher exit cause context closed")
 			return
-		case tl := <-ch:
+		case tl := <-addCh:
 			for _, t := range tl {
 				st := t
 				log.Debugf("JobRunner push task %d", st.TaskId)
-				q.Push(&st)
+				curQ.Push(&st)
 			}
 			continue
 		case dl := <-delCh:
 			for _, id := range dl {
-				_ = q.RemoveById(id)
+				_ = curQ.RemoveById(id)
 			}
 			continue
+		case e := <-onConn:
+			if e.EventType == connector.EventConnected {
+				log.Debugf("JobRunner got thing online thingId=%q", e.ThingId)
+				if l, ok := offlineThingTasks[e.ThingId]; ok {
+					delete(offlineThingTasks, e.ThingId)
+					for _, t := range l {
+						curQ.Push(&t)
+					}
+					log.Debugf("JobRunner got thing online thingId=%q, taskCount=%d put back tasks done",
+						e.ThingId, len(l))
+				}
+			}
 		case <-r.getPendingTasksOfDirectMethodReqCh:
 			_ = r.pool.Submit(func() {
-				r.getPendingTasksOfDirectMethodRespCh <- q.GetTasks()
+				r.getPendingTasksOfDirectMethodRespCh <- curQ.GetTasks()
 			})
-		case <-tk.C:
+		case <-tick.C:
 			// do task below
 		}
 
 		c := 0
-		for q.Size() > 0 && c < concurrentOnTick {
+		for curQ.Size() > 0 && c < concurrentOnTick {
 			c++
-			t := q.Pop()
+			t := curQ.Pop()
 			jc := r.jcGetter(t.JobId)
 			if jc == nil {
 				// should never happen
@@ -291,6 +309,19 @@ func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
 			if isJobToTerminal(jc.Status) {
 				log.Infof("JobRunner job is going to terminal status %q, give up task %d for thing %q",
 					jc.Status, t.TaskId, t.ThingId)
+				continue
+			}
+
+			// check thing connection online
+			if online, err := r.conn.IsConnected(t.ThingId); err != nil {
+				log.Errorf("JobRunner check thing online, thingId=%q, error: %v", t.ThingId, err)
+			} else if !online {
+				if l, ok := offlineThingTasks[t.ThingId]; ok {
+					offlineThingTasks[t.ThingId] = append(l, *t)
+				} else {
+					offlineThingTasks[t.ThingId] = []Task{*t}
+				}
+				log.Debugf("JobRunner put task to offline map taskId=%d", t.TaskId)
 				continue
 			}
 
@@ -324,11 +355,14 @@ func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
 			})
 			if err != nil {
 				log.Warnf("JobRunner direct method task submit error: %v", err)
-				q.Push(t)
+				curQ.Push(t)
+				break
 			} else {
 				log.Infof("JobRunner direct method task submit success, jobId=%q, taskId=%d, thingId=%q",
 					jc.JobId, t.TaskId, t.ThingId)
-				r.innerTaskChangeCh <- TaskChangeMsg{Task: *t, Status: TaskSent}
+				if t.Status == TaskQueued {
+					r.innerTaskChangeCh <- TaskChangeMsg{Task: *t, Status: TaskSent}
+				}
 			}
 		}
 	}

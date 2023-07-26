@@ -14,12 +14,12 @@ import (
 func NewCenter(
 	opt CenterOptions,
 	r Repo,
-	pubSub connector.PubSub,
+	pubSub connector.PubSub, conn connector.ConnectChecker,
 	methodHandler shadow.MethodHandler,
 	shadowSetter shadow.StateDesiredSetter,
 ) Center {
 	jc := make(map[string]*JobContext)
-	runner := NewRunner(r, pubSub, methodHandler, shadowSetter)
+	runner := NewRunner(r, pubSub, conn, methodHandler, shadowSetter)
 	p, err := ants.NewPool(centerWorkerPoolSize)
 	if err != nil {
 		log.Fatalf("JobCenter init pool: %v", err)

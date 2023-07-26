@@ -3,6 +3,8 @@ package job_test
 import (
 	"context"
 	"encoding/json"
+	"ruff.io/tio/connector"
+	mqMock "ruff.io/tio/connector/mqtt/mock"
 	"sync"
 	"testing"
 	"time"
@@ -15,27 +17,57 @@ import (
 	"ruff.io/tio/shadow"
 )
 
-func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
-	ctx := context.Background()
+func prepare(t *testing.T, mockJc bool) (
+	ctx context.Context,
+	repo job.Repo,
+	svc job.MgrService,
+	jc job.Center,
+	mkMethod *test.MethodHandler,
+	conn *mqMock.AdapterImpl,
+	onConnCh chan connector.Event,
+) {
+	ctx = context.Background()
 	db := dbMock.NewSqliteConnTest()
 
-	mkMethod := test.NewMethodHandler()
+	m := test.NewMethodHandler()
+	mkMethod = &m
 
-	jc := job.NewCenter(
-		job.CenterOptions{
-			CheckJobStatusInterval: time.Millisecond * 2,
-			ScheduleInterval:       time.Millisecond * 2},
-		job.NewRepo(db), nil, &mkMethod, nil)
-	svc, _ := test.NewTestSvcWithDB(db, jc)
+	mockMqtt := mqMock.NewMqttClient("", nil, nil)
+	c := mqMock.NewAdapter(mockMqtt)
+	conn = &c
+	onConnCh = make(chan connector.Event)
+	var outCh <-chan connector.Event = onConnCh
+	conn.On("OnConnect").Return(outCh)
+
+	repo = job.NewRepo(db)
+	if mockJc {
+		mkJc := test.NewMockJobCenter()
+		mkJc.On("ReceiveMgrMsg", mock.Anything)
+		jc = mkJc
+	} else {
+		jc = job.NewCenter(
+			job.CenterOptions{
+				CheckJobStatusInterval: time.Millisecond * 2,
+				ScheduleInterval:       time.Millisecond * 2},
+			repo, nil, conn, mkMethod, nil)
+	}
+	svc, _ = test.NewTestSvcWithDB(db, jc)
 	err := jc.Start(ctx)
 	require.NoError(t, err)
 
+	return
+}
+
+func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
+	ctx, _, svc, _, mkMethod, conn, onConnCh := prepare(t, false)
 	tests := []struct {
 		name     string
 		jobId    string
 		respCode []int
 		ok       int
 		fail     int
+		offline  bool
+		reOnline bool
 	}{
 		{
 			name:     "all success",
@@ -51,10 +83,19 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 		},
 		{
 			name:     "failed part",
-			jobId:    "random",
+			jobId:    "failed-part",
 			respCode: []int{200, 530, 700, 200},
 			ok:       2,
 			fail:     2,
+		},
+		{
+			name:     "re online",
+			jobId:    "re-online",
+			respCode: []int{200, 200, 200, 200},
+			ok:       4,
+			fail:     0,
+			offline:  true,
+			reOnline: true,
 		},
 	}
 
@@ -94,40 +135,55 @@ func Test_jobCenter_DirectMethodInvoke(t *testing.T) {
 			mCall := mkMethod.On("InvokeMethod", ctx, mock.Anything).Return(shadow.MethodResp{}, nil)
 			mkMethod.SetReturnFunc(returnFunc)
 
+			connCall := conn.On("IsConnected", mock.Anything).Return(!st.offline, nil)
+
 			wg.Add(len(createReq.TargetConfig.Things))
 			_, err := svc.CreateJob(ctx, createReq)
 			require.NoError(t, err)
 
 			// wait task down
-			wg.Wait()
-			// wait task state save
-			time.Sleep(time.Millisecond * 60)
+			if !st.offline {
+				wg.Wait()
+				// wait task state save
+				time.Sleep(time.Millisecond * 60)
+				mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+			} else if st.reOnline {
+				// wait task to be handled
+				time.Sleep(time.Millisecond * 60)
 
-			mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+				j, err := svc.GetJob(ctx, createReq.JobId)
+				require.NoError(t, err)
+				require.Equal(t, 0, j.ProcessDetails.Succeeded)
+				require.Equal(t, 4, j.ProcessDetails.Queued)
+
+				// mock thing connect
+				connCall.Unset()
+				connCall = conn.On("IsConnected", mock.Anything).Return(true, nil)
+				for _, th := range createReq.TargetConfig.Things {
+					onConnCh <- connector.Event{ThingId: th, EventType: connector.EventConnected}
+				}
+				// wait task to be completed
+				time.Sleep(time.Millisecond * 60)
+				mCall.Parent.AssertCalled(t, "InvokeMethod", ctx, mock.Anything)
+			} else {
+				time.Sleep(time.Second)
+				//mCall.Parent.AssertNumberOfCalls(t, "InvokeMethod", 0)
+			}
+
 			j, err := svc.GetJob(ctx, createReq.JobId)
 			require.NoError(t, err)
 			require.Equal(t, st.ok, j.ProcessDetails.Succeeded)
 			require.Equal(t, st.fail, j.ProcessDetails.Failed)
 			mCall.Unset()
+			connCall.Unset()
 		})
 	}
 
 }
 
 func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
-	ctx := context.Background()
-	db := dbMock.NewSqliteConnTest()
-
-	mkMethod := test.NewMethodHandler()
-
-	jc := job.NewCenter(
-		job.CenterOptions{
-			CheckJobStatusInterval: time.Millisecond * 2,
-			ScheduleInterval:       time.Millisecond * 2},
-		job.NewRepo(db), nil, &mkMethod, nil)
-	svc, _ := test.NewTestSvcWithDB(db, jc)
-	err := jc.Start(ctx)
-	require.NoError(t, err)
+	ctx, _, svc, jc, mkMethod, conn, _ := prepare(t, false)
+	conn.On("IsConnected", mock.Anything).Return(true, nil)
 
 	tests := []struct {
 		name              string
@@ -247,7 +303,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 			require.Equal(t, *cReq.Comment, j.Comment)
 			require.Equal(t, *cReq.ReasonCode, j.ReasonCode)
 
-			time.Sleep(time.Millisecond * 60)
+			time.Sleep(time.Millisecond * 80)
 
 			jl = jc.GetPendingJobs()
 			tl = jc.GetPendingTasks(st.jobId)
@@ -268,19 +324,8 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 }
 
 func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
-	ctx := context.Background()
-	db := dbMock.NewSqliteConnTest()
-
-	mkMethod := test.NewMethodHandler()
-
-	jc := job.NewCenter(
-		job.CenterOptions{
-			CheckJobStatusInterval: time.Millisecond * 2,
-			ScheduleInterval:       time.Millisecond * 2},
-		job.NewRepo(db), nil, &mkMethod, nil)
-	svc, _ := test.NewTestSvcWithDB(db, jc)
-	err := jc.Start(ctx)
-	require.NoError(t, err)
+	ctx, _, svc, jc, mkMethod, conn, _ := prepare(t, false)
+	conn.On("IsConnected", mock.Anything).Return(true, nil)
 
 	tests := []struct {
 		name              string
@@ -414,21 +459,15 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 }
 
 func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
-	ctx := context.Background()
-	db := dbMock.NewSqliteConnTest()
+	// mock JobCenter to avoid create tasks when creat job
+	ctx, repo, svc, _, mkMethod, conn, _ := prepare(t, true)
 
-	mkMethod := test.NewMethodHandler()
-
-	jc := job.NewCenter(
-		job.CenterOptions{
-			CheckJobStatusInterval: time.Millisecond * 10,
-			ScheduleInterval:       time.Millisecond * 2},
-		job.NewRepo(db), nil, &mkMethod, nil)
-
-	mkJc := test.NewMockJobCenter()
-	mkJc.On("ReceiveMgrMsg", mock.Anything)
-	svc, repo := test.NewTestSvcWithDB(db, mkJc)
-
+	// the real JobCenter for test
+	jc := job.NewCenter(job.CenterOptions{
+		CheckJobStatusInterval: time.Millisecond * 10,
+		ScheduleInterval:       time.Millisecond * 2},
+		repo, nil, conn, mkMethod, nil)
+	conn.On("IsConnected", mock.Anything).Return(true, nil)
 	tests := []struct {
 		name              string
 		jobId             string

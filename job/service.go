@@ -102,7 +102,7 @@ type Repo interface {
 }
 
 func NewMgrService(repo Repo, idProvider tio.IdProvider, jc Center) MgrService {
-	return mgrSvcImpl{repo, idProvider, jc}
+	return &mgrSvcImpl{repo, idProvider, jc}
 }
 
 var _ MgrService = &mgrSvcImpl{}
@@ -113,7 +113,7 @@ type mgrSvcImpl struct {
 	jobCenter  Center
 }
 
-func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) {
+func (s *mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) {
 	if err := p.valid(); err != nil {
 		return Detail{}, err
 	}
@@ -152,7 +152,7 @@ func (s mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) 
 
 // UpdateJob Updated values for timeoutConfig take effect for only newly in-progress tasks.
 // Currently, in-progress tasks continue to launch with the previous timeout configuration.
-func (s mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) error {
+func (s *mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) error {
 	if err := r.valid(); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (s mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) er
 	return nil
 }
 
-func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, force bool) error {
+func (s *mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, force bool) error {
 	if err := r.valid(); err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (s mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, fo
 	return nil
 }
 
-func (s mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) (*Entity, error) {
+func (s *mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) (*Entity, error) {
 	if j, err := s.repo.DeleteJob(ctx, jobId, force); err != nil {
 		return nil, errors.WithMessagef(err, "delete job")
 	} else {
@@ -248,7 +248,7 @@ func (s mgrSvcImpl) DeleteJob(ctx context.Context, jobId string, force bool) (*E
 	}
 }
 
-func (s mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
+func (s *mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
 	e, err := s.repo.GetJob(ctx, jobId)
 	if err != nil {
 		return nil, err
@@ -267,7 +267,7 @@ func (s mgrSvcImpl) GetJob(ctx context.Context, jobId string) (*Detail, error) {
 	return &d, nil
 }
 
-func (s mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
+func (s *mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 	p, err := s.repo.QueryJob(ctx, q)
 	if err != nil {
 		return Page{}, err
@@ -280,7 +280,7 @@ func (s mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 	return res, nil
 }
 
-func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
+func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
 	var t TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
 		l, err := txRepo.QueryTask(ctx, jobId, thingId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
@@ -321,7 +321,7 @@ func (s mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Can
 	return nil
 }
 
-func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) (*TaskEntity, error) {
+func (s *mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskId int64, force bool) (*TaskEntity, error) {
 	var en *TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
 		t, err := txRepo.GetTask(ctx, taskId)
@@ -355,7 +355,7 @@ func (s mgrSvcImpl) DeleteTask(ctx context.Context, thingId, jobId string, taskI
 	return en, nil
 }
 
-func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error) {
+func (s *mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId int64) (*Task, error) {
 	e, err := s.repo.GetTask(ctx, taskId)
 	if err != nil {
 		return nil, err
@@ -375,15 +375,15 @@ func (s mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId i
 	return &t, nil
 }
 
-func (s mgrSvcImpl) QueryTaskForThing(ctx context.Context, thingId string, q TaskPageQuery) (TaskPage, error) {
+func (s *mgrSvcImpl) QueryTaskForThing(ctx context.Context, thingId string, q TaskPageQuery) (TaskPage, error) {
 	return s.queryTask(ctx, "", thingId, q)
 }
 
-func (s mgrSvcImpl) QueryTaskForJob(ctx context.Context, jobId string, q TaskPageQuery) (TaskPage, error) {
+func (s *mgrSvcImpl) QueryTaskForJob(ctx context.Context, jobId string, q TaskPageQuery) (TaskPage, error) {
 	return s.queryTask(ctx, jobId, "", q)
 }
 
-func (s mgrSvcImpl) queryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (TaskPage, error) {
+func (s *mgrSvcImpl) queryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (TaskPage, error) {
 	res, err := s.repo.QueryTask(ctx, jobId, thingId, q)
 	if err != nil {
 		return TaskPage{}, err
