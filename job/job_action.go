@@ -9,27 +9,24 @@ import (
 	"ruff.io/tio/shadow"
 )
 
-func (r *runnerImpl) doInvokeDirectMethod(jobId string, taskId int64, thingId string, req InvokeDirectMethodReq) (TaskChangeMsg, error) {
+func (r *runnerImpl) doInvokeDirectMethod(t Task, req InvokeDirectMethodReq) TaskChangeMsg {
 	resp, err := r.methodHandler.InvokeMethod(r.ctx, shadow.MethodReqMsg{
-		ThingId:     thingId,
+		ThingId:     t.ThingId,
 		Method:      req.Method,
 		RespTimeout: req.RespTimeout,
 		Req: shadow.MethodReq{
-			ClientToken: fmt.Sprintf("job-%s-%d", thingId, time.Now().Nanosecond()),
+			ClientToken: fmt.Sprintf("job-%s-%d", t.ThingId, time.Now().Nanosecond()),
 			Data:        req.Data,
 		},
 	})
 
 	if err != nil && errors.Is(err, model.ErrDirectMethodThingOffline) {
-		return TaskChangeMsg{}, err
+		return TaskChangeMsg{
+			Task: Task{}, Err: err,
+		}
 	}
 
-	tcMgr := TaskChangeMsg{
-		JobId:     jobId,
-		TaskId:    taskId,
-		ThingId:   thingId,
-		Operation: SysOpDirectMethod,
-	}
+	tcMgr := TaskChangeMsg{Task: t}
 
 	if err != nil {
 		sd := StatusDetails{
@@ -52,5 +49,5 @@ func (r *runnerImpl) doInvokeDirectMethod(jobId string, taskId int64, thingId st
 		}
 	}
 
-	return tcMgr, nil
+	return tcMgr
 }

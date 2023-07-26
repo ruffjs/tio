@@ -151,13 +151,13 @@ type JobContext struct {
 }
 
 type TaskChangeMsg struct {
-	JobId         string
-	TaskId        int64
-	ThingId       string
-	Operation     string
+	Task Task // original task info
+
+	// following is the new information of the task
 	Status        TaskStatus
 	StatusDetails StatusDetails
 	Progress      uint8
+	Err           error // error when do action for job
 }
 
 //
@@ -520,6 +520,24 @@ func (c *centerImpl) scheduleJobLoop() {
 	}
 }
 
+func getNextRolloutCount(maxCountPerMinute int, p PendingJobItem) int {
+	minuteAgo := time.Now().Add(-time.Minute)
+	curMinuteCount := 0
+	for _, r := range p.RolloutStat {
+		if r.Time.After(minuteAgo) {
+			curMinuteCount += r.Count
+		}
+	}
+	if curMinuteCount >= maxCountPerMinute {
+		return 0
+	}
+	maxCur := maxCountPerMinute - curMinuteCount
+	if maxCur > len(p.Tasks) {
+		maxCur = len(p.Tasks)
+	}
+	return maxCur
+}
+
 func (c *centerImpl) watchTaskChangeLoop() {
 	tcCh := c.runner.OnTaskChange()
 	pendingCheckJobs := map[string]struct{}{}
@@ -538,10 +556,11 @@ func (c *centerImpl) watchTaskChangeLoop() {
 		case msg = <-tcCh:
 			log.Infof("JobCenter watched task change, jobId=%q, taskId=%d, thingId=%q, "+
 				"status=%q, progress=%d, statusDetails=%v",
-				msg.JobId, msg.TaskId, msg.ThingId, msg.Status, msg.Progress, msg.StatusDetails)
+				msg.Task.JobId, msg.Task.TaskId, msg.Task.ThingId,
+				msg.Status, msg.Progress, msg.StatusDetails)
 		}
 		if isTaskTerminal(msg.Status) {
-			pendingCheckJobs[msg.JobId] = struct{}{}
+			pendingCheckJobs[msg.Task.JobId] = struct{}{}
 		}
 
 		// TODO: more for task change
@@ -832,7 +851,8 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 			r.outTaskChangeCh <- chMsg
 
 			if isTaskTerminal(chMsg.Status) {
-				if chMsg.Operation != SysOpDirectMethod && chMsg.Operation != SysOpUpdateShadow {
+				if chMsg.Task.Operation != SysOpDirectMethod &&
+					chMsg.Task.Operation != SysOpUpdateShadow {
 					// TODO: update thing task queue
 				}
 			}
@@ -844,10 +864,10 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 	sdBuf, err := json.Marshal(msg.StatusDetails)
 	if err != nil {
 		log.Errorf("JobRunner update task status, unexpected marshal statusDetails=%v, jobId=%q, taskId=%d, error: %v",
-			msg.StatusDetails, msg.JobId, msg.TaskId, err)
+			msg.StatusDetails, msg.Task.JobId, msg.Task.TaskId, err)
 	}
 	err = r.repo.ExecWithTx(func(txRepo Repo) error {
-		t, err := txRepo.GetTask(r.ctx, msg.TaskId)
+		t, err := txRepo.GetTask(r.ctx, msg.Task.TaskId)
 		if err != nil {
 			return err
 		}
@@ -857,7 +877,7 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		if isTaskTerminal(t.Status) {
 			return fmt.Errorf("task is terminal at status=%q", t.Status)
 		}
-		err = txRepo.UpdateTask(r.ctx, msg.TaskId, map[string]any{
+		err = txRepo.UpdateTask(r.ctx, msg.Task.TaskId, map[string]any{
 			"status":         msg.Status,
 			"progress":       msg.Progress,
 			"status_details": sdBuf,
@@ -869,10 +889,10 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 	})
 	if err != nil {
 		log.Errorf("JobRunner update task status, jobId=%q, taskId=%d, status=%q, error: %v",
-			msg.JobId, msg.TaskId, msg.Status, err)
+			msg.Task.JobId, msg.Task.TaskId, msg.Status, err)
 	}
 	log.Debugf("JobRunner update task status, jobId=%q, taskId=%d, status=%q, progress=%v",
-		msg.JobId, msg.TaskId, msg.Status, msg.Progress)
+		msg.Task.JobId, msg.Task.TaskId, msg.Status, msg.Progress)
 }
 
 func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
@@ -944,9 +964,9 @@ func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
 				continue
 			}
 			err = r.pool.Submit(func() {
-				if re, err := r.doInvokeDirectMethod(jc.JobId, t.TaskId, t.ThingId, req); err != nil {
+				if re := r.doInvokeDirectMethod(*t, req); re.Err != nil {
 					log.Errorf("JobRunner do invoke direct method, jobId=%q taskId=%d thingId=%s : %v",
-						jc.JobId, t.TaskId, t.ThingId, err)
+						jc.JobId, t.TaskId, t.ThingId, re.Err)
 				} else {
 					// notify result
 					r.innerTaskChangeCh <- re
@@ -958,7 +978,7 @@ func (r *runnerImpl) directMethodLoop(ch <-chan []Task, delCh <-chan []int64) {
 			} else {
 				log.Infof("JobRunner direct method task submit success, jobId=%q, taskId=%d, thingId=%q",
 					jc.JobId, t.TaskId, t.ThingId)
-				r.innerTaskChangeCh <- TaskChangeMsg{JobId: jc.JobId, TaskId: t.TaskId, ThingId: t.ThingId, Status: TaskSent}
+				r.innerTaskChangeCh <- TaskChangeMsg{Task: *t, Status: TaskSent}
 			}
 		}
 	}
@@ -987,22 +1007,4 @@ func isTaskOnInit(s TaskStatus) bool {
 
 func isTaskOngoing(s TaskStatus) bool {
 	return s == TaskSent || s == TaskInProgress
-}
-
-func getNextRolloutCount(maxCountPerMinute int, p PendingJobItem) int {
-	minuteAgo := time.Now().Add(-time.Minute)
-	curMinuteCount := 0
-	for _, r := range p.RolloutStat {
-		if r.Time.After(minuteAgo) {
-			curMinuteCount += r.Count
-		}
-	}
-	if curMinuteCount >= maxCountPerMinute {
-		return 0
-	}
-	maxCur := maxCountPerMinute - curMinuteCount
-	if maxCur > len(p.Tasks) {
-		maxCur = len(p.Tasks)
-	}
-	return maxCur
 }
