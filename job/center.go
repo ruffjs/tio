@@ -269,6 +269,9 @@ func (c *centerImpl) scheduleJobLoop() {
 		case <-c.getPendingReqCh:
 			if c.getPendingRespCh != nil {
 				_ = c.pool.Submit(func() {
+					defer func() {
+						recover() // getPendingRespCh maybe nil
+					}()
 					var cp []PendingJobItem
 					for _, j := range pendingJobs {
 						cp = append(cp, *j)
