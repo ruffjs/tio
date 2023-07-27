@@ -42,7 +42,7 @@ func NewRunner(
 
 		// channels for direct method task
 		sysOpTaskCh:    make(chan []Task),
-		sysOpTaskDelCh: make(chan []int64),
+		sysOpTaskDelCh: make(chan deleteTaskMsg),
 
 		// channels for get tasks
 		getPendingTasksOfCustomReqCh:  make(chan struct{}),
@@ -50,6 +50,11 @@ func NewRunner(
 		getPendingTasksOfSysReqCh:     make(chan struct{}),
 		getPendingTasksOfSysRespCh:    nil,
 	}
+}
+
+type deleteTaskMsg struct {
+	jobId string
+	tasks []int64
 }
 
 type runnerImpl struct {
@@ -69,8 +74,7 @@ type runnerImpl struct {
 	outTaskChangeCh   chan TaskChangeMsg
 
 	sysOpTaskCh    chan []Task
-	sysOpTaskDelCh chan []int64
-
+	sysOpTaskDelCh chan deleteTaskMsg
 	// channels for get tasks
 	getPendingTasksOfCustomReqCh  chan struct{}
 	getPendingTasksOfCustomRespCh chan []Task
@@ -128,36 +132,18 @@ func (r *runnerImpl) GetPendingTasksOfCustom() []Task {
 }
 
 func (r *runnerImpl) DeleteTaskOfJob(jobId, operation string, force bool) {
-	tl, err := r.repo.GetTasksOfJob(r.ctx, jobId, []TaskStatus{TaskCanceled})
-	if err != nil {
-		log.Errorf("JobRunner get tasks of job, jobId=%s, error: %v", jobId, err)
-		return
-	}
 	switch operation {
 	case SysOpDirectMethod, SysOpUpdateShadow:
-		var taskIds []int64
-		for _, t := range tl {
-			taskIds = append(taskIds, t.TaskId)
-		}
-		r.sysOpTaskDelCh <- taskIds
+		r.sysOpTaskDelCh <- deleteTaskMsg{jobId: jobId}
 	default:
 	}
 }
 
 func (r *runnerImpl) CancelTaskOfJob(jobId, operation string, force bool) {
-	tl, err := r.repo.GetTasksOfJob(r.ctx, jobId, []TaskStatus{TaskCanceled})
-	if err != nil {
-		log.Errorf("JobRunner get tasks of job, jobId=%s, error: %v", jobId, err)
-		return
-	}
 	switch operation {
 	case SysOpDirectMethod, SysOpUpdateShadow:
-		var taskIds []int64
-		for _, t := range tl {
-			taskIds = append(taskIds, t.TaskId)
-		}
-		r.sysOpTaskDelCh <- taskIds
-		log.Debugf("JobRunner sent msg for delete tasks of direct method: %v", taskIds)
+		r.sysOpTaskDelCh <- deleteTaskMsg{jobId: jobId}
+		log.Debugf("JobRunner sent msg for delete tasks of system operation, jobId=%q", jobId)
 	default:
 	}
 }
@@ -165,7 +151,7 @@ func (r *runnerImpl) CancelTaskOfJob(jobId, operation string, force bool) {
 func (r *runnerImpl) DeleteTask(taskId int64, operation string, force bool) {
 	switch operation {
 	case SysOpDirectMethod, SysOpUpdateShadow:
-		r.sysOpTaskDelCh <- []int64{taskId}
+		r.sysOpTaskDelCh <- deleteTaskMsg{tasks: []int64{taskId}}
 	default:
 	}
 }
@@ -173,7 +159,7 @@ func (r *runnerImpl) DeleteTask(taskId int64, operation string, force bool) {
 func (r *runnerImpl) CancelTask(taskId int64, operation string, force bool) {
 	switch operation {
 	case SysOpDirectMethod, SysOpUpdateShadow:
-		r.sysOpTaskDelCh <- []int64{taskId}
+		r.sysOpTaskDelCh <- deleteTaskMsg{tasks: []int64{taskId}}
 	default:
 	}
 }
@@ -204,8 +190,8 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 			msg.StatusDetails, msg.Task.JobId, msg.Task.TaskId, err)
 	}
 	err = r.repo.ExecWithTx(func(txRepo Repo) error {
-		t, err := txRepo.GetTask(r.ctx, msg.Task.TaskId)
-		if err != nil {
+		t, er := txRepo.GetTask(r.ctx, msg.Task.TaskId)
+		if er != nil {
 			return err
 		}
 		if t == nil {
@@ -214,12 +200,16 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		if isTaskTerminal(t.Status) {
 			return fmt.Errorf("task is terminal at status=%q", t.Status)
 		}
-		err = txRepo.UpdateTask(r.ctx, msg.Task.TaskId, map[string]any{
+		toUpdate := map[string]any{
 			"status":         msg.Status,
 			"progress":       msg.Progress,
 			"status_details": sdBuf,
-		})
-		if err != nil {
+		}
+		if isTaskTerminal(t.Status) {
+			toUpdate["completed_at"] = time.Now()
+		}
+		er = txRepo.UpdateTask(r.ctx, msg.Task.TaskId, toUpdate)
+		if er != nil {
 			return err
 		}
 		return nil
@@ -232,7 +222,7 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		msg.Task.JobId, msg.Task.TaskId, msg.Status, msg.Progress)
 }
 
-func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan []int64) {
+func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskMsg) {
 	defer func() {
 		log.Info("JobRunner system operation loop method loop exit")
 	}()
@@ -256,8 +246,38 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan []int64) {
 			}
 			continue
 		case dl := <-delCh:
-			for _, id := range dl {
-				_ = curQ.RemoveById(id)
+			if len(dl.tasks) > 0 {
+				for _, id := range dl.tasks {
+					_ = curQ.RemoveById(id)
+				}
+				for k, v := range offlineThingTasks {
+					var vn []Task
+					for _, t := range v {
+						for _, id := range dl.tasks {
+							if t.TaskId == id {
+								break
+							}
+						}
+						vn = append(vn, t)
+					}
+					offlineThingTasks[k] = vn
+				}
+			} else if dl.jobId != "" {
+				l := curQ.GetTasks()
+				for _, t := range l {
+					if t.JobId == dl.jobId {
+						curQ.RemoveById(t.TaskId)
+					}
+				}
+				for k, v := range offlineThingTasks {
+					var vn []Task
+					for _, t := range v {
+						if t.JobId != dl.jobId {
+							vn = append(vn, t)
+						}
+					}
+					offlineThingTasks[k] = vn
+				}
 			}
 			continue
 		case e := <-onConn:
@@ -393,29 +413,4 @@ func (r *runnerImpl) submitUpdateShadowTaskToPool(jc *JobContext, t *Task) error
 		// notify result
 		r.innerTaskChangeCh <- re
 	})
-}
-
-// ------------------------- helper func -------------------------
-
-func isJobToTerminal(s Status) bool {
-	if s == StatusCanceling || s == StatusCanceled || s == StatusRemoving || s == StatusCompleted {
-		return true
-	}
-	return false
-}
-
-func isTaskTerminal(s TaskStatus) bool {
-	return s == TaskFailed ||
-		s == TaskSucceeded ||
-		s == TaskTimeOut ||
-		s == TaskRejected ||
-		s == TaskCanceled
-}
-
-func isTaskOnInit(s TaskStatus) bool {
-	return s == TaskQueued
-}
-
-func isTaskOngoing(s TaskStatus) bool {
-	return s == TaskSent || s == TaskInProgress
 }

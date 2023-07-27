@@ -67,10 +67,11 @@ type TaskEntity struct {
 	StatusDetails datatypes.JSON
 	RetryAttempt  uint8 `gorm:"NOT NULL; DEFAULT: 0"`
 
-	QueuedAt  time.Time
-	StartedAt *time.Time
-	UpdatedAt time.Time `gorm:"autoUpdateTime; NOT NULL"`
-	CreatedAt time.Time `gorm:"autoCreateTime; NOT NULL;"`
+	QueuedAt    time.Time
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	UpdatedAt   time.Time `gorm:"autoUpdateTime; NOT NULL"`
+	CreatedAt   time.Time `gorm:"autoCreateTime; NOT NULL;"`
 
 	Version int `gorm:"NOT NULL; DEFAULT: 1"`
 }
@@ -210,14 +211,8 @@ func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 		Version:        e.Version,
 	}
 
-	if e.StartedAt != nil {
-		ts := e.StartedAt.UnixMilli()
-		d.StartedAt = &ts
-	}
-	if e.CompletedAt != nil {
-		ts := e.CompletedAt.UnixMilli()
-		d.CompletedAt = &ts
-	}
+	d.StartedAt = timeToMs(e.StartedAt)
+	d.CompletedAt = timeToMs(e.CompletedAt)
 
 	if err := json.Unmarshal(e.TargetConfig, &targetConf); err != nil {
 		return Detail{}, errors.WithMessage(model.ErrInternal, "field targetConfig in db")
@@ -261,15 +256,8 @@ func toSummary(e Entity) Summary {
 		UpdatedAt: e.UpdatedAt.UnixMilli(),
 		Version:   e.Version,
 	}
-
-	if e.StartedAt != nil {
-		ts := e.StartedAt.UnixMilli()
-		s.StartedAt = &ts
-	}
-	if e.CompletedAt != nil {
-		ts := e.CompletedAt.UnixMilli()
-		s.CompletedAt = &ts
-	}
+	s.StartedAt = timeToMs(e.StartedAt)
+	s.CompletedAt = timeToMs(e.CompletedAt)
 	return s
 }
 
@@ -295,13 +283,9 @@ func toTask(e TaskEntity) Task {
 		Version:       e.Version,
 	}
 
-	ts := e.QueuedAt.UnixMilli()
-	t.QueuedAt = &ts
-
-	if e.StartedAt != nil {
-		ts := e.StartedAt.UnixMilli()
-		t.StartedAt = &ts
-	}
+	t.QueuedAt = timeToMs(&e.QueuedAt)
+	t.StartedAt = timeToMs(e.StartedAt)
+	t.CompletedAt = timeToMs(e.CompletedAt)
 
 	if e.StatusDetails != nil {
 		err := json.Unmarshal(e.StatusDetails, &stDetails)
@@ -328,9 +312,15 @@ func toTaskSummary(e TaskEntity) TaskSummary {
 	ts := e.QueuedAt.UnixMilli()
 	s.QueuedAt = &ts
 
-	if e.StartedAt != nil {
-		ts := e.StartedAt.UnixMilli()
-		s.StartedAt = &ts
-	}
+	s.StartedAt = timeToMs(e.StartedAt)
+	s.CompletedAt = timeToMs(e.CompletedAt)
 	return s
+}
+
+func timeToMs(t *time.Time) *int64 {
+	if t != nil {
+		ts := t.UnixMilli()
+		return &ts
+	}
+	return nil
 }

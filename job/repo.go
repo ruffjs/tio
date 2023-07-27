@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -158,6 +159,7 @@ func (r jobRepo) CancelTasks(ctx context.Context, jobId string, force bool) erro
 	res := up.Updates(map[string]any{
 		"force_canceled": force,
 		"status":         TaskCanceled,
+		"completed_at":   time.Now(),
 	})
 	return res.Error
 }

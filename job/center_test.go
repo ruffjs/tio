@@ -339,14 +339,10 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 
 			jl = jc.GetPendingJobs()
 			tl = jc.GetPendingTasks(st.jobId)
-			if st.scheduleStartTime.After(time.Now()) {
-				// check job is removed from pending queue
-				require.Equal(t, 0, len(jl))
-				require.Equal(t, 0, len(tl))
-			} else {
-				require.Equal(t, 0, len(jl))
-				require.Equal(t, 0, len(tl))
-			}
+			// check job is removed from pending queue
+			require.Equal(t, 0, len(jl))
+			require.Equal(t, 0, len(tl))
+
 			calls += st.completeTask
 			mCall.Parent.AssertNumberOfCalls(t, "InvokeMethod", calls)
 			mCall.Unset()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio"
@@ -181,10 +182,12 @@ func (s *mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) e
 	if err := s.repo.UpdateJob(ctx, jobId, toUpdate); err != nil {
 		return errors.WithMessage(err, "update job")
 	}
-	s.jobCenter.ReceiveMgrMsg(MgrMsg{
-		Typ:  MgrTypeUpdateJob,
-		Data: MgrMsgUpdateJob{JobId: jobId, TimeoutConfig: *r.TimeoutConfig, RetryConfig: *r.RetryConfig},
-	})
+	if r.RetryConfig != nil || r.TimeoutConfig != nil {
+		s.jobCenter.ReceiveMgrMsg(MgrMsg{
+			Typ:  MgrTypeUpdateJob,
+			Data: MgrMsgUpdateJob{JobId: jobId, TimeoutConfig: r.TimeoutConfig, RetryConfig: r.RetryConfig},
+		})
+	}
 	return nil
 }
 
@@ -295,8 +298,9 @@ func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Ca
 			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
 		}
 		toUpdate := map[string]any{
-			"force_canceled": force,
 			"status":         TaskCanceled,
+			"force_canceled": force,
+			"completed_at":   time.Now(),
 		}
 		if r.Version > 0 && t.Version != r.Version {
 			return errors.WithMessage(model.ErrVersionConflict,

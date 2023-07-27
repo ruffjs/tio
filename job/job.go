@@ -95,8 +95,8 @@ type MgrMsgCreateJob struct {
 }
 type MgrMsgUpdateJob struct {
 	JobId         string
-	RetryConfig   RetryConfig
-	TimeoutConfig TimeoutConfig
+	RetryConfig   *RetryConfig
+	TimeoutConfig *TimeoutConfig
 }
 type MgrMsgCancelJob struct {
 	JobId     string

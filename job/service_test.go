@@ -390,7 +390,7 @@ func Test_mgrSvcImpl_UpdateJob(t *testing.T) {
 
 				msg := job.MgrMsg{
 					Typ:  job.MgrTypeUpdateJob,
-					Data: job.MgrMsgUpdateJob{JobId: st.jobId, RetryConfig: *st.req.RetryConfig, TimeoutConfig: *st.req.TimeoutConfig},
+					Data: job.MgrMsgUpdateJob{JobId: st.jobId, RetryConfig: st.req.RetryConfig, TimeoutConfig: st.req.TimeoutConfig},
 				}
 				require.Equal(t, c, len(mockJc.Calls))
 				c := mockJc.Calls[len(mockJc.Calls)-1]

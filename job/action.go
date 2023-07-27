@@ -18,28 +18,28 @@ func (r *runnerImpl) doInvokeDirectMethod(t Task, req InvokeDirectMethodReq) Tas
 		},
 	})
 
-	tcMgr := TaskChangeMsg{Task: t}
+	tcMsg := TaskChangeMsg{Task: t}
 
 	if err != nil {
-		tcMgr.Status = TaskFailed
-		tcMgr.StatusDetails = StatusDetails{
+		tcMsg.Status = TaskFailed
+		tcMsg.StatusDetails = StatusDetails{
 			"code":    500,
 			"message": err.Error(),
 		}
 	} else {
-		tcMgr.StatusDetails = StatusDetails{
+		tcMsg.StatusDetails = StatusDetails{
 			"code":    resp.Code,
 			"message": resp.Message,
 			"data":    resp.Data,
 		}
 		if resp.Code != 200 && resp.Code != 0 {
-			tcMgr.Status = TaskFailed
+			tcMsg.Status = TaskFailed
 		} else {
-			tcMgr.Status = TaskSucceeded
+			tcMsg.Status = TaskSucceeded
 		}
 	}
 
-	return tcMgr
+	return tcMsg
 }
 
 func (r *runnerImpl) doUpdateShadow(t Task, req UpdateShadowReq) TaskChangeMsg {

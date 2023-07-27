@@ -331,6 +331,7 @@ type Task struct {
 	Progress      uint8         `json:"progress"`
 	QueuedAt      *int64        `json:"queuedAt"`
 	StartedAt     *int64        `json:"startedAt"`
+	CompletedAt   *int64        `json:"completedAt"`
 	UpdatedAt     int64         `json:"updatedAt"`
 	CreatedAt     int64         `json:"createdAt"`
 
@@ -348,6 +349,7 @@ type TaskSummary struct {
 	Progress     uint8      `json:"progress"`
 	QueuedAt     *int64     `json:"queuedAt"`
 	StartedAt    *int64     `json:"startedAt"`
+	CompletedAt  *int64     `json:"completedAt"`
 	UpdatedAt    int64      `json:"updatedAt"`
 	CreatedAt    int64      `json:"createdAt"`
 }
