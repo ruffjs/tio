@@ -71,7 +71,7 @@ func (r jobRepo) UpdateJob(ctx context.Context, id string, m map[string]any) err
 func (r jobRepo) DeleteJob(ctx context.Context, id string, force bool) (*Entity, error) {
 	en := Entity{JobId: id}
 	if force {
-		if err := r.db.WithContext(ctx).Delete(Entity{JobId: id}).Error; err != nil {
+		if err := r.db.WithContext(ctx).Delete(&en).Error; err != nil {
 			return nil, err
 		}
 	} else {
@@ -198,7 +198,7 @@ func (r jobRepo) GetTask(ctx context.Context, taskId int64) (*TaskEntity, error)
 
 func (r jobRepo) QueryTask(
 	ctx context.Context,
-	jobId, thingId string,
+	thingId, jobId string,
 	pq TaskPageQuery,
 ) (model.PageData[TaskEntity], error) {
 

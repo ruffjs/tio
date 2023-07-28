@@ -619,7 +619,7 @@ func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 			if err != nil {
 				return
 			}
-			l, err := repo.QueryTask(ctx, st.jobId, st.thingId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+			l, err := repo.QueryTask(ctx, st.thingId, st.jobId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
 			require.NoError(t, err)
 			require.Equal(t, 1, len(l.Content))
 			tk := l.Content[0]

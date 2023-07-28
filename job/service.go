@@ -96,7 +96,7 @@ type Repo interface {
 	CancelTasks(ctx context.Context, jobId string, force bool) error
 	DeleteTask(ctx context.Context, taskId int64) error
 	GetTask(ctx context.Context, taskId int64) (*TaskEntity, error)
-	QueryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (model.PageData[TaskEntity], error)
+	QueryTask(ctx context.Context, thingId, jobId string, q TaskPageQuery) (model.PageData[TaskEntity], error)
 
 	CountTaskStatus(ctx context.Context, jobId string) ([]TaskStatusCount, error)
 	GetTasksOfJob(ctx context.Context, jobId string, status []TaskStatus) ([]TaskEntity, error)
@@ -115,6 +115,7 @@ type mgrSvcImpl struct {
 }
 
 func (s *mgrSvcImpl) CreateJob(ctx context.Context, p CreateReq) (Detail, error) {
+	// TODO check thingId is exist
 	if err := p.valid(); err != nil {
 		return Detail{}, err
 	}
@@ -179,6 +180,17 @@ func (s *mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) e
 	if len(toUpdate) == 0 {
 		return nil
 	}
+	if j, err := s.repo.GetJob(ctx, jobId); err != nil {
+		return errors.WithMessage(model.ErrInternal, "get job "+err.Error())
+	} else {
+		if j == nil {
+			return errors.WithMessage(model.ErrNotFound, "job "+jobId)
+		}
+		if isJobToTerminal(j.Status) && (r.TimeoutConfig != nil || r.RetryConfig != nil) {
+			return errors.WithMessage(model.ErrInvalidParams,
+				"job "+jobId+" is to terminal status, can't update config")
+		}
+	}
 	if err := s.repo.UpdateJob(ctx, jobId, toUpdate); err != nil {
 		return errors.WithMessage(err, "update job")
 	}
@@ -216,6 +228,13 @@ func (s *mgrSvcImpl) CancelJob(ctx context.Context, jobId string, r CancelReq, f
 		}
 		if j == nil {
 			return errors.WithMessage(model.ErrNotFound, "job")
+		}
+		if isJobToTerminal(j.Status) {
+			if !force && j.Status == StatusCanceling {
+				return errors.WithMessagef(model.ErrInvalidStateTransition, "job is canceling")
+			}
+			return errors.WithMessagef(model.ErrInvalidStateTransition,
+				"can'be canceled cause job is at status %q", j.Status)
 		}
 		if !force && j.Status == StatusInProgress {
 			return errors.WithMessage(model.ErrInvalidParams, "can't cancel job which is in progress")
@@ -286,7 +305,7 @@ func (s *mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
 	var t TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
-		l, err := txRepo.QueryTask(ctx, jobId, thingId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+		l, err := txRepo.QueryTask(ctx, thingId, jobId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
 		if err != nil {
 			return err
 		}
@@ -294,6 +313,9 @@ func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Ca
 			return errors.WithMessage(model.ErrNotFound, "task")
 		}
 		t = l.Content[0]
+		if isTaskTerminal(t.Status) {
+			return errors.WithMessagef(model.ErrInvalidStateTransition, "task is terminated at status %q", t.Status)
+		}
 		if !force && t.Status == TaskInProgress {
 			return errors.Wrap(model.ErrInvalidParams, "task is in progress")
 		}
@@ -367,10 +389,10 @@ func (s *mgrSvcImpl) GetTask(ctx context.Context, thingId, jobId string, taskId 
 	if e == nil {
 		return nil, nil
 	}
-	if e.JobId != thingId || e.ThingId != thingId {
+	if e.JobId != jobId || e.ThingId != thingId {
 		return nil, errors.WithMessage(
 			model.ErrInvalidParams,
-			fmt.Sprintf("task %d is not belong job %q or thing %q", taskId, jobId, thingId))
+			fmt.Sprintf("task %d is not belong to job %q or thing %q", taskId, jobId, thingId))
 	}
 	if e == nil {
 		return nil, nil
@@ -388,7 +410,7 @@ func (s *mgrSvcImpl) QueryTaskForJob(ctx context.Context, jobId string, q TaskPa
 }
 
 func (s *mgrSvcImpl) queryTask(ctx context.Context, jobId, thingId string, q TaskPageQuery) (TaskPage, error) {
-	res, err := s.repo.QueryTask(ctx, jobId, thingId, q)
+	res, err := s.repo.QueryTask(ctx, thingId, jobId, q)
 	if err != nil {
 		return TaskPage{}, err
 	}

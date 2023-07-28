@@ -32,6 +32,8 @@ import (
 	"ruff.io/tio/shadow"
 	shadowWire "ruff.io/tio/shadow/wire"
 
+	jobApi "ruff.io/tio/job/api"
+	jobWire "ruff.io/tio/job/wire"
 	shadowApi "ruff.io/tio/shadow/api"
 	"ruff.io/tio/thing"
 	thingApi "ruff.io/tio/thing/api"
@@ -92,6 +94,12 @@ func main() {
 	shadowSvc := shadowWire.InitSvc(dbConn, connector)
 	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
 
+	jobCenter := job.NewCenter(job.CenterOptions{
+		ScheduleInterval:       time.Millisecond * 100,
+		CheckJobStatusInterval: time.Millisecond * 100,
+	}, job.NewRepo(dbConn), connector, connector, methodHandler, shadowSvc)
+	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
+
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
 		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc)
@@ -118,6 +126,9 @@ func main() {
 	if err := mqttClient.Connect(ctx); err != nil {
 		log.Fatalf("Mqtt client start error: %v", err)
 	}
+	if err := jobCenter.Start(ctx); err != nil {
+		log.Fatalf("JobCenter start error: %v", err)
+	}
 
 	// htt api
 
@@ -129,10 +140,14 @@ func main() {
 		Filter(azf)
 	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
 
+	jobWs := jobApi.Service(ctx, jobMgrSvc, thingWs)
+	jobWs.Filter(api.LoggingMiddleware).Filter(azf)
+
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
 
 	restful.DefaultContainer.Add(thingWs)
 	restful.DefaultContainer.Add(mqWs)
+	restful.DefaultContainer.Add(jobWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {

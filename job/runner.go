@@ -169,6 +169,7 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 		select {
 		case <-r.ctx.Done():
 			log.Debug("JobRunner task change watcher exit cause context closed")
+			return
 		case chMsg := <-r.innerTaskChangeCh:
 			r.updateTaskStatus(chMsg)
 			r.outTaskChangeCh <- chMsg

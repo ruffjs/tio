@@ -48,7 +48,7 @@ func (Entity) TableName() string {
 func (Status) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 	switch db.Dialector.Name() {
 	case "mysql":
-		return fmt.Sprintf("enum('%s')", strings.Join(Status.Values(""), "','"))
+		return fmt.Sprintf("enum('%s')", strings.Join(StatusValues(), "','"))
 	case "sqlite":
 		return "text"
 	}
@@ -82,7 +82,7 @@ func (t TaskEntity) TableName() string {
 func (TaskStatus) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 	switch db.Dialector.Name() {
 	case "mysql":
-		return fmt.Sprintf("enum('%s')", strings.Join(TaskStatus.Values(""), "','"))
+		return fmt.Sprintf("enum('%s')", strings.Join(TaskStatusValues(), "','"))
 	case "sqlite":
 		return "text"
 	}
@@ -148,10 +148,11 @@ func toTaskEntities(jobId, operation string, tgt TargetConfig) []TaskEntity {
 	var l []TaskEntity
 	for _, t := range tgt.Things {
 		t := TaskEntity{
-			JobId:     jobId,
-			ThingId:   t,
-			Operation: operation,
-			QueuedAt:  time.Now(),
+			JobId:         jobId,
+			ThingId:       t,
+			Operation:     operation,
+			StatusDetails: []byte("{}"),
+			QueuedAt:      time.Now(),
 		}
 		l = append(l, t)
 	}
@@ -254,6 +255,7 @@ func toSummary(e Entity) Summary {
 		Operation: e.Operation,
 		Status:    e.Status,
 		UpdatedAt: e.UpdatedAt.UnixMilli(),
+		CreatedAt: e.CreatedAt.UnixMilli(),
 		Version:   e.Version,
 	}
 	s.StartedAt = timeToMs(e.StartedAt)

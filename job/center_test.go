@@ -225,9 +225,10 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 
 		force bool
 
-		pendingJob   int
-		pendingTask  int
-		completeTask int
+		pendingJob      int
+		pendingTask     int
+		completeTask    int
+		cancelWithError bool
 	}{
 		{
 			name:              "not scheduled",
@@ -257,12 +258,13 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 			completeTask: 1,
 		},
 		{
-			name:         "rollout complete",
-			jobId:        "rollout-complete",
-			force:        true,
-			pendingJob:   0,
-			pendingTask:  0,
-			completeTask: 4,
+			name:            "rollout complete",
+			jobId:           "rollout-complete",
+			force:           true,
+			pendingJob:      0,
+			pendingTask:     0,
+			completeTask:    4,
+			cancelWithError: true,
 		},
 	}
 
@@ -329,11 +331,14 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 			code := "code-" + st.jobId
 			cReq := job.CancelReq{Comment: &cm, ReasonCode: &code}
 			err = svc.CancelJob(ctx, createReq.JobId, cReq, st.force)
-			require.NoError(t, err)
-			j, err := svc.GetJob(ctx, st.jobId)
-			require.NoError(t, err)
-			require.Equal(t, *cReq.Comment, j.Comment)
-			require.Equal(t, *cReq.ReasonCode, j.ReasonCode)
+
+			require.True(t, (err != nil) == st.cancelWithError, "cancelWithError=%v error=%v", st.cancelWithError, err)
+			if !st.cancelWithError {
+				j, err := svc.GetJob(ctx, st.jobId)
+				require.NoError(t, err)
+				require.Equal(t, *cReq.Comment, j.Comment)
+				require.Equal(t, *cReq.ReasonCode, j.ReasonCode)
+			}
 
 			time.Sleep(time.Millisecond * 80)
 

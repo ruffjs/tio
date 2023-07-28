@@ -42,6 +42,9 @@ var taskStatusValues = []string{
 	string(TaskTimeOut), string(TaskCanceled),
 }
 
+func TaskStatusValues() []string {
+	return taskStatusValues
+}
 func (TaskStatus) Values() []string {
 	return taskStatusValues
 }
@@ -52,8 +55,8 @@ func (s TaskStatus) String() string {
 
 var ErrUnknownEnum = errors.New("unknown enum")
 
-func (s TaskStatus) Of(value string) (TaskStatus, error) {
-	l := s.Values()
+func TaskStatusOf(value string) (TaskStatus, error) {
+	l := TaskStatusValues()
 	for _, v := range l {
 		if v == value {
 			return TaskStatus(v), nil
@@ -182,14 +185,14 @@ var statusValues = []string{
 	string(StatusCanceling), string(StatusRemoving),
 }
 
-func (Status) Values() []string {
+func StatusValues() []string {
 	return statusValues
 }
 func (s Status) String() string {
 	return string(s)
 }
-func (s Status) Of(value string) (Status, error) {
-	l := s.Values()
+func StatusOf(value string) (Status, error) {
+	l := StatusValues()
 	for _, v := range l {
 		if v == value {
 			return Status(v), nil
@@ -237,8 +240,8 @@ type SchedulingConfig struct {
 
 	// To be implemented later
 
-	EndTime     *time.Time          `json:"endTime"`     // optional, ISO8601 date time
-	EndBehavior ScheduleEndBehavior `json:"endBehavior"` // STOP_ROLLOUT | CANCEL | FORCE_CANCEL
+	EndTime     *time.Time          `json:"endTime"` // optional, ISO8601 date time
+	EndBehavior ScheduleEndBehavior `json:"endBehavior" enum:"STOP_ROLLOUT | CANCEL | FORCE_CANCEL"`
 
 	//MaintenanceWindows []MaintenanceWindow `json:"maintenanceWindows"`
 }
@@ -251,7 +254,7 @@ type RetryConfig struct {
 	CriteriaList []RetryConfigItem
 }
 type RetryConfigItem struct {
-	FailureType     string `json:"failureType"` // FAILED | TIMED_OUT | ALL
+	FailureType     string `json:"failureType" enum:"FAILED | TIMED_OUT | ALL"`
 	NumberOfRetries int    `json:"numberOfRetries"`
 }
 
@@ -260,7 +263,7 @@ type TimeoutConfig struct {
 }
 
 type ProcessDetails struct {
-	ProcessingTargets []string // The target things to which the job task is being rolled out
+	//ProcessingTargets []string // The target things to which the job task is being rolled out
 
 	// Status statistics with Thing as the statistical unit
 
@@ -276,7 +279,7 @@ type ProcessDetails struct {
 }
 
 type TargetConfig struct {
-	Type   string   `json:"type"` // "THING_ID". Or can be "GROUP" in future ?
+	Type   string   `json:"type" enum:"THING_ID"` // "THING_ID". Or can be "GROUP" in future ?
 	Things []string `json:"things"`
 }
 
@@ -357,19 +360,19 @@ type TaskSummary struct {
 // The following is used by http api request body
 
 type CreateReq struct {
-	JobId        string       `json:"jobId"` // optional
+	JobId        string       `json:"jobId" optional:"true"` // optional
 	TargetConfig TargetConfig `json:"targetConfig"`
-	Operation    string       `json:"operation"`
-	Description  string       `json:"description"` // optional
+	Operation    string       `json:"operation" description:"system operation: \"$directMethod\" or \"$updateShadow\", and custom operation without \"$\" prefix"`
+	Description  string       `json:"description" optional:"true"` // optional
 
 	// JobDoc optional, when operation is "$updateShadow" or "$updateShadow",
 	// job doc should be json string of UpdateShadowReq or InvokeDirectMethodReq
-	JobDoc map[string]any `json:"jobDoc"`
+	JobDoc map[string]any `json:"jobDoc" optional:"true"`
 
-	SchedulingConfig *SchedulingConfig `json:"schedulingConfig"` // optional
-	RolloutConfig    *RolloutConfig    `json:"rolloutConfig"`
-	RetryConfig      *RetryConfig      `json:"retryConfig"`   // optional, tasks retry config
-	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"` // optional
+	SchedulingConfig *SchedulingConfig `json:"schedulingConfig" optional:"true"` // optional
+	RolloutConfig    *RolloutConfig    `json:"rolloutConfig" optional:"true"`
+	RetryConfig      *RetryConfig      `json:"retryConfig" optional:"true"`   // optional, tasks retry config
+	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig" optional:"true"` // optional
 }
 type UpdateShadowReq struct {
 	State struct {
@@ -383,19 +386,19 @@ type InvokeDirectMethodReq struct {
 }
 
 type UpdateReq struct {
-	Description   *string        `json:"description"`   // optional
-	RetryConfig   *RetryConfig   `json:"retryConfig"`   // optional
-	TimeoutConfig *TimeoutConfig `json:"timeoutConfig"` // optional
+	Description   *string        `json:"description" optional:"true"`   // optional
+	RetryConfig   *RetryConfig   `json:"retryConfig" optional:"true"`   // optional
+	TimeoutConfig *TimeoutConfig `json:"timeoutConfig" optional:"true"` // optional
 }
 
 type CancelReq struct {
-	Comment    *string `json:"comment"`    // optional
-	ReasonCode *string `json:"reasonCode"` // optional
+	Comment    *string `json:"comment" optional:"true"`    // optional
+	ReasonCode *string `json:"reasonCode" optional:"true"` // optional
 }
 
 type CancelTaskReq struct {
-	Version       int            `json:"version"`       // optional, expected version
-	StatusDetails *StatusDetails `json:"statusDetails"` // optional
+	Version       int            `json:"version" optional:"true"`       // optional, expected version
+	StatusDetails *StatusDetails `json:"statusDetails" optional:"true"` // optional
 }
 
 type IdResp struct {

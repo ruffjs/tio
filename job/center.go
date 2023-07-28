@@ -29,8 +29,9 @@ func NewCenter(
 		repo: r,
 		pool: p,
 
-		pendingJobCh:    make(chan PendingJobItem),
-		pendingJobChDel: make(chan removeJobMsg),
+		pendingJobCh:       make(chan PendingJobItem),
+		pendingJobChDel:    make(chan removeJobMsg),
+		updateJobContextCh: make(chan updateJobMsg),
 
 		getPendingReqCh:  make(chan struct{}),
 		getPendingRespCh: nil,
@@ -151,7 +152,7 @@ func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
 			c.runner.DeleteTask(d.TaskId, d.Operation, d.Force)
 		})
 	case MgrTypeDeleteTask:
-		d := msg.Data.(MgrMsgCancelTask)
+		d := msg.Data.(MgrMsgDeleteTask)
 		submit(func() {
 			c.runner.DeleteTask(d.TaskId, d.Operation, d.Force)
 		})
@@ -217,6 +218,7 @@ func (c *centerImpl) rolloutLoop() {
 	for {
 		select {
 		case <-c.ctx.Done():
+			return
 		case p := <-c.pendingJobCh:
 			pendingJobs = append(pendingJobs, &p)
 		case del := <-c.pendingJobChDel:
@@ -274,7 +276,6 @@ func (c *centerImpl) rolloutLoop() {
 		l := len(pendingJobs)
 		for i := 0; i < l; i++ {
 			v := pendingJobs[i]
-			c.setJobContext(v.Context.JobId, v.Context)
 
 			if next, remove := c.jobScheduleFilter(v); !next {
 				if remove {
@@ -289,6 +290,7 @@ func (c *centerImpl) rolloutLoop() {
 			}
 
 			jc := &v.Context
+			c.setJobContext(v.Context.JobId, *jc)
 
 			// rollout count
 
@@ -500,7 +502,6 @@ func jobNextRolloutCount(maxCountPerMinute int, p PendingJobItem) int {
 		maxCur = len(p.Tasks)
 	}
 
-	log.Debugf("========> next rolloutCount=%d, len=%d", maxCur, len(p.Tasks))
 	return maxCur
 }
 
@@ -634,6 +635,13 @@ var _ Center = &centerImpl{}
 
 func isJobToTerminal(s Status) bool {
 	if s == StatusCanceling || s == StatusCanceled || s == StatusRemoving || s == StatusCompleted {
+		return true
+	}
+	return false
+}
+
+func isJobTerminal(s Status) bool {
+	if s == StatusCanceled || s == StatusCompleted {
 		return true
 	}
 	return false
