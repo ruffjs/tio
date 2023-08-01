@@ -29,3 +29,7 @@ func SendResp[T any](w http.ResponseWriter, httpStatus int, res Resp[T]) {
 	w.WriteHeader(httpStatus)
 	_, _ = w.Write(body)
 }
+
+func SendRespOK[T any](w http.ResponseWriter, d T) {
+	SendResp(w, 200, RespOK(d))
+}

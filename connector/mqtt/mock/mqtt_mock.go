@@ -3,15 +3,14 @@ package mock
 import (
 	"context"
 	"math/rand"
+	"ruff.io/tio/connector"
 	"time"
 
 	mq "ruff.io/tio/connector/mqtt/client"
 
-	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/mock"
+	"ruff.io/tio/pkg/log"
 )
 
 // mock mqtt client
@@ -153,17 +152,50 @@ func (m MqttMsg) Payload() []byte {
 func (m MqttMsg) Ack() {
 }
 
+func NewAdapter(c mq.Client) AdapterImpl {
+	return AdapterImpl{client: c}
+}
+
 // AdapterImpl mock adapter
 type AdapterImpl struct {
 	mock.Mock
-	shadow.ConnectChecker
+	connector.ConnectChecker
+	client mq.Client
 }
 
-var _ shadow.ConnectChecker = (*AdapterImpl)(nil)
+func (m *AdapterImpl) Start(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
 
-func (m *AdapterImpl) OnConnect() <-chan shadow.Event {
+func (m *AdapterImpl) Close(thingId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *AdapterImpl) Remove(thingId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *AdapterImpl) Subscribe(ctx context.Context, topic string, qos byte, callback func(msg connector.Message)) error {
+	err := m.client.Subscribe(ctx, topic, qos, func(client mqtt.Client, message mqtt.Message) {
+		callback(message)
+	})
+	return err
+}
+
+func (m *AdapterImpl) Publish(topic string, qos byte, retained bool, payload []byte) error {
+	tk := m.client.Publish(topic, qos, retained, payload)
+	tk.Wait()
+	return tk.Error()
+}
+
+var _ connector.Connector = (*AdapterImpl)(nil)
+
+func (m *AdapterImpl) OnConnect() <-chan connector.Event {
 	args := m.Called()
-	res := args.Get(0).(<-chan shadow.Event)
+	res := args.Get(0).(<-chan connector.Event)
 	return res
 }
 
@@ -177,6 +209,6 @@ func (m *AdapterImpl) IsConnected(thingId string) (bool, error) {
 	return res, errRes
 }
 
-func (m *AdapterImpl) ClientInfo(thingId string) (shadow.ClientInfo, error) {
-	return shadow.ClientInfo{ClientId: thingId}, nil
+func (m *AdapterImpl) ClientInfo(thingId string) (connector.ClientInfo, error) {
+	return connector.ClientInfo{ClientId: thingId}, nil
 }

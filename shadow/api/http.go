@@ -31,7 +31,7 @@ func Service(
 	thingWs *restful.WebService,
 	svc shadow.Service,
 	thingSvc thing.Service,
-	conn shadow.Connector,
+	method shadow.MethodHandler,
 ) *restful.WebService {
 	ws := thingWs
 
@@ -74,7 +74,7 @@ func Service(
 		Returns(200, "OK", rest.RespOK(shadow.ShadowWithStatus{})))
 
 	ws.Route(ws.POST("/{id}/methods/{name}").
-		To(InvokeMethodHandler(ctx, conn, thingSvc)).
+		To(InvokeMethodHandler(ctx, method, thingSvc)).
 		Operation("invoke-direct-method").
 		Doc("invoke thing direct method").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -215,7 +215,7 @@ type MethodInvokeResp struct {
 
 func InvokeMethodHandler(
 	ctx context.Context,
-	conn shadow.Connector,
+	method shadow.MethodHandler,
 	thingSvc thing.Service,
 ) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
@@ -264,7 +264,7 @@ func InvokeMethodHandler(
 			reqMsg.RespTimeout = defaultMethodReqTimeout
 		}
 
-		resp, err := conn.InvokeMethod(ctx, reqMsg)
+		resp, err := method.InvokeMethod(ctx, reqMsg)
 		if err != nil {
 			log.Errorf("Direct method request: %#v , error: %v", reqMsg, err)
 			if !checkHttpErrAndSend(err, w) {

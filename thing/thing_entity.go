@@ -5,7 +5,7 @@ import (
 )
 
 type Entity struct {
-	Id        string `gorm:"primaryKey;size=64"`
+	Id        string `gorm:"primaryKey;size:64"`
 	Enabled   bool
 	AuthType  string    `gorm:"size=50"`
 	AuthValue string    `gorm:"size=100"`

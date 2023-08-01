@@ -1,6 +1,7 @@
-package mqtt_test
+package ntp_test
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"math/rand"
@@ -17,11 +18,14 @@ import (
 	"ruff.io/tio/pkg/log"
 )
 
+var ctx = context.Background()
+
 func TestNtpHandler(t *testing.T) {
 	t.Parallel()
 
 	// mock mqtt client
 	mockMqtt := mockmq.NewMqttClient("", nil, nil)
+	conn := mockmq.NewAdapter(mockMqtt)
 
 	// mock subscribe
 	mockMqtt.On("Subscribe", mock.Anything, ntp.TopicReqAll, mq.DefaultQos, mock.Anything).Return(nil)
@@ -81,13 +85,13 @@ func TestNtpHandler(t *testing.T) {
 		pubReq := mockMqtt.On("Publish", reqTopic, mock.Anything, false, mock.Anything).Return(token)
 		pubResp := mockMqtt.On("Publish", respTopic, mock.Anything, false, mock.Anything).Return(token)
 
-		handler := mq.NewNtpHandler(mockMqtt)
+		handler := ntp.NewNtpHandler(&conn)
 		err := handler.InitNtpHandler(ctx)
 		require.NoError(t, err)
 
 		req := ntp.Req{ClientSendTime: clientNow()}
 
-		// subcribe response
+		// subscribe response
 		respCh := make(chan mqtt.Message, 1)
 		err = mockMqtt.Subscribe(ctx, respTopic, 1, func(cl mqtt.Client, m mqtt.Message) {
 			respCh <- m

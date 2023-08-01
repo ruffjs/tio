@@ -10,7 +10,7 @@ import (
 )
 
 type Entity struct {
-	ThingId  string         `gorm:"primaryKey;size=64"`
+	ThingId  string         `gorm:"primaryKey;size:64"`
 	Desired  datatypes.JSON `json:"desired"`
 	Reported datatypes.JSON `json:"-"`
 	Metadata datatypes.JSON `json:"-"`
@@ -99,7 +99,7 @@ func toShadow(en Entity) (Shadow, error) {
 
 // ConnStatusEntity for saving connectivity info
 type ConnStatusEntity struct {
-	ThingId          string `gorm:"primaryKey;size=64"`
+	ThingId          string `gorm:"primaryKey;size:64"`
 	Connected        bool   `gorm:"not null; default:0"`
 	ConnectedAt      *time.Time
 	DisconnectedAt   *time.Time

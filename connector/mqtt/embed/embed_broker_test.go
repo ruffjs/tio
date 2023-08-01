@@ -3,6 +3,7 @@ package embed_test
 import (
 	"context"
 	"encoding/json"
+	"ruff.io/tio/connector"
 	"testing"
 	"time"
 
@@ -40,15 +41,15 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 	err := monCl.Connect(ctx)
 	require.NoError(t, err)
 
-	err = monCl.Subscribe(ctx, shadow.TopicPresence("+"), 0, func(c mqtt.Client, m mqtt.Message) {
-		var evt shadow.Event
+	err = monCl.Subscribe(ctx, connector.TopicPresence("+"), 0, func(c mqtt.Client, m mqtt.Message) {
+		var evt connector.Event
 		err := json.Unmarshal(m.Payload(), &evt)
 		require.NoError(t, err, "should unmarshal event")
 		thingId, err := shadow.GetThingIdFromTopic(m.Topic())
 		require.NoError(t, err)
-		if evt.EventType == shadow.EventConnected {
+		if evt.EventType == connector.EventConnected {
 			gotConn = append(gotConn, thingId)
-		} else if evt.EventType == shadow.EventDisconnected {
+		} else if evt.EventType == connector.EventDisconnected {
 			gotDisc = append(gotDisc, thingId)
 		} else {
 			log.Fatalf("Unknown presence event type %s", evt.EventType)

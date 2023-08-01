@@ -1,16 +1,18 @@
 package mqtt
 
 import (
+	"context"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/pkg/errors"
+	"ruff.io/tio/connector"
 	"sync"
-
-	"ruff.io/tio/connector/mqtt/client"
-	"ruff.io/tio/connector/mqtt/embed"
-	"ruff.io/tio/ntp"
+	"time"
 
 	"ruff.io/tio/config"
+	"ruff.io/tio/connector/mqtt/client"
+	"ruff.io/tio/connector/mqtt/embed"
 	"ruff.io/tio/connector/mqtt/emqx"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
 )
 
 const (
@@ -19,17 +21,31 @@ const (
 
 type mqttConnector struct {
 	client client.Client
-	shadow.Connectivity
-	shadow.StateHandler
-	shadow.MethodHandler
-	ntp.Handler
+	connector.Connectivity
+}
+
+func (m mqttConnector) Subscribe(ctx context.Context, topic string, qos byte, callback func(msg connector.Message)) error {
+	err := m.client.Subscribe(ctx, topic, qos, func(c mqtt.Client, message mqtt.Message) {
+		callback(message)
+	})
+	return err
+}
+
+func (m mqttConnector) Publish(topic string, qos byte, retained bool, payload []byte) error {
+	tk := m.client.Publish(topic, qos, retained, payload)
+	select {
+	case <-time.After(time.Second):
+		return errors.New("timeout")
+	case <-tk.Done():
+		return tk.Error()
+	}
 }
 
 var onceNewConnector sync.Once
-var connectorSingleton shadow.Connector
+var connectorSingleton connector.Connector
 
-func InitConnector(cfg config.Connector, cl client.Client) shadow.Connector {
-	var c shadow.Connectivity
+func InitConnector(cfg config.Connector, cl client.Client) connector.Connector {
+	var c connector.Connectivity
 	typ := cfg.Typ
 	if typ == config.ConnectorMqttEmbed {
 		c = embed.NewEmbedAdapter()
@@ -42,14 +58,11 @@ func InitConnector(cfg config.Connector, cl client.Client) shadow.Connector {
 	}
 
 	onceNewConnector.Do(func() {
-		s := NewShadowHandler(cl)
-		m := NewMethodHandler(cl, c)
-		n := NewNtpHandler(cl)
-		connectorSingleton = &mqttConnector{cl, c, s, m, n}
+		connectorSingleton = &mqttConnector{cl, c}
 	})
 	return connectorSingleton
 }
 
-func Connector() shadow.Connector { return connectorSingleton }
+func Connector() connector.Connector { return connectorSingleton }
 
-var _ shadow.Connector = (*mqttConnector)(nil)
+var _ connector.Connector = (*mqttConnector)(nil)

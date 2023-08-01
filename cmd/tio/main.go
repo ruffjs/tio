@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"ruff.io/tio/job"
+	"ruff.io/tio/ntp"
 	"syscall"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 	"ruff.io/tio/shadow"
 	shadowWire "ruff.io/tio/shadow/wire"
 
+	jobApi "ruff.io/tio/job/api"
+	jobWire "ruff.io/tio/job/wire"
 	shadowApi "ruff.io/tio/shadow/api"
 	"ruff.io/tio/thing"
 	thingApi "ruff.io/tio/thing/api"
@@ -82,9 +86,19 @@ func main() {
 	mqttClient := client.NewClient(cfg.Connector.MqttClient)
 	connector := mq.InitConnector(cfg.Connector, mqttClient)
 
+	methodHandler := shadow.NewMethodHandler(connector)
+	shadowStateHandler := shadow.NewShadowHandler(connector)
+	ntpHandler := ntp.NewNtpHandler(connector)
+
 	// services
 	shadowSvc := shadowWire.InitSvc(dbConn, connector)
 	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
+
+	jobCenter := job.NewCenter(job.CenterOptions{
+		ScheduleInterval:       time.Millisecond * 100,
+		CheckJobStatusInterval: time.Millisecond * 100,
+	}, job.NewRepo(dbConn), connector, connector, methodHandler, shadowSvc)
+	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
 
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
@@ -99,17 +113,21 @@ func main() {
 	if err := shadowSvc.SyncConnStatus(ctx); err != nil {
 		log.Fatalf("Sync Conn Status error: %v", err)
 	}
-	if err := connector.InitMethodHandler(ctx); err != nil {
-		log.Fatalf("Connector init method handler error: %v", err)
+	if err := methodHandler.InitMethodHandler(ctx); err != nil {
+		log.Fatalf("Init method handler error: %v", err)
 	}
-	if err := connector.InitNtpHandler(ctx); err != nil {
-		log.Fatalf("Connector init ntp handler error: %v", err)
+	if err := ntpHandler.InitNtpHandler(ctx); err != nil {
+		log.Fatalf("Init ntp handler error: %v", err)
 	}
-	if err := shadow.Link(ctx, connector, shadowSvc); err != nil {
+
+	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
 	if err := mqttClient.Connect(ctx); err != nil {
 		log.Fatalf("Mqtt client start error: %v", err)
+	}
+	if err := jobCenter.Start(ctx); err != nil {
+		log.Fatalf("JobCenter start error: %v", err)
 	}
 
 	// htt api
@@ -120,12 +138,16 @@ func main() {
 	thingWs := thingApi.Service(ctx, thingSvc).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
-	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, connector)
+	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
+
+	jobWs := jobApi.Service(ctx, jobMgrSvc, thingWs)
+	jobWs.Filter(api.LoggingMiddleware).Filter(azf)
 
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
 
 	restful.DefaultContainer.Add(thingWs)
 	restful.DefaultContainer.Add(mqWs)
+	restful.DefaultContainer.Add(jobWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {
@@ -162,7 +184,13 @@ func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) 
 }
 
 func autoMigrate(conn *gorm.DB) {
-	err := conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
+	err := conn.AutoMigrate(
+		&thing.Entity{},
+		&shadow.Entity{},
+		&shadow.ConnStatusEntity{},
+		&job.Entity{},
+		&job.TaskEntity{},
+	)
 	if err != nil {
 		log.Fatalf("auto migrate db error: %v", err)
 	}

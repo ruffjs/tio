@@ -1,7 +1,6 @@
-package mqtt_test
+package shadow_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,9 +17,9 @@ import (
 	"ruff.io/tio/shadow"
 )
 
-var (
-	ctx = context.Background()
-)
+//var (
+//	ctx = context.Background()
+//)
 
 func TestHandler_GetReq(t *testing.T) {
 	t.Parallel()
@@ -28,9 +27,10 @@ func TestHandler_GetReq(t *testing.T) {
 	thingId := fmt.Sprintf("thing-%d", time.Now().UnixNano())
 	topic := strings.Replace(shadow.TopicAllGet(), "+", thingId, -1)
 	mockMqtt := mockMqtt(thingId, shadow.TopicAllGet(), topic, nil, nil)
+	conn := mockmq.NewAdapter(mockMqtt)
 
 	// start handler
-	h := mq.NewShadowHandler(mockMqtt)
+	h := shadow.NewShadowHandler(&conn)
 	ch, err := h.ShadowGetReq(ctx)
 	require.NoError(t, err)
 
@@ -57,10 +57,11 @@ func TestHandler_StateReq(t *testing.T) {
 	thingId := fmt.Sprintf("thing-%d", time.Now().UnixNano())
 	reqUpdateTopic := shadow.TopicUpdateOf(thingId)
 	mockMqtt := mockMqtt(thingId, shadow.TopicAllUpdate(), reqUpdateTopic, nil, nil)
+	conn := mockmq.NewAdapter(mockMqtt)
 
 	// start handler
 
-	h := mq.NewShadowHandler(mockMqtt)
+	h := shadow.NewShadowHandler(&conn)
 	ch, err := h.StateUpdateReq(ctx)
 	require.NoError(t, err)
 
@@ -134,7 +135,8 @@ func TestHandler_Accepted(t *testing.T) {
 
 	for _, c := range cases {
 		call := mockMqtt.On("Publish", c.topic, mq.DefaultQos, false, mock.Anything).Return(mockmq.NewMockToken())
-		h := mq.NewShadowHandler(mockMqtt)
+		conn := mockmq.NewAdapter(mockMqtt)
+		h := shadow.NewShadowHandler(&conn)
 
 		err := h.AcceptedResp(ctx, c.msg)
 		require.NoError(t, err)
@@ -168,13 +170,15 @@ func Benchmark_GetReq(b *testing.B) {
 	glg.Get().SetLevel(glg.ERR)
 
 	mqCl := mockmq.NewMqttClient("", nil, nil)
+	conn := mockmq.NewAdapter(mqCl)
+
 	mqCl.On("Subscribe", ctx, shadow.TopicAllGet(), mq.DefaultQos, mock.Anything).Return(nil)
 	token := &mockmq.Token{DoneCh: make(chan struct{})}
 	close(token.DoneCh)
 	mqCl.On("Publish", mock.Anything, mq.DefaultQos, false, mock.Anything).Return(token)
 
 	// start handler
-	h := mq.NewShadowHandler(mqCl)
+	h := shadow.NewShadowHandler(&conn)
 	ch, _ := h.ShadowGetReq(ctx)
 
 	b.ResetTimer()

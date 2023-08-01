@@ -3,6 +3,7 @@ package shadow
 import (
 	"context"
 	"fmt"
+	"ruff.io/tio/connector"
 	"strings"
 	"time"
 
@@ -66,7 +67,7 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 			return errors.Wrap(res.Error, "find shadow "+thingId)
 		}
 		if version > 0 && oldEn.Version != version {
-			return errors.Wrap(model.ErrConflict,
+			return errors.Wrap(model.ErrVersionConflict,
 				fmt.Sprintf("expect version %d but got %d", oldEn.Version, version))
 		}
 		// update when version match
@@ -79,7 +80,7 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 		}
 		if res.RowsAffected != 1 {
 			log.Errorf("Update shadow %s got unexpected affected row %d", thingId, res.RowsAffected)
-			return errors.Wrap(model.ErrConflict, "")
+			return errors.Wrap(model.ErrVersionConflict, "")
 		}
 		return nil
 	})
@@ -95,7 +96,7 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 }
 
 // UpdateConnStatus batch update in a transaction
-func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []ClientInfo) error {
+func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error {
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		for _, c := range s {
 			ex := tx.Model(&ConnStatusEntity{ThingId: c.ClientId})

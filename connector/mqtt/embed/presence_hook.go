@@ -3,18 +3,18 @@ package embed
 import (
 	"bytes"
 	"fmt"
+	"ruff.io/tio/connector"
 	"strings"
 	"time"
 
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/packets"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
 )
 
 type presenceHook struct {
 	mqtt.HookBase
-	publishEventFn func(topic string, evt shadow.Event)
+	publishEventFn func(topic string, evt connector.Event)
 	getClientFn    func(id string) (*mqtt.Client, bool)
 }
 
@@ -44,8 +44,8 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 	cinfo := toClientInfo(cl, true, &now, nil, nil)
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
-		evt := toEvent(cl, shadow.EventConnected, now, "")
-		go h.publishEventFn(shadow.TopicPresence(cl.ID), evt)
+		evt := toEvent(cl, connector.EventConnected, now, "")
+		go h.publishEventFn(connector.TopicPresence(cl.ID), evt)
 	}
 }
 
@@ -65,13 +65,13 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	cinfo := toClientInfo(cl, false, nil, &now, err)
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
-		evt := toEvent(cl, shadow.EventDisconnected, now, fmt.Sprintf("%s", err))
-		go h.publishEventFn(shadow.TopicPresence(cl.ID), evt)
+		evt := toEvent(cl, connector.EventDisconnected, now, fmt.Sprintf("%s", err))
+		go h.publishEventFn(connector.TopicPresence(cl.ID), evt)
 	}
 }
 
 func toClientInfo(cl *mqtt.Client, connected bool,
-	connectAt, disconnectAt *time.Time, err error) shadow.ClientInfo {
+	connectAt, disconnectAt *time.Time, err error) connector.ClientInfo {
 	discReason := ""
 	if err != nil {
 		discReason = err.Error()
@@ -79,7 +79,7 @@ func toClientInfo(cl *mqtt.Client, connected bool,
 			discReason = discReason[0:256]
 		}
 	}
-	res := shadow.ClientInfo{
+	res := connector.ClientInfo{
 		ClientId:         cl.ID,
 		Username:         string(cl.Properties.Username),
 		Connected:        connected,
@@ -93,8 +93,8 @@ func toClientInfo(cl *mqtt.Client, connected bool,
 	return res
 }
 
-func toEvent(cl *mqtt.Client, typ string, t time.Time, err string) shadow.Event {
-	return shadow.Event{
+func toEvent(cl *mqtt.Client, typ string, t time.Time, err string) connector.Event {
+	return connector.Event{
 		EventType:        typ,
 		Timestamp:        t.UnixMilli(),
 		RemoteAddr:       cl.Net.Remote,

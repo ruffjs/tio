@@ -8,12 +8,13 @@ package wire
 
 import (
 	"gorm.io/gorm"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/shadow"
 )
 
 // Injectors from wire.go:
 
-func InitSvc(dbConn *gorm.DB, conn shadow.Connectivity) shadow.Service {
+func InitSvc(dbConn *gorm.DB, conn connector.Connectivity) shadow.Service {
 	repo := shadow.NewShadowRepo(dbConn)
 	service := shadow.NewSvc(repo, conn)
 	return service

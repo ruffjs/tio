@@ -2,18 +2,17 @@ package mqtt
 
 import (
 	"context"
-
-	"ruff.io/tio/connector/mqtt/embed"
-	"ruff.io/tio/pkg/log"
-	rest "ruff.io/tio/pkg/restapi"
-	"ruff.io/tio/shadow"
+	"ruff.io/tio/connector"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/mochi-co/mqtt/v2/system"
+	"ruff.io/tio/connector/mqtt/embed"
+	"ruff.io/tio/pkg/log"
+	rest "ruff.io/tio/pkg/restapi"
 )
 
-func Service(ctx context.Context, brk shadow.Connectivity) *restful.WebService {
+func Service(ctx context.Context, brk connector.Connectivity) *restful.WebService {
 	ws := new(restful.WebService)
 	ws.
 		Path("/api/v1/mqttBroker").
@@ -41,7 +40,7 @@ func Service(ctx context.Context, brk shadow.Connectivity) *restful.WebService {
 	return ws
 }
 
-func CloseClientHandler(ctx context.Context, connector shadow.Connectivity) restful.RouteFunction {
+func CloseClientHandler(ctx context.Context, connector connector.Connectivity) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		cid := r.PathParameter("clientId")
 		err := connector.Close(cid)
