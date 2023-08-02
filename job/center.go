@@ -212,6 +212,13 @@ func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 	delPendingAt := func(index int) {
 		pendingJobs = append(pendingJobs[:index], pendingJobs[index+1:]...)
 	}
+	clearJob := func(v *PendingJobItem, index int) {
+		// TODO More reasonable deletion strategy fro JobContext
+		if v.Context.Status != StatusInProgress {
+			c.removeJobContext(v.Context.JobId)
+		}
+		delPendingAt(index)
+	}
 
 	tick := time.NewTicker(c.opt.ScheduleInterval)
 	// schedule loop
@@ -279,11 +286,15 @@ func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 
 			if next, remove := c.jobScheduleFilter(v); !next {
 				if remove {
-					// TODO More reasonable deletion strategy fro JobContext
-					if v.Context.Status != StatusInProgress {
-						c.removeJobContext(v.Context.JobId)
-					}
-					delPendingAt(i)
+					clearJob(v, i)
+					l = len(pendingJobs)
+				}
+				continue
+			}
+
+			if next, remove := c.taskTimeoutFilter(v); !next {
+				if remove {
+					clearJob(v, i)
 					l = len(pendingJobs)
 				}
 				continue
@@ -457,7 +468,9 @@ func (c *centerImpl) preloadPendingJobs() (jobs []*PendingJobItem) {
 	return
 }
 
-func (c *centerImpl) checkTimeoutJob(p *PendingJobItem) {
+func (c *centerImpl) taskTimeoutFilter(p *PendingJobItem) (next bool, remove bool) {
+	next = true
+	remove = false
 	if p.Context.TimeoutConfig == nil {
 		return
 	}
@@ -465,9 +478,21 @@ func (c *centerImpl) checkTimeoutJob(p *PendingJobItem) {
 	if inProgressMinute <= 0 {
 		return
 	}
+
+	remainTasks := []Task{}
 	for _, t := range p.Tasks {
-		checkTimeoutTask(c.ctx, &t, inProgressMinute, c.repo)
+		timeout := checkTimeoutTask(c.ctx, &t, inProgressMinute, c.repo)
+		if !timeout {
+			remainTasks = append(remainTasks, t)
+		}
 	}
+	if len(remainTasks) == 0 {
+		remove = true
+		next = false
+	}
+	p.Tasks = remainTasks
+
+	return
 }
 
 func checkTimeoutTask(ctx context.Context, t *Task, inProgressMinutes int, repo Repo) (timeout bool) {
