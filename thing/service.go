@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"ruff.io/tio/connector"
 	"strings"
+
+	"ruff.io/tio/connector"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio"
@@ -156,8 +157,11 @@ func TopicAcl(superUsers []config.UserPassword, thingId string, topic string, wr
 	userThingTopicPrefix := shadow.TopicUserThingsPrefix + thingId + "/"
 	if strings.HasPrefix(topic, thingTopicPrefix) || strings.HasPrefix(topic, userThingTopicPrefix) {
 		return true
+	} else if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
+		log.Debugf("Mqqt subscribe deny, thingId=%q, topic=%q", thingId, topic)
+		return false
 	}
-	return false
+	return true
 }
 
 var idRegexp = regexp.MustCompile("^[0-9a-zA-Z_-]+$")
