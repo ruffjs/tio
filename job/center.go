@@ -92,7 +92,10 @@ func (c *centerImpl) Start(ctx context.Context) error {
 	c.ctx = ctx
 	c.runner.Start(ctx, c.getJobContext)
 	go c.watchTaskChangeLoop()
-	go c.rolloutLoop()
+
+	// preload pending jobs from db
+	l := c.preloadPendingJobs()
+	go c.rolloutLoop(l)
 
 	return nil
 }
@@ -203,15 +206,12 @@ func (c *centerImpl) removePendingJob(msg removeJobMsg) {
 	c.pendingJobChDel <- msg
 }
 
-func (c *centerImpl) rolloutLoop() {
+func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 	var pendingJobs []*PendingJobItem
+	pendingJobs = append(pendingJobs, l...)
 	delPendingAt := func(index int) {
 		pendingJobs = append(pendingJobs[:index], pendingJobs[index+1:]...)
 	}
-
-	// preload pending jobs from db
-	l := c.preloadPendingJobs()
-	pendingJobs = append(pendingJobs, l...)
 
 	tick := time.NewTicker(c.opt.ScheduleInterval)
 	// schedule loop

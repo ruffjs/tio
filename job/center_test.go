@@ -3,12 +3,13 @@ package job_test
 import (
 	"context"
 	"encoding/json"
-	"ruff.io/tio/connector"
-	mqMock "ruff.io/tio/connector/mqtt/mock"
-	sdMock "ruff.io/tio/shadow/mock"
 	"sync"
 	"testing"
 	"time"
+
+	"ruff.io/tio/connector"
+	mqMock "ruff.io/tio/connector/mqtt/mock"
+	sdMock "ruff.io/tio/shadow/mock"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -75,21 +76,21 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 	}{
 		{
 			name:     "all success",
-			jobId:    "all-success",
+			jobId:    "sysop-all-success",
 			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
 		},
 		{
 			name:     "all failed",
-			jobId:    "all-failed",
+			jobId:    "sysop-all-failed",
 			op:       job.SysOpDirectMethod,
 			respCode: []int{500, 400, 800, 720},
 			fail:     4,
 		},
 		{
 			name:     "failed part",
-			jobId:    "failed-part",
+			jobId:    "sysop-failed-part",
 			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 530, 700, 200},
 			ok:       2,
@@ -97,7 +98,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 		},
 		{
 			name:     "re online",
-			jobId:    "re-online",
+			jobId:    "sysop-re-online",
 			op:       job.SysOpDirectMethod,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
@@ -107,7 +108,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 		},
 		{
 			name:  "shadow update",
-			jobId: "shadow-update",
+			jobId: "sysop-shadow-update",
 			op:    job.SysOpUpdateShadow,
 			ok:    4,
 			fail:  0,
@@ -232,7 +233,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 	}{
 		{
 			name:              "not scheduled",
-			jobId:             "not-scheduled",
+			jobId:             "dmc-not-scheduled",
 			scheduleStartTime: time.Now().Add(time.Second * 20),
 			force:             true,
 			pendingJob:        1,
@@ -241,7 +242,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 		},
 		{
 			name:              "not scheduled not force",
-			jobId:             "not-scheduled-no-force",
+			jobId:             "dmc-not-scheduled-not-force",
 			scheduleStartTime: time.Now().Add(time.Second * 20),
 			force:             false,
 			pendingJob:        1,
@@ -250,7 +251,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 		},
 		{
 			name:         "not rollout complete",
-			jobId:        "not-rollout-complete",
+			jobId:        "dmc-not-rollout-complete",
 			rolloutConf:  &job.RolloutConfig{MaxPerMinute: 1},
 			force:        true,
 			pendingJob:   1,
@@ -259,7 +260,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 		},
 		{
 			name:            "rollout complete",
-			jobId:           "rollout-complete",
+			jobId:           "dmc-rollout-complete",
 			force:           true,
 			pendingJob:      0,
 			pendingTask:     0,
@@ -332,7 +333,8 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 			cReq := job.CancelReq{Comment: &cm, ReasonCode: &code}
 			err = svc.CancelJob(ctx, createReq.JobId, cReq, st.force)
 
-			require.True(t, (err != nil) == st.cancelWithError, "cancelWithError=%v error=%v", st.cancelWithError, err)
+			require.True(t, (err != nil) == st.cancelWithError,
+				"jobId=%q cancelWithError=%v error=%v", st.jobId, st.cancelWithError, err)
 			if !st.cancelWithError {
 				j, err := svc.GetJob(ctx, st.jobId)
 				require.NoError(t, err)
@@ -374,7 +376,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 	}{
 		{
 			name:              "not scheduled",
-			jobId:             "not-scheduled",
+			jobId:             "dmd-not-scheduled",
 			scheduleStartTime: time.Now().Add(time.Second * 20),
 			force:             true,
 			pendingJob:        1,
@@ -383,7 +385,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 		},
 		{
 			name:              "not scheduled not force",
-			jobId:             "not-scheduled-no-force",
+			jobId:             "dmd-not-scheduled-not-force",
 			scheduleStartTime: time.Now().Add(time.Second * 20),
 			force:             false,
 			pendingJob:        1,
@@ -392,7 +394,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 		},
 		{
 			name:         "not rollout complete",
-			jobId:        "not-rollout-complete",
+			jobId:        "dmd-not-rollout-complete",
 			rolloutConf:  &job.RolloutConfig{MaxPerMinute: 1},
 			force:        true,
 			pendingJob:   1,
@@ -401,7 +403,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 		},
 		{
 			name:         "rollout complete",
-			jobId:        "rollout-complete",
+			jobId:        "dmd-rollout-complete",
 			force:        true,
 			pendingJob:   0,
 			pendingTask:  0,
@@ -518,7 +520,7 @@ func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
 	}{
 		{
 			name:  "all complete",
-			jobId: "all-complete",
+			jobId: "prel-all-complete",
 			things: []struct {
 				id     string
 				status job.TaskStatus
@@ -534,7 +536,7 @@ func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
 		},
 		{
 			name:  "part complete",
-			jobId: "part-complete",
+			jobId: "prel-part-complete",
 			things: []struct {
 				id     string
 				status job.TaskStatus
@@ -550,7 +552,7 @@ func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
 		},
 		{
 			name:  "empty task",
-			jobId: "empty-task",
+			jobId: "prel-empty-task",
 			things: []struct {
 				id     string
 				status job.TaskStatus
