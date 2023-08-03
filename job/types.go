@@ -257,7 +257,7 @@ type RolloutConfig struct {
 }
 
 type RetryConfig struct {
-	CriteriaList []RetryConfigItem
+	CriteriaList []RetryConfigItem `json:"criteriaList"`
 }
 type RetryConfigItem struct {
 	FailureType     string `json:"failureType" enum:"FAILED | TIMED_OUT | ALL"`
