@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -695,4 +696,20 @@ func ongoingTasks(l []Task) (ongoing []Task) {
 		}
 	}
 	return
+}
+
+func IsSysOp(operation string) bool {
+	return IsDirectMethodOp(operation) || IsUpdateShadowOp(operation)
+}
+
+func IsCustomOp(operation string) bool {
+	return !IsSysOp(operation)
+}
+
+func IsDirectMethodOp(operation string) bool {
+	return strings.HasPrefix(operation, SysOpDirectMethodPrefix)
+}
+
+func IsUpdateShadowOp(operation string) bool {
+	return strings.HasPrefix(operation, SysOpUpdateShadowPrefix)
 }

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/shadow"
-	"time"
 )
 
 func NewRunner(
@@ -99,27 +100,23 @@ func (r *runnerImpl) OnTaskChange() <-chan TaskChangeMsg {
 }
 
 func (r *runnerImpl) PutTasks(operation string, l []Task) {
-	switch operation {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(operation) {
 		r.sysOpTaskCh <- l
-	default:
+	} else {
 		// TODO custom
 	}
 }
 
 func (r *runnerImpl) GetPendingTasksOfSys(op string) []Task {
-	switch op {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(op) {
 		r.getPendingTasksOfSysRespCh = make(chan []Task, 1)
 		defer func() {
 			r.getPendingTasksOfSysRespCh = nil
 		}()
 		r.getPendingTasksOfSysReqCh <- struct{}{}
 		return <-r.getPendingTasksOfSysRespCh
-
-	default:
-		return []Task{}
 	}
+	return []Task{}
 }
 
 func (r *runnerImpl) GetPendingTasksOfCustom() []Task {
@@ -132,35 +129,35 @@ func (r *runnerImpl) GetPendingTasksOfCustom() []Task {
 }
 
 func (r *runnerImpl) DeleteTaskOfJob(jobId, operation string, force bool) {
-	switch operation {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(operation) {
 		r.sysOpTaskDelCh <- deleteTaskMsg{jobId: jobId}
-	default:
+	} else {
+		// TODO: custom
 	}
 }
 
 func (r *runnerImpl) CancelTaskOfJob(jobId, operation string, force bool) {
-	switch operation {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(operation) {
 		r.sysOpTaskDelCh <- deleteTaskMsg{jobId: jobId}
 		log.Debugf("JobRunner sent msg for delete tasks of system operation, jobId=%q", jobId)
-	default:
+	} else {
+		// TODO: custom
 	}
 }
 
 func (r *runnerImpl) DeleteTask(taskId int64, operation string, force bool) {
-	switch operation {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(operation) {
 		r.sysOpTaskDelCh <- deleteTaskMsg{tasks: []int64{taskId}}
-	default:
+	} else {
+		// TODO: custom
 	}
 }
 
 func (r *runnerImpl) CancelTask(taskId int64, operation string, force bool) {
-	switch operation {
-	case SysOpDirectMethod, SysOpUpdateShadow:
+	if IsSysOp(operation) {
 		r.sysOpTaskDelCh <- deleteTaskMsg{tasks: []int64{taskId}}
-	default:
+	} else {
+		// TODO: custom
 	}
 }
 
@@ -175,8 +172,7 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 			r.outTaskChangeCh <- chMsg
 
 			if isTaskTerminal(chMsg.Status) {
-				if chMsg.Task.Operation != SysOpDirectMethod &&
-					chMsg.Task.Operation != SysOpUpdateShadow {
+				if IsCustomOp(chMsg.Task.Operation) {
 					// TODO: update thing task queue
 				}
 			}
@@ -322,7 +318,7 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 			}
 
 			var submitErr error = nil
-			if t.Operation == SysOpDirectMethod {
+			if IsDirectMethodOp(t.Operation) {
 				// check thing connection online
 				if online, err := r.conn.IsConnected(t.ThingId); err != nil {
 					log.Errorf("JobRunner check thing online, thingId=%q, error: %v", t.ThingId, err)
@@ -336,7 +332,7 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 					continue
 				}
 				submitErr = r.submitDirectMethodTaskToPool(jc, t)
-			} else if t.Operation == SysOpUpdateShadow {
+			} else if IsUpdateShadowOp(t.Operation) {
 				submitErr = r.submitUpdateShadowTaskToPool(jc, t)
 			}
 

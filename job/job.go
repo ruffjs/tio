@@ -24,6 +24,8 @@ import "context"
 //  Device(get/report) ───────►│   └───────────────────┘  ├──────► Action(notify-thing/direct-method/update-shadow)
 //                             │                          │
 //                             └──────────────────────────┘
+// depend: center => runner ==> action
+//
 
 const centerWorkerPoolSize = 100
 const runnerWorkerPoolSize = 500

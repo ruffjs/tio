@@ -3,10 +3,11 @@ package job
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"regexp"
-	"ruff.io/tio/pkg/model"
 	"strings"
+
+	"github.com/pkg/errors"
+	"ruff.io/tio/pkg/model"
 )
 
 var jobIdRegexp = regexp.MustCompile("^[0-9a-zA-Z_-]{1,64}$")
@@ -27,7 +28,7 @@ func (r CreateReq) valid() error {
 	if r.Operation == "" {
 		return errors.WithMessage(model.ErrInvalidParams, "field `operation` can't be empty")
 	}
-	if r.Operation != SysOpDirectMethod && r.Operation != SysOpUpdateShadow {
+	if !IsSysOp(r.Operation) {
 		if strings.HasPrefix(r.Operation, "$") {
 			return errors.WithMessage(model.ErrInvalidParams,
 				"only the system retention `operation` allows the beginning of the $ character")

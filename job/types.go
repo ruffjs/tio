@@ -11,9 +11,15 @@ import (
 // Tasks arise from Job, and the operation of Job consists of Tasks specific to each Thing
 
 // The operation retained by the system starts with $
+// The job caller can specific the concrete name like:
+//   - "$directMethod/turnOnLight"
+//   - "$updateShadow/reportConfig"
+//
+// This facilitates the caller to distinguish between different business types
+// of direct method calls and shadow update calls.
 const (
-	SysOpDirectMethod = "$directMethod"
-	SysOpUpdateShadow = "$updateShadow"
+	SysOpDirectMethodPrefix = "$directMethod/"
+	SysOpUpdateShadowPrefix = "$updateShadow/"
 
 	TargetTypeThingId = "THING_ID"
 	TargetTypeGroup   = "GROUP"

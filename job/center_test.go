@@ -19,6 +19,11 @@ import (
 	"ruff.io/tio/shadow"
 )
 
+const (
+	directMethodX = job.SysOpDirectMethodPrefix + "x"
+	updateShadowX = job.SysOpUpdateShadowPrefix + "x"
+)
+
 func prepare(t *testing.T, mockJc bool) (
 	ctx context.Context,
 	repo job.Repo,
@@ -77,21 +82,21 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 		{
 			name:     "all success",
 			jobId:    "sysop-all-success",
-			op:       job.SysOpDirectMethod,
+			op:       directMethodX,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
 		},
 		{
 			name:     "all failed",
 			jobId:    "sysop-all-failed",
-			op:       job.SysOpDirectMethod,
+			op:       directMethodX,
 			respCode: []int{500, 400, 800, 720},
 			fail:     4,
 		},
 		{
 			name:     "failed part",
 			jobId:    "sysop-failed-part",
-			op:       job.SysOpDirectMethod,
+			op:       directMethodX,
 			respCode: []int{200, 530, 700, 200},
 			ok:       2,
 			fail:     2,
@@ -99,7 +104,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 		{
 			name:     "re online",
 			jobId:    "sysop-re-online",
-			op:       job.SysOpDirectMethod,
+			op:       directMethodX,
 			respCode: []int{200, 200, 200, 200},
 			ok:       4,
 			fail:     0,
@@ -109,7 +114,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 		{
 			name:  "shadow update",
 			jobId: "sysop-shadow-update",
-			op:    job.SysOpUpdateShadow,
+			op:    updateShadowX,
 			ok:    4,
 			fail:  0,
 		},
@@ -118,7 +123,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 	for _, tt := range tests {
 		st := tt
 		t.Run(st.name, func(t *testing.T) {
-			isDirectMethod := st.op == job.SysOpDirectMethod
+			isDirectMethod := job.IsDirectMethodOp(st.op)
 			jd := job.InvokeDirectMethodReq{
 				Method:      "testMethod",
 				Data:        "hi",
@@ -292,7 +297,7 @@ func Test_jobCenter_DirectMethodInvoke_cancel(t *testing.T) {
 
 			createReq := job.CreateReq{
 				JobId:     st.jobId,
-				Operation: job.SysOpDirectMethod,
+				Operation: directMethodX,
 				JobDoc:    m,
 				TargetConfig: job.TargetConfig{
 					Type:   job.TargetTypeThingId,
@@ -434,7 +439,7 @@ func Test_jobCenter_DirectMethodInvoke_delete(t *testing.T) {
 
 			createReq := job.CreateReq{
 				JobId:     st.jobId,
-				Operation: job.SysOpDirectMethod,
+				Operation: directMethodX,
 				JobDoc:    m,
 				TargetConfig: job.TargetConfig{
 					Type:   job.TargetTypeThingId,
@@ -591,7 +596,7 @@ func Test_jobCenter_SchedulePreloadFormDb(t *testing.T) {
 
 			createReq := job.CreateReq{
 				JobId:            st.jobId,
-				Operation:        job.SysOpDirectMethod,
+				Operation:        directMethodX,
 				JobDoc:           m,
 				SchedulingConfig: sdConf,
 				RolloutConfig:    st.rolloutConf,
