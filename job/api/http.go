@@ -2,15 +2,16 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/pkg/errors"
-	"net/http"
 	"ruff.io/tio/job"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
-	"strconv"
 )
 
 func Service(ctx context.Context, svc job.MgrService, wsTh *restful.WebService) *restful.WebService {
@@ -31,6 +32,15 @@ func Service(ctx context.Context, svc job.MgrService, wsTh *restful.WebService) 
 		To(createJobHandler(ctx, svc)).
 		Operation("create").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Notes(`Operation can be :`+"\n"+
+			`- Direct method, with prefix "`+job.SysOpDirectMethodPrefix+`" , like "`+job.SysOpDirectMethodPrefix+`turnOnLight"`+"\n"+
+			`- Update shadow, with prefix "`+job.SysOpUpdateShadowPrefix+`" , like "`+job.SysOpUpdateShadowPrefix+`reportConfig"`+"\n"+
+			`- Custom, with no "$" prefix, like "turnOnLight"`+"\n\n"+
+			`Job doc:`+"\n"+
+			`- When operation is kind of direct method, job doc should like: {"method":"xxx", "responseTimeout": 5, "data":{}}`+"\n"+
+			`- When operation is kind of update shadow, job doc should like: {"state":{"desired": {"xxx":"yy"}}}`+"\n"+
+			`- When operation custom, job doc can be any json object, eg: {"xxx": "yyy"}`,
+		).
 		Reads(job.CreateReq{}).
 		Returns(200, "OK", rest.RespOK(job.Detail{})))
 	wsJob.Route(wsJob.GET("/{jobId}").
