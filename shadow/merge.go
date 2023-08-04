@@ -27,7 +27,8 @@ func MergeState(tgt *StateValue, src StateValue, allMeta, updatedMeta *MetaValue
 	srcM := (map[string]any)(src)
 	am := (map[string]any)(*allMeta)
 	um := (map[string]any)(*updatedMeta)
-	doMergeState(&tgtM, srcM, &am, &um)
+	srcCopy := DeepCopyMap(srcM)
+	doMergeState(&tgtM, srcCopy, &am, &um)
 	*allMeta = am
 	*updatedMeta = um
 }
@@ -73,19 +74,19 @@ func doMergeState(tgt *map[string]any, src map[string]any, allMeta, updatedMeta 
 							delete(amt, key)
 						}
 					} else {
-						tg[key] = srcValue
+						tg[key] = removeNilFieldsForValue(srcValue)
 						m := make(map[string]any)
 						genMeta(subSrc, &m)
 						amt[key] = m
 						umt[key] = DeepCopyMap(m)
 					}
 				} else {
-					tg[key] = srcValue
+					tg[key] = removeNilFieldsForValue(srcValue)
 					amt[key] = map[string]any{"timestamp": time.Now().UnixMilli()}
 					umt[key] = map[string]any{"timestamp": time.Now().UnixMilli()}
 				}
 			} else {
-				tg[key] = srcValue
+				tg[key] = removeNilFieldsForValue(srcValue)
 				if sm, ok := srcValue.(map[string]any); ok {
 					m := make(map[string]any)
 					genMeta(sm, &m)
@@ -103,6 +104,9 @@ func doMergeState(tgt *map[string]any, src map[string]any, allMeta, updatedMeta 
 func genMeta(s map[string]any, outMeta *map[string]any) {
 	m := *outMeta
 	for k, v := range s {
+		if v == nil {
+			continue
+		}
 		sc, err := isScalar(v)
 		if err != nil {
 			log.Fatalf("%s", err)
@@ -114,6 +118,28 @@ func genMeta(s map[string]any, outMeta *map[string]any) {
 			m[k] = sm
 			genMeta(v.(map[string]any), &sm)
 		}
+	}
+}
+
+// removeNilFieldsForValue Before the value is saved to Shadow, remove the null field in it.
+func removeNilFieldsForValue(srcValue any) any {
+	if m, ok := srcValue.(map[string]any); ok {
+		for k, v := range m {
+			if v == nil {
+				delete(m, k)
+			}
+			if sm, ok := v.(map[string]any); ok {
+				if sr := removeNilFieldsForValue(sm); sr == nil {
+					delete(m, k)
+				}
+			}
+		}
+		if len(m) == 0 {
+			return nil
+		}
+		return srcValue
+	} else {
+		return srcValue
 	}
 }
 

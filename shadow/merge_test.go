@@ -114,6 +114,22 @@ var cases = []struct {
 		[]string{},
 		[]string{},
 	},
+	{
+		"merge with nil",
+		shadow.StateValue{},
+		shadow.StateValue{"test": map[string]any{"aa": "xx", "bb": nil}},
+		shadow.StateValue{"test": map[string]any{"aa": "xx"}},
+		[]string{},
+		[]string{},
+	},
+	{
+		"merge with nil nested",
+		shadow.StateValue{},
+		shadow.StateValue{"test": map[string]any{"aa": "xx", "bb": map[string]any{"cc": nil}}},
+		shadow.StateValue{"test": map[string]any{"aa": "xx"}},
+		[]string{},
+		[]string{},
+	},
 }
 
 func TestDeepCopyMap(t *testing.T) {
