@@ -34,6 +34,12 @@ const computedValue = computed(() => {
   gap: 6px;
 
   width: 100%;
+  code {
+    max-width: calc(100% - 18px);
+    overflow: hidden;
+    word-break: break-all;
+  }
+
   .el-icon {
     color: gray;
     cursor: pointer;

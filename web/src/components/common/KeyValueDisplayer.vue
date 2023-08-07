@@ -71,6 +71,7 @@ defineProps({
     color: #555;
   }
   .key-value-value {
+    max-width: 140px;
     font-size: 12px;
     text-align: right;
     .key-value-string {

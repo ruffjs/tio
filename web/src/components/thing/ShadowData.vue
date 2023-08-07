@@ -4,12 +4,6 @@
       <div class="shadow-state-card-header">
         <span>Shadow Data </span>
         <div class="shadow-state-card-buttons">
-          <!-- <el-button
-            icon="View"
-            size="small"
-            @click="viewObject(currentShadow, 'Shadow Raw', false)"
-            >View Raw</el-button
-          > -->
           <el-switch
             v-model="isJSONViewTreeMode"
             size="small"
@@ -98,7 +92,7 @@ const {
 const { onSomethingStatusChange } = useThingEvent();
 
 const selectedState = ref(null);
-const isJSONViewTreeMode = ref(true);
+const isJSONViewTreeMode = ref(false);
 const isMqttPublishShown = ref(false);
 const mqttPublishConnConf = ref(null);
 const mqttPublishTitle = ref("");

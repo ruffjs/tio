@@ -50,11 +50,11 @@ export const ntp = {
     },
     {
       name: "Response NTP",
-      code: "$iothub/things/{thingId}/resp",
+      code: "$iothub/things/{thingId}/ntp/resp",
       forThing: true,
       suggested: false,
       topicResolver: (params) => {
-        return `$iothub/things/${params.thingId}/resp`;
+        return `$iothub/things/${params.thingId}/ntp/resp`;
       },
     },
   ],

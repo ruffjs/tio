@@ -174,7 +174,7 @@ export default [
     code: "$iothub/things/{thingId}/methods/{name}/resp",
     forThing: true,
     topicResolver: (params) => {
-      return `$iothub/things/${params.thingId}/shadows/methods/+/resp`;
+      return `$iothub/things/${params.thingId}/methods/+/resp`;
     },
     payloadType: "JSON",
     payloadResolver: (params) => {

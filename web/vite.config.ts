@@ -22,7 +22,9 @@ export default defineConfig({
     //  // 反向代理配置，注意rewrite写法，开始没看文档在这里踩了坑
     proxy: {
       "/api": {
-        target: "http://localhost:9000/",
+        // target: "http://localhost:9000/",
+        // target: "http://tio-api.ruffcorp.com/",
+        target: "https://test-lamppost-tio-api.ruffcorp.com",
         changeOrigin: true,
       },
     },
