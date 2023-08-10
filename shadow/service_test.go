@@ -142,6 +142,33 @@ func TestSvcImpl_Set(t *testing.T) {
 		n, _ := json.Marshal(s.State.Desired)
 		require.Equal(t, string(o), string(n))
 	})
+
+	t.Run("update state concurrently should ok", func(t *testing.T) {
+		thingId = fmt.Sprintf("for-update-state-concurrently-%d", time.Now().UnixNano())
+		_, err := svc.Create(ctx, thingId)
+		require.NoError(t, err)
+
+		stateVal := shadow.StateValue{
+			"color": "red",
+			"config": map[string]any{
+				"period": 30,
+			},
+		}
+
+		con := 20
+		wantVersion := con + 1
+		for i := 0; i < con; i++ {
+			go func() {
+				req := shadow.StateReq{ClientToken: "xxx", State: shadow.StateDR{Desired: stateVal}}
+				_, err := svc.SetDesired(ctx, thingId, req)
+				require.NoError(t, err)
+			}()
+		}
+		time.Sleep(time.Millisecond * 200)
+		s, err := svc.Get(ctx, thingId, shadow.GetOption{})
+		require.NoError(t, err)
+		require.Equal(t, wantVersion, int(s.Version))
+	})
 }
 
 func TestShadowSvc_SubscribeUpdate(t *testing.T) {
@@ -290,6 +317,32 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 			version++
 		})
 	}
+}
+
+func TestSvcImpl_SetTags(t *testing.T) {
+	t.Run("set tags", func(t *testing.T) {
+		thingId = "for-set-tags"
+		tags := shadow.TagsValue{"aaa": "xxxx", "bbb": "yyyy", "ccc": 111.0, "ddd": true}
+		_, err := svc.Create(ctx, thingId)
+		require.NoError(t, err)
+		req := shadow.TagsReq{Version: 1, Tags: tags}
+		err = svc.SetTag(ctx, thingId, req)
+		require.NoError(t, err)
+
+		s, err := svc.Get(ctx, thingId, shadow.GetOption{})
+		require.NoError(t, err)
+		require.Equal(t, s.Tags, tags)
+		require.Equal(t, int64(2), s.Version)
+	})
+	t.Run("set tags with wrong version", func(t *testing.T) {
+		thingId = "for-set-tags-wrong-version"
+		tags := shadow.TagsValue{"aaa": "xxxx", "bbb": "yyyy", "ccc": 111.0, "ddd": true}
+		_, err := svc.Create(ctx, thingId)
+		require.NoError(t, err)
+		req := shadow.TagsReq{Version: 11, Tags: tags}
+		err = svc.SetTag(ctx, thingId, req)
+		require.ErrorIs(t, err, model.ErrVersionConflict)
+	})
 }
 
 type lastDelta = struct {

@@ -191,7 +191,7 @@ func SetTagsHandler(ctx context.Context, svc shadow.Service) restful.RouteFuncti
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: "Invalid request body"})
 			return
 		}
-		_, err = svc.SetTag(ctx, thingId, tagsReq)
+		err = svc.SetTag(ctx, thingId, tagsReq)
 		if err != nil {
 			log.Errorf("Error setting tags: %v, body: %#v", err, tagsReq)
 			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})

@@ -2,10 +2,9 @@ package shadow
 
 import (
 	"context"
-	"fmt"
-	"ruff.io/tio/connector"
-	"strings"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
@@ -18,14 +17,11 @@ type shadowRepo struct {
 	db *gorm.DB
 }
 
-type Where struct {
-	Field []string
-	value []string
-}
-
-func (w *Where) Expr() (string, []string) {
-	expr := strings.Join(w.Field, "AND")
-	return expr, w.value
+func (r shadowRepo) ExecWithTx(f func(txtRepo Repo) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := NewShadowRepo(tx)
+		return f(txRepo)
+	})
 }
 
 func (r shadowRepo) Create(ctx context.Context, thingId string, s Shadow) (*Shadow, error) {
@@ -60,32 +56,18 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 		return nil, err
 	}
 
-	err = r.db.Transaction(func(tx *gorm.DB) error {
-		oldEn := Entity{ThingId: thingId}
-		res := tx.First(&oldEn)
-		if res.Error != nil {
-			return errors.Wrap(res.Error, "find shadow "+thingId)
-		}
-		if version > 0 && oldEn.Version != version {
-			return errors.Wrap(model.ErrVersionConflict,
-				fmt.Sprintf("expect version %d but got %d", oldEn.Version, version))
-		}
-		// update when version match
-		res = tx.Save(&en)
-		if version > 0 {
-			res.Where("version = ?", version)
-		}
-		if res.Error != nil {
-			return errors.Wrap(res.Error, "update in db")
-		}
-		if res.RowsAffected != 1 {
-			log.Errorf("Update shadow %s got unexpected affected row %d", thingId, res.RowsAffected)
-			return errors.Wrap(model.ErrVersionConflict, "")
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	// update when version match
+	ex := r.db
+	if version > 0 {
+		ex = ex.Where("version = ?", version)
+	}
+	res := ex.Save(&en)
+	if res.Error != nil {
+		return nil, errors.Wrap(res.Error, "update in db")
+	}
+	if res.RowsAffected != 1 {
+		log.Errorf("Update shadow %s got unexpected affected row %d", thingId, res.RowsAffected)
+		return nil, errors.Wrap(model.ErrVersionConflict, "")
 	}
 	n, err := toShadow(en)
 	if err != nil {
@@ -155,6 +137,11 @@ func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
 		return nil, err
 	}
 	return &s, err
+}
+
+func (r shadowRepo) GetVersion(ctx context.Context, thingId string) (version int64, err error) {
+	err = r.db.Select("version").Where("thing_id = ?", thingId).First(&version).Error
+	return
 }
 
 func (r shadowRepo) Delete(ctx context.Context, thingId string) error {

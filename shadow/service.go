@@ -3,10 +3,12 @@ package shadow
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
-	"ruff.io/tio/connector"
 	"sync"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/pkg/log"
@@ -51,7 +53,7 @@ type CrudService interface {
 }
 
 type TagsService interface {
-	SetTag(ctx context.Context, thingId string, tag TagsReq) (Shadow, error)
+	SetTag(ctx context.Context, thingId string, tag TagsReq) error
 }
 
 type GetOption struct {
@@ -66,6 +68,7 @@ type Query struct {
 type Page = model.PageData[any]
 
 type Repo interface {
+	ExecWithTx(f func(txtRepo Repo) error) error
 	Create(ctx context.Context, thingId string, s Shadow) (*Shadow, error)
 	Delete(ctx context.Context, thingId string) error
 	Update(ctx context.Context, thingId string, version int64, s Shadow) (*Shadow, error)
@@ -154,6 +157,8 @@ func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case e := <-connEventCh:
 				c := toClientInfo(e)
 				err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{c})
@@ -303,47 +308,75 @@ func (s *shadowSvc) setState(
 	ctx context.Context, thingId string,
 	sr StateReq, isDesired bool) (Shadow, MetaValue, error) {
 
+	resCh := make(chan struct {
+		pre Shadow
+		cur Shadow
+		me  MetaValue
+	}, 1)
 	version := sr.Version
-	ss, err := s.repo.Get(ctx, thingId)
+	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
+		// match version
+		ss, err := txtRepo.Get(ctx, thingId)
+		if err != nil {
+			return err
+		}
+		if ss == nil {
+			return model.ErrNotFound
+		}
+		if version != 0 && ss.Version != version {
+			return errors.Wrap(model.ErrVersionConflict,
+				fmt.Sprintf("expect version %d but got %d", ss.Version, version))
+		}
+
+		// merge shadow
+
+		pre := Shadow{
+			ThingId:   ss.ThingId,
+			Version:   ss.Version,
+			CreatedAt: ss.CreatedAt,
+			UpdatedAt: ss.UpdatedAt,
+			Metadata:  NewMetadata(),
+			State:     NewStateDR(),
+		}
+		// copy to pre
+		pre.State.Desired = cloneStateValue(ss.State.Desired)
+		pre.State.Reported = cloneStateValue(ss.State.Reported)
+		pre.Metadata = cloneMetadata(ss.Metadata)
+
+		var updatedMeta MetaValue
+		if isDesired {
+			if sr.State.Desired == nil {
+				return model.ErrShadowFormat
+			}
+			MergeState(&ss.State.Desired, sr.State.Desired, &ss.Metadata.Desired, &updatedMeta)
+		} else {
+			if sr.State.Reported == nil {
+				return model.ErrShadowFormat
+			}
+			MergeState(&ss.State.Reported, sr.State.Reported, &ss.Metadata.Reported, &updatedMeta)
+		}
+
+		// update
+
+		ss.Version++
+		reS, err := txtRepo.Update(ctx, thingId, version, *ss)
+		if err != nil {
+			return err
+		}
+
+		resCh <- struct {
+			pre Shadow
+			cur Shadow
+			me  MetaValue
+		}{pre: pre, cur: *reS, me: updatedMeta}
+
+		return nil
+	})
 	if err != nil {
 		return Shadow{}, nil, err
 	}
-	if ss == nil {
-		return Shadow{}, nil, model.ErrNotFound
-	}
-	pre := Shadow{
-		ThingId:   ss.ThingId,
-		Version:   ss.Version,
-		CreatedAt: ss.CreatedAt,
-		UpdatedAt: ss.UpdatedAt,
-		Metadata:  NewMetadata(),
-		State:     NewStateDR(),
-	}
-	// copy to pre
-	pre.State.Desired = cloneStateValue(ss.State.Desired)
-	pre.State.Reported = cloneStateValue(ss.State.Reported)
-	pre.Metadata = cloneMetadata(ss.Metadata)
-
-	var updatedMeta MetaValue
-	if isDesired {
-		if sr.State.Desired == nil {
-			return Shadow{}, nil, model.ErrShadowFormat
-		}
-		MergeState(&ss.State.Desired, sr.State.Desired, &ss.Metadata.Desired, &updatedMeta)
-	} else {
-		if sr.State.Reported == nil {
-			return Shadow{}, nil, model.ErrShadowFormat
-		}
-		MergeState(&ss.State.Reported, sr.State.Reported, &ss.Metadata.Reported, &updatedMeta)
-	}
-
-	// update version and notify delta regardless of whether there is a field update or not.
-
-	ss.Version++
-	rs, err := s.repo.Update(ctx, thingId, version, *ss)
-	if err != nil {
-		return Shadow{}, nil, err
-	}
+	re := <-resCh
+	preShadow, resShadow, resMeta := re.pre, re.cur, re.me
 
 	typ := StateTypeReported
 	if isDesired {
@@ -351,10 +384,11 @@ func (s *shadowSvc) setState(
 	}
 	log.Infof("Successfully set shadow %s, %s, content %#v", typ, thingId, sr)
 
-	s.notifyDeltaState(thingId, sr.ClientToken, rs)
-	s.notifyStateUpdate(thingId, sr.ClientToken, &pre, rs)
+	// notify regardless of whether there is a field update or not.
+	s.notifyDeltaState(thingId, sr.ClientToken, &resShadow)
+	s.notifyStateUpdate(thingId, sr.ClientToken, &preShadow, &resShadow)
 
-	return *rs, updatedMeta, nil
+	return resShadow, resMeta, nil
 }
 
 func (s *shadowSvc) notifyStateUpdate(thingId, clientToken string, pre *Shadow, rs *Shadow) {
@@ -416,24 +450,31 @@ func (s *shadowSvc) notifyRejected(thingId, clientToken string, err error) {
 	}
 }
 
-func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) (Shadow, error) {
-	currentShadow, err := s.repo.Get(ctx, thingId)
+func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error {
+	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
+		cur, err := txtRepo.Get(ctx, thingId)
+		if err != nil {
+			return err
+		}
+		if cur == nil {
+			return model.ErrNotFound
+		}
+		if t.Version != 0 && cur.Version != t.Version {
+			return errors.Wrap(model.ErrVersionConflict,
+				fmt.Sprintf("expect version %d but got %d", cur.Version, t.Version))
+		}
+
+		mergerShadow := MergeTags(cur.Tags, t.Tags)
+		cur.Version++
+		cur.Tags = mergerShadow
+		_, err = txtRepo.Update(ctx, thingId, t.Version, *cur)
+		return err
+	})
 	if err != nil {
-		return Shadow{}, err
-	}
-	if currentShadow == nil {
-		return Shadow{}, model.ErrNotFound
+		return err
 	}
 
-	mergerShadow := MergeTags(currentShadow.Tags, t.Tags)
-	currentShadow.Version++
-	currentShadow.Tags = mergerShadow
-	rs, err := s.repo.Update(ctx, thingId, t.Version, *currentShadow)
-	if err != nil {
-		return Shadow{}, err
-	}
-
-	return *rs, nil
+	return nil
 }
 
 func cloneStateValue(src StateValue) StateValue {
