@@ -280,7 +280,6 @@ type ProcessDetails struct {
 	Succeeded  int `json:"succeeded"`
 	Canceled   int `json:"canceled"`
 	Rejected   int `json:"rejected"`
-	Removed    int `json:"removed"`
 	TimedOut   int `json:"timedOut"`
 }
 
@@ -301,7 +300,7 @@ type Detail struct {
 	RetryConfig      *RetryConfig      `json:"retryConfig"`
 	TimeoutConfig    *TimeoutConfig    `json:"timeoutConfig"`
 
-	Status         Status         `json:"status"`
+	Status         Status         `json:"status" enum:"WAITING|IN_PROGRESS|CANCELING|CANCELED|COMPLETED|REMOVING"`
 	ForceCanceled  bool           `json:"forceCanceled"`
 	ProcessDetails ProcessDetails `json:"processDetails"`
 	Comment        string         `json:"comment"`
@@ -319,7 +318,7 @@ type Summary struct {
 	JobId     string `json:"jobId"`
 	Operation string `json:"operation"`
 
-	Status      Status `json:"status"`
+	Status      `json:"status" enum:"WAITING|IN_PROGRESS|CANCELING|CANCELED|COMPLETED|REMOVING"`
 	StartedAt   *int64 `json:"startedAt"`
 	CompletedAt *int64 `json:"completedAt"`
 	UpdatedAt   int64  `json:"updatedAt"`
@@ -335,7 +334,7 @@ type Task struct {
 	Operation string `json:"operation"`
 
 	ForceCanceled bool          `json:"forceCanceled"`
-	Status        TaskStatus    `json:"status"`
+	Status        TaskStatus    `json:"status" enum:"QUEUED|SENT|IN_PROGRESS|FAILED|SUCCEEDED|CANCELED|TIMED_OUT|REJECTED"`
 	StatusDetails StatusDetails `json:"statusDetails"`
 	Progress      uint8         `json:"progress"`
 	QueuedAt      *int64        `json:"queuedAt"`
@@ -354,7 +353,7 @@ type TaskSummary struct {
 	Operation string `json:"operation"`
 
 	RetryAttempt uint8      `json:"retryAttempt"`
-	Status       TaskStatus `json:"status"`
+	Status       TaskStatus `json:"status" enum:"QUEUED|SENT|IN_PROGRESS|FAILED|SUCCEEDED|CANCELED|TIMED_OUT|REJECTED"`
 	Progress     uint8      `json:"progress"`
 	QueuedAt     *int64     `json:"queuedAt"`
 	StartedAt    *int64     `json:"startedAt"`

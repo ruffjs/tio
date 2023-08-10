@@ -184,7 +184,7 @@ func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 		case TaskTimeOut:
 			pd.TimedOut = sc.Count
 		case TaskRejected:
-			pd.TimedOut = sc.Count
+			pd.Rejected = sc.Count
 		default:
 			log.Errorf("unexpected task status %q", sc.Status)
 		}
