@@ -4,6 +4,9 @@ set -ex
 
 WEB_DIR=./web
 
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64" 
+fi
 
 function build_web() {
 	cd $WEB_DIR
@@ -20,7 +23,7 @@ function build_docker() {
   repo="tio"
   gitCommit=`git rev-parse HEAD`
   docker build --build-arg version=${version} --build-arg gitCommit=${gitCommit} \
-    --platform linux/amd64 \
+    --platform $PLATFORM \
     -t $repo:$version \
     -f build/docker/Dockerfile .
 }

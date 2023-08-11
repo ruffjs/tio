@@ -7,10 +7,10 @@ RUN go env -w GOPROXY=https://goproxy.cn,direct
 RUN CGO_ENABLED=1 go build -ldflags "-X main.Version=${version} -X main.GitCommit=${gitCommit}" -o tio /go/src/ruff.io/tio/cmd/tio/main.go
 
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN apt update && \
-  apt install tzdata && \
+  apt install -y tzdata && \
   rm -rf /var/lib/apt/lists/*
 ENV TZ=Asia/Shanghai
 
