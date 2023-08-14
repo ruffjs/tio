@@ -21,6 +21,7 @@
 - Connector: Adapt to a variety of message middleware, especially MQTT broker
 - Shadow：Like [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[Aliyun Device Shadow](https://www.alibabacloud.com/help/en/iot-platform/latest/78e011). Major public cloud vendors all have an abstraction of device shadows (with different names), and their connotations are highly consistent. In practical project development, they are indeed very useful tools, greatly reducing the complexity and cognitive burden of interactions between upper-layer business systems and devices.
 - Direct Method: The server uses a "request-response" mode for calling methods on the device, similar to an HTTP request. This implementation is based on [Azure Direct method](https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-devguide-direct-methods).
+- Job: Job management. By sending tasks to devices in bulk and scheduling them, and managing the status and lifecycle of tasks, task operations can include direct-method invocation, Shadow updates, custom operations, etc. On one hand, it strengthens the functionality and usability of direct-method invocation and Shadow updates by allowing batched, scheduled, and asynchronous execution of these operations, with operation records (i.e., Job and Task records). On the other hand, custom Jobs provide a general mechanism for executing various types of remote operations on devices conveniently.
 
 
 ```
@@ -118,6 +119,7 @@ git config core.hooksPath githooks
 ├── auth          # device authentication
 ├── shadow        # core of Tio, including definition and implementation of shadow and direct methods (part of message communication in connector)
 ├── thing         # basic CRUD for Thing
+├── job           # job management. Job operations include direct-method invocation, shadow updates, custom operations, etc.
 ├── ntp           # device NTP service
 ├── connector     # connector implementation
 │   └── mqtt

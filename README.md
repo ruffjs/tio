@@ -43,6 +43,7 @@
 - Connector：设备连接层（目前主要是 MQTT broker），有内置 MQTT Broker 和 EMQX 的集成
 - Shadow：设备影子，类似于 [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[阿里云设备影子](https://help.aliyun.com/document_detail/53930.html)，各大公有云厂商都有设备影子（名称各有不同）的抽象，且其内涵都高度一致，在我们实际的项目开发中确实是非常有用的工具，极大地减少上层业务系统和设备交互的复杂度和心智负担
 - 设备直接方法（Direct Method）：服务端对设备的方法调用，采用“请求-响应”模式，类似于 HTTP 请求。参考了 [Azure Direct method](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-direct-methods) 的设计
+- Job: 任务管理。通过批量、定时地将任务发送给设备执行，并管理任务的状态和生命周期，任务操作可以是设备直接方法调用、 Shadow 更新、自定义操作等 —— 一方面，加强了设备直接方法调用、 Shadow 更新的功能性和易用性，批量定时异步执行这些操作、并且有操作记录（即 Job 和 Task 的记录）；另一方面，自定义 Job 提供了一个通用的机制方便在设备上执行各类远程操作。
 
 
 Shadow：
@@ -148,6 +149,7 @@ git config core.hooksPath githooks
 ├── auth          # 设备认证
 ├── shadow        # tio 的核心，含 shadow、direct method 的定义和实现（涉及到消息通信的部分在 connector 中)
 ├── thing         # thing 基本的 CRUD
+├── job           # 任务管理。任务操作含设备直接方法调用、更新Shadow、自定义操作等
 ├── ntp           # 设备 ntp 服务
 ├── connector     # connector 实现
 │   └── mqtt
