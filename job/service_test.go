@@ -129,7 +129,9 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 				require.Equal(t, c, len(mockJc.Calls))
 				c := mockJc.Calls[len(mockJc.Calls)-1]
 				require.Equal(t, "ReceiveMgrMsg", c.Method)
-				require.Equal(t, msg, c.Arguments[0])
+				msgJ, _ := json.Marshal(msg)
+				argJ, _ := json.Marshal(c.Arguments[0])
+				require.Equal(t, msgJ, argJ)
 			}
 
 		})
