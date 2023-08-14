@@ -1,11 +1,310 @@
 {
  "swagger": "2.0",
  "info": {
-  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.0.0\n- GitCommit: 22a006de17711aaae921b71be70affd02761dc66\n",
+  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.1.0\n- GitCommit: 0d3efa6ff5b26647004e4825ba00dc77cc3f711c\n",
   "title": "tio",
-  "version": "1.0.0"
+  "version": "1.1.0"
  },
  "paths": {
+  "/api/v1/jobs": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "query",
+    "parameters": [
+     {
+      "enum": [
+       "WAITING",
+       "IN_PROGRESS",
+       "CANCELED",
+       "COMPLETED",
+       "CANCELING",
+       "REMOVING"
+      ],
+      "type": "string",
+      "description": "job status",
+      "name": "status",
+      "in": "query"
+     },
+     {
+      "type": "string",
+      "description": "job operation",
+      "name": "operation",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 1,
+      "description": "page index, from 1",
+      "name": "pageIndex",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 10,
+      "description": "page size, from 1",
+      "name": "pageSize",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.Page]"
+      }
+     }
+    }
+   },
+   "post": {
+    "description": "Operation can be :\n- Direct method, with prefix \"$directMethod/\" , like \"$directMethod/turnOnLight\"\n- Update shadow, with prefix \"$updateShadow/\" , like \"$updateShadow/reportConfig\"\n- Custom, with no \"$\" prefix, like \"turnOnLight\"\n\nJob doc:\n- When operation is kind of direct method, job doc should like: {\"method\":\"xxx\", \"responseTimeout\": 5, \"data\":{}}\n- When operation is kind of update shadow, job doc should like: {\"state\":{\"desired\": {\"xxx\":\"yy\"}}}\n- When operation custom, job doc can be any json object, eg: {\"xxx\": \"yyy\"}",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "create",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/job.CreateReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.Detail]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/jobs/{jobId}": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "get",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.Detail]"
+      }
+     }
+    }
+   },
+   "put": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "update",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/job.UpdateReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "delete",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "boolean",
+      "default": false,
+      "name": "force",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/jobs/{jobId}/cancel": {
+   "put": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "cancel",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "boolean",
+      "default": false,
+      "name": "force",
+      "in": "query"
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/job.CancelReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/jobs/{jobId}/tasks": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "query-job-tasks",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "enum": [
+       "QUEUED",
+       "SENT",
+       "IN_PROGRESS",
+       "FAILED",
+       "SUCCEEDED",
+       "REJECTED",
+       "TIMED_OUT",
+       "CANCELED"
+      ],
+      "type": "string",
+      "description": "task status",
+      "name": "status",
+      "in": "query"
+     },
+     {
+      "type": "string",
+      "description": "job operation",
+      "name": "operation",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 1,
+      "description": "page index, from 1",
+      "name": "pageIndex",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 10,
+      "description": "page size, from 1",
+      "name": "pageSize",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.TaskPage]"
+      }
+     }
+    }
+   }
+  },
   "/api/v1/mqttBroker/clients/{clientId}": {
    "delete": {
     "consumes": [
@@ -18,7 +317,7 @@
      "mqttBroker"
     ],
     "summary": "Kick off the client from the mqtt broker",
-    "operationId": "func10",
+    "operationId": "delete-client",
     "parameters": [
      {
       "type": "string",
@@ -50,7 +349,7 @@
      "mqttBroker"
     ],
     "summary": "Get embedded mqtt broker stats info",
-    "operationId": "GetEmbedBrokerStats",
+    "operationId": "embed-stats",
     "responses": {
      "200": {
       "description": "OK",
@@ -73,7 +372,7 @@
      "things"
     ],
     "summary": "get all things",
-    "operationId": "func1",
+    "operationId": "query",
     "parameters": [
      {
       "type": "boolean",
@@ -122,7 +421,7 @@
      "things"
     ],
     "summary": "create thing",
-    "operationId": "func2",
+    "operationId": "create-one",
     "parameters": [
      {
       "name": "body",
@@ -143,9 +442,45 @@
     }
    }
   },
+  "/api/v1/things/batch": {
+   "post": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "summary": "create things",
+    "operationId": "create-batch",
+    "parameters": [
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "type": "array",
+       "items": {
+        "$ref": "#/definitions/api.CreateReq"
+       }
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.thing.api.CreateBatchResp]"
+      }
+     }
+    }
+   }
+  },
   "/api/v1/things/shadows/query": {
    "post": {
-    "description": "SQL query string like : select * from shadow where \\`tags.zone\\` = 'Shanghai'.\n\nJSON path (eg: tags.Shanghai) must be surrounded with `` .\n\nThese fields are queryable: \n  - thingId, createdAt, updatedAt, version\n  - field under tags, state.reported, state.desired , eg: tags.zone, state.reported.loc.lat, sate.desired.x.y\n\nThese fields can be used as sorting fields:\n  - thingId, createdAt, updatedAt\n",
+    "description": "SQL query string like : select * from shadow where \\`tags.zone\\` = 'Shanghai'.\n\nJSON path (eg: tags.Shanghai) must be surrounded with `` .\n\nThese fields are queryable: \n  - `thingId, createdAt, updatedAt, version`\n  - filed about connection: `connected, connectedAt, disconnectedAt, remoteAddr` \n  - field under `tags, state.reported, state.desired` , eg: tags.zone, state.reported.loc.lat, sate.desired.x.y\n\nThese fields can be used as sorting fields:\n  - `thingId, createdAt, updatedAt`\n",
     "consumes": [
      "application/json"
     ],
@@ -155,7 +490,7 @@
     "tags": [
      "shadows"
     ],
-    "operationId": "func5",
+    "operationId": "query",
     "parameters": [
      {
       "type": "string",
@@ -199,7 +534,7 @@
     "tags": [
      "things"
     ],
-    "operationId": "func3",
+    "operationId": "get-one",
     "parameters": [
      {
       "type": "string",
@@ -228,7 +563,7 @@
     "tags": [
      "things"
     ],
-    "operationId": "func4",
+    "operationId": "delete-one",
     "parameters": [
      {
       "type": "string",
@@ -260,7 +595,7 @@
      "shadows"
     ],
     "summary": "invoke thing direct method",
-    "operationId": "func8",
+    "operationId": "invoke-direct-method",
     "parameters": [
      {
       "type": "string",
@@ -307,7 +642,7 @@
      "shadows"
     ],
     "summary": "get shadow",
-    "operationId": "func7",
+    "operationId": "get-one",
     "parameters": [
      {
       "type": "string",
@@ -339,7 +674,7 @@
      "shadows"
     ],
     "summary": "set shadow desired state",
-    "operationId": "func6",
+    "operationId": "set-state-desired",
     "parameters": [
      {
       "type": "string",
@@ -379,7 +714,7 @@
      "shadows"
     ],
     "summary": "set shadow tags property",
-    "operationId": "func9",
+    "operationId": "set-tags",
     "parameters": [
      {
       "type": "string",
@@ -407,6 +742,211 @@
     }
    }
   },
+  "/api/v1/things/{thingId}/jobs/{jobId}/cancel": {
+   "put": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "cancel-task",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "thingId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "boolean",
+      "default": false,
+      "name": "force",
+      "in": "query"
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/job.CancelTaskReq"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{thingId}/jobs/{jobId}/task/{taskId}": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "summary": "get detail of task",
+    "operationId": "get-task",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "thingId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "taskId",
+      "in": "path",
+      "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.Task]"
+      }
+     }
+    }
+   },
+   "delete": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "delete-task",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "thingId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "string",
+      "name": "taskId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "boolean",
+      "default": false,
+      "name": "force",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/things/{thingId}/tasks": {
+   "get": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "query-job-tasks",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "thingId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "enum": [
+       "QUEUED",
+       "SENT",
+       "IN_PROGRESS",
+       "FAILED",
+       "SUCCEEDED",
+       "REJECTED",
+       "TIMED_OUT",
+       "CANCELED"
+      ],
+      "type": "string",
+      "description": "task status",
+      "name": "status",
+      "in": "query"
+     },
+     {
+      "type": "string",
+      "description": "job operation",
+      "name": "operation",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 1,
+      "description": "page index, from 1",
+      "name": "pageIndex",
+      "in": "query"
+     },
+     {
+      "type": "integer",
+      "default": 10,
+      "description": "page size, from 1",
+      "name": "pageSize",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.job.TaskPage]"
+      }
+     }
+    }
+   }
+  },
   "/private/api/things/{id}/topicAcl": {
    "get": {
     "description": "for emqx integration topic acl",
@@ -419,7 +959,7 @@
     "tags": [
      "private"
     ],
-    "operationId": "func11",
+    "operationId": "topic-acl",
     "parameters": [
      {
       "type": "string",
@@ -454,6 +994,26 @@
   }
  },
  "definitions": {
+  "api.CreateBatchResp": {
+   "required": [
+    "invalidList",
+    "validList"
+   ],
+   "properties": {
+    "invalidList": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/api.InvalidCreate"
+     }
+    },
+    "validList": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/thing.Thing"
+     }
+    }
+   }
+  },
   "api.CreateReq": {
    "required": [
     "thingId",
@@ -461,6 +1021,24 @@
    ],
    "properties": {
     "password": {
+     "type": "string"
+    },
+    "thingId": {
+     "type": "string"
+    }
+   }
+  },
+  "api.InvalidCreate": {
+   "required": [
+    "thingId",
+    "errorCode",
+    "errorMsg"
+   ],
+   "properties": {
+    "errorCode": {
+     "type": "string"
+    },
+    "errorMsg": {
      "type": "string"
     },
     "thingId": {
@@ -524,6 +1102,559 @@
     }
    }
   },
+  "job.CancelReq": {
+   "properties": {
+    "comment": {
+     "type": "string"
+    },
+    "reasonCode": {
+     "type": "string"
+    }
+   }
+  },
+  "job.CancelTaskReq": {
+   "properties": {
+    "statusDetails": {
+     "$ref": "#/definitions/job.StatusDetails"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.CreateReq": {
+   "required": [
+    "targetConfig",
+    "operation"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "jobDoc": {
+     "type": "object"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "operation": {
+     "description": "system operation: \"$directMethod\" or \"$updateShadow\", and custom operation without \"$\" prefix",
+     "type": "string"
+    },
+    "retryConfig": {
+     "$ref": "#/definitions/job.RetryConfig"
+    },
+    "rolloutConfig": {
+     "$ref": "#/definitions/job.RolloutConfig"
+    },
+    "schedulingConfig": {
+     "$ref": "#/definitions/job.SchedulingConfig"
+    },
+    "targetConfig": {
+     "$ref": "#/definitions/job.TargetConfig"
+    },
+    "timeoutConfig": {
+     "$ref": "#/definitions/job.TimeoutConfig"
+    }
+   }
+  },
+  "job.Detail": {
+   "required": [
+    "jobId",
+    "targetConfig",
+    "jobDoc",
+    "description",
+    "operation",
+    "schedulingConfig",
+    "rolloutConfig",
+    "retryConfig",
+    "timeoutConfig",
+    "status",
+    "forceCanceled",
+    "processDetails",
+    "comment",
+    "reasonCode",
+    "startedAt",
+    "completedAt",
+    "updatedAt",
+    "createdAt",
+    "version"
+   ],
+   "properties": {
+    "comment": {
+     "type": "string"
+    },
+    "completedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "createdAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "description": {
+     "type": "string"
+    },
+    "forceCanceled": {
+     "type": "boolean"
+    },
+    "jobDoc": {
+     "type": "object"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "operation": {
+     "type": "string"
+    },
+    "processDetails": {
+     "$ref": "#/definitions/job.ProcessDetails"
+    },
+    "reasonCode": {
+     "type": "string"
+    },
+    "retryConfig": {
+     "$ref": "#/definitions/job.RetryConfig"
+    },
+    "rolloutConfig": {
+     "$ref": "#/definitions/job.RolloutConfig"
+    },
+    "schedulingConfig": {
+     "$ref": "#/definitions/job.SchedulingConfig"
+    },
+    "startedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "WAITING",
+      "IN_PROGRESS",
+      "CANCELING",
+      "CANCELED",
+      "COMPLETED",
+      "REMOVING"
+     ]
+    },
+    "targetConfig": {
+     "$ref": "#/definitions/job.TargetConfig"
+    },
+    "timeoutConfig": {
+     "$ref": "#/definitions/job.TimeoutConfig"
+    },
+    "updatedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.Page": {
+   "required": [
+    "total",
+    "content"
+   ],
+   "properties": {
+    "content": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/job.Summary"
+     }
+    },
+    "total": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "job.ProcessDetails": {
+   "required": [
+    "queued",
+    "sent",
+    "inProgress",
+    "failed",
+    "succeeded",
+    "canceled",
+    "rejected",
+    "timedOut"
+   ],
+   "properties": {
+    "canceled": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "failed": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "inProgress": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "queued": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "rejected": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "sent": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "succeeded": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "timedOut": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.RetryConfig": {
+   "required": [
+    "criteriaList"
+   ],
+   "properties": {
+    "criteriaList": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/job.RetryConfigItem"
+     }
+    }
+   }
+  },
+  "job.RetryConfigItem": {
+   "required": [
+    "failureType",
+    "numberOfRetries"
+   ],
+   "properties": {
+    "failureType": {
+     "type": "string",
+     "enum": [
+      "FAILED ",
+      " TIMED_OUT ",
+      " ALL"
+     ]
+    },
+    "numberOfRetries": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.RolloutConfig": {
+   "required": [
+    "MaxPerMinute"
+   ],
+   "properties": {
+    "MaxPerMinute": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.SchedulingConfig": {
+   "required": [
+    "startTime",
+    "endTime",
+    "endBehavior"
+   ],
+   "properties": {
+    "endBehavior": {
+     "type": "string",
+     "enum": [
+      "STOP_ROLLOUT ",
+      " CANCEL ",
+      " FORCE_CANCEL"
+     ]
+    },
+    "endTime": {
+     "type": "string",
+     "format": "date-time"
+    },
+    "startTime": {
+     "type": "string",
+     "format": "date-time"
+    }
+   }
+  },
+  "job.StatusDetails": {
+   "type": "object"
+  },
+  "job.Summary": {
+   "required": [
+    "jobId",
+    "operation",
+    "status",
+    "startedAt",
+    "completedAt",
+    "updatedAt",
+    "createdAt",
+    "version"
+   ],
+   "properties": {
+    "completedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "createdAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "operation": {
+     "type": "string"
+    },
+    "startedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "WAITING",
+      "IN_PROGRESS",
+      "CANCELING",
+      "CANCELED",
+      "COMPLETED",
+      "REMOVING"
+     ]
+    },
+    "updatedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.TargetConfig": {
+   "required": [
+    "type",
+    "things"
+   ],
+   "properties": {
+    "things": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "type": {
+     "type": "string",
+     "enum": [
+      "THING_ID"
+     ]
+    }
+   }
+  },
+  "job.Task": {
+   "required": [
+    "jobId",
+    "taskId",
+    "thingId",
+    "operation",
+    "forceCanceled",
+    "status",
+    "statusDetails",
+    "progress",
+    "queuedAt",
+    "startedAt",
+    "completedAt",
+    "updatedAt",
+    "createdAt",
+    "version"
+   ],
+   "properties": {
+    "completedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "createdAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "forceCanceled": {
+     "type": "boolean"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "operation": {
+     "type": "string"
+    },
+    "progress": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "queuedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "startedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "QUEUED",
+      "SENT",
+      "IN_PROGRESS",
+      "FAILED",
+      "SUCCEEDED",
+      "CANCELED",
+      "TIMED_OUT",
+      "REJECTED"
+     ]
+    },
+    "statusDetails": {
+     "type": "object"
+    },
+    "taskId": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updatedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "version": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.TaskPage": {
+   "required": [
+    "total",
+    "content"
+   ],
+   "properties": {
+    "content": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/job.TaskSummary"
+     }
+    },
+    "total": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "job.TaskSummary": {
+   "required": [
+    "taskId",
+    "jobId",
+    "thingId",
+    "operation",
+    "retryAttempt",
+    "status",
+    "progress",
+    "queuedAt",
+    "startedAt",
+    "completedAt",
+    "updatedAt",
+    "createdAt"
+   ],
+   "properties": {
+    "completedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "createdAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "jobId": {
+     "type": "string"
+    },
+    "operation": {
+     "type": "string"
+    },
+    "progress": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "queuedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "retryAttempt": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "startedAt": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "QUEUED",
+      "SENT",
+      "IN_PROGRESS",
+      "FAILED",
+      "SUCCEEDED",
+      "CANCELED",
+      "TIMED_OUT",
+      "REJECTED"
+     ]
+    },
+    "taskId": {
+     "type": "integer",
+     "format": "int64"
+    },
+    "thingId": {
+     "type": "string"
+    },
+    "updatedAt": {
+     "type": "integer",
+     "format": "int64"
+    }
+   }
+  },
+  "job.TimeoutConfig": {
+   "required": [
+    "inProgressMinutes"
+   ],
+   "properties": {
+    "inProgressMinutes": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "job.UpdateReq": {
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "retryConfig": {
+     "$ref": "#/definitions/job.RetryConfig"
+    },
+    "timeoutConfig": {
+     "$ref": "#/definitions/job.TimeoutConfig"
+    }
+   }
+  },
   "model.PageData[interface {}]": {
    "required": [
     "total",
@@ -574,6 +1705,82 @@
     },
     "data": {
      "$ref": "#/definitions/system.Info"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.job.Detail]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/job.Detail"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.job.Page]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/job.Page"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.job.TaskPage]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/job.TaskPage"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.job.Task]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/job.Task"
     },
     "message": {
      "type": "string"
@@ -694,6 +1901,25 @@
     }
    }
   },
+  "rest.Resp[ruff.io.tio.thing.api.CreateBatchResp]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/api.CreateBatchResp"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
   "rest.Resp[string]": {
    "required": [
     "code",
@@ -762,13 +1988,13 @@
   },
   "shadow.ShadowWithStatus": {
    "required": [
-    "state",
-    "metadata",
     "version",
     "tags",
     "updatedAt",
     "createdAt",
-    "thingId"
+    "thingId",
+    "state",
+    "metadata"
    ],
    "properties": {
     "connected": {
@@ -974,8 +2200,8 @@
     "thingId",
     "enabled",
     "authType",
-    "updateAt",
-    "createAt"
+    "updatedAt",
+    "createdAt"
    ],
    "properties": {
     "authType": {
@@ -984,7 +2210,7 @@
     "authValue": {
      "type": "string"
     },
-    "createAt": {
+    "createdAt": {
      "type": "string",
      "format": "date-time"
     },
@@ -994,7 +2220,7 @@
     "thingId": {
      "type": "string"
     },
-    "updateAt": {
+    "updatedAt": {
      "type": "string",
      "format": "date-time"
     }
@@ -1002,11 +2228,11 @@
   },
   "thing.ThingWithStatus": {
    "required": [
-    "enabled",
     "authType",
-    "updateAt",
-    "createAt",
-    "thingId"
+    "updatedAt",
+    "createdAt",
+    "thingId",
+    "enabled"
    ],
    "properties": {
     "authType": {
@@ -1022,7 +2248,7 @@
      "type": "string",
      "format": "date-time"
     },
-    "createAt": {
+    "createdAt": {
      "type": "string",
      "format": "date-time"
     },
@@ -1039,7 +2265,7 @@
     "thingId": {
      "type": "string"
     },
-    "updateAt": {
+    "updatedAt": {
      "type": "string",
      "format": "date-time"
     }
