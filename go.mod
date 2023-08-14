@@ -1,6 +1,6 @@
 module ruff.io/tio
 
-go 1.19
+go 1.21
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.2
