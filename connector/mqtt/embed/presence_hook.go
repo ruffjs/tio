@@ -3,12 +3,13 @@ package embed
 import (
 	"bytes"
 	"fmt"
-	"ruff.io/tio/connector"
 	"strings"
 	"time"
 
-	"github.com/mochi-co/mqtt/v2"
-	"github.com/mochi-co/mqtt/v2/packets"
+	"ruff.io/tio/connector"
+
+	mqtt "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/packets"
 	"ruff.io/tio/pkg/log"
 )
 

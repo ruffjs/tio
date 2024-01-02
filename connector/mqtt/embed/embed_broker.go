@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"ruff.io/tio/connector"
 	"sync"
 
-	"github.com/mochi-co/mqtt/v2"
-	"github.com/mochi-co/mqtt/v2/listeners"
-	"github.com/mochi-co/mqtt/v2/system"
+	"ruff.io/tio/connector"
+
+	mqtt "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/listeners"
+	"github.com/mochi-mqtt/server/v2/system"
 	"github.com/pkg/errors"
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
@@ -121,7 +122,9 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 }
 
 func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.Event]) *mqtt.Server {
-	svr := mqtt.New(nil)
+	svr := mqtt.New(&mqtt.Options{
+		InlineClient: true,
+	})
 
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
 	err := svr.AddHook(authHk, nil)

@@ -2,11 +2,12 @@ package mqtt
 
 import (
 	"context"
+
 	"ruff.io/tio/connector"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"github.com/mochi-co/mqtt/v2/system"
+	"github.com/mochi-mqtt/server/v2/system"
 	"ruff.io/tio/connector/mqtt/embed"
 	"ruff.io/tio/pkg/log"
 	rest "ruff.io/tio/pkg/restapi"
@@ -33,7 +34,7 @@ func Service(ctx context.Context, brk connector.Connectivity) *restful.WebServic
 		To(GetEmbedBrokerStats).
 		Operation("embed-stats").
 		Doc("Get embedded mqtt broker stats info").
-		Notes("The embedded mqtt broker of tio is used `https://github.com/mochi-co/mqtt`. This api is for getting it's stats info").
+		Notes("The embedded mqtt broker of tio is used `https://github.com/mochi-mqtt/server`. This api is for getting it's stats info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", rest.RespOK(system.Info{})))
 
