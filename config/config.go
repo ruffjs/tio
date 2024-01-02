@@ -42,6 +42,18 @@ type UserPassword struct {
 	Password string
 }
 
+type Redis struct {
+	Addr     string
+	Password string
+	DB       int
+}
+
+type InnerMqttStorage struct {
+	Type     string
+	FilePath string
+	Redis    Redis
+}
+
 type InnerMqttBroker struct {
 	TcpPort    int
 	TcpSslPort int
@@ -49,6 +61,7 @@ type InnerMqttBroker struct {
 	WssPort    int
 	CertFile   string
 	KeyFile    string
+	Storage    InnerMqttStorage
 	SuperUsers []UserPassword
 }
 type Config struct {

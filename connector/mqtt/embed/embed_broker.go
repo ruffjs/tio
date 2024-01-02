@@ -12,7 +12,10 @@ import (
 
 	"ruff.io/tio/connector"
 
+	rv8 "github.com/go-redis/redis/v8"
 	mqtt "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/hooks/storage/badger"
+	"github.com/mochi-mqtt/server/v2/hooks/storage/redis"
 	"github.com/mochi-mqtt/server/v2/listeners"
 	"github.com/mochi-mqtt/server/v2/system"
 	"github.com/pkg/errors"
@@ -34,6 +37,7 @@ type MochiConfig struct {
 	KeyFile    string
 	AuthzFn    AuthzFn
 	AclFn      AclFn
+	Storage    config.InnerMqttStorage
 	SuperUsers []config.UserPassword
 }
 
@@ -130,6 +134,30 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	err := svr.AddHook(authHk, nil)
 	if err != nil {
 		log.Fatalf("broker add hook: %v", err)
+	}
+
+	if cfg.Storage.Type == "file" && cfg.Storage.FilePath != "" {
+		err = svr.AddHook(new(badger.Hook), &badger.Options{
+			Path: cfg.Storage.FilePath,
+		})
+		if err != nil {
+			log.Fatal("Add storage badger hook", err)
+		} else {
+			log.Infof("Add storage file badger hook")
+		}
+	} else if cfg.Storage.Type == "redis" {
+		err = svr.AddHook(new(redis.Hook), &redis.Options{
+			Options: &rv8.Options{
+				Addr:     cfg.Storage.Redis.Addr,
+				Password: cfg.Storage.Redis.Password,
+				DB:       cfg.Storage.Redis.DB,
+			},
+		})
+		if err != nil {
+			log.Fatal("Add storage redis hook", err)
+		} else {
+			log.Info("Add storage redis hook")
+		}
 	}
 
 	presenceHk := &presenceHook{

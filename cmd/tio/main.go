@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"ruff.io/tio/job"
-	"ruff.io/tio/ntp"
 	"syscall"
 	"time"
+
+	"ruff.io/tio/job"
+	"ruff.io/tio/ntp"
 
 	"ruff.io/tio"
 	"ruff.io/tio/api"
@@ -205,6 +206,7 @@ func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, authzFn em
 		WssPort:    cfg.WssPort,
 		KeyFile:    cfg.KeyFile,
 		CertFile:   cfg.CertFile,
+		Storage:    cfg.Storage,
 		AuthzFn:    authzFn,
 		AclFn: func(user string, topic string, write bool) bool {
 			return thing.TopicAcl(cfg.SuperUsers, user, topic, write)
