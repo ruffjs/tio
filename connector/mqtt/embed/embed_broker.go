@@ -147,6 +147,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		}
 	} else if cfg.Storage.Type == "redis" {
 		err = svr.AddHook(new(redis.Hook), &redis.Options{
+			HPrefix: "mqtt:",
 			Options: &rv8.Options{
 				Addr:     cfg.Storage.Redis.Addr,
 				Password: cfg.Storage.Redis.Password,
