@@ -17,6 +17,7 @@ import (
 	"github.com/mochi-mqtt/server/v2/hooks/storage/badger"
 	"github.com/mochi-mqtt/server/v2/hooks/storage/redis"
 	"github.com/mochi-mqtt/server/v2/listeners"
+	"github.com/mochi-mqtt/server/v2/packets"
 	"github.com/mochi-mqtt/server/v2/system"
 	"github.com/pkg/errors"
 	"ruff.io/tio/config"
@@ -26,7 +27,8 @@ import (
 
 const presenceEventName = "presence"
 
-type AuthzFn func(user, password string) bool
+type ConnectParams packets.ConnectParams
+type AuthzFn func(connParam ConnectParams) bool
 type AclFn func(user string, topic string, write bool) bool
 type MochiConfig struct {
 	TcpPort    int

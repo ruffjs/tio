@@ -25,7 +25,7 @@ func (a *authHook) Provides(b byte) bool {
 }
 
 func (a *authHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) bool {
-	return a.authzFn(string(cl.Properties.Username), string(pk.Connect.Password))
+	return a.authzFn(ConnectParams(pk.Connect))
 }
 
 func (a *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
