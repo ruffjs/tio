@@ -3,6 +3,7 @@ package shadow
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -226,6 +227,15 @@ func deltaDiff(key string, target, source any, meta map[string]any) (delta any, 
 					}
 					deltaMeta.(map[string]any)[k] = sdm
 				}
+			}
+		}
+	case []interface{}:
+		if reflect.DeepEqual(t, source) {
+			return
+		} else {
+			delta = target
+			if m, ok := meta[key]; ok {
+				deltaMeta = m
 			}
 		}
 	default:

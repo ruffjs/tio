@@ -335,6 +335,33 @@ func TestMerge_DeltaState(t *testing.T) {
 				}
 			}`,
 		},
+
+		// Array field test. An array is treated as a field
+		{
+			desired: `{
+				"arr1": [1,2,3],
+				"arr2": [{"a": 1}, {"b": 2}],
+				"arr3": ["a", "b", "c"]
+			}`,
+			reported: `{
+				"arr": [1,2,4],
+				"arr2": [{"a": 1}, {"b": 3}],
+				"arr3": ["a", "b", "c"]
+			}`,
+			desiredMeta: `{
+				"arr1": { "timestamp": 1665555014139 },
+				"arr2": {"timestamp": 1665555014220},
+				"arr3": {"timestamp": 1665555023110}
+			}`,
+			delta: `{
+					"arr1": [1,2,3],
+					"arr2": [{"a": 1}, {"b": 2}]
+			}`,
+			deltaMeta: `{
+				"arr1": {"timestamp": 1665555014139},
+				"arr2": {"timestamp": 1665555014220}
+			}`,
+		},
 	}
 
 	s2m := func(s string) map[string]any {
