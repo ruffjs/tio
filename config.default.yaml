@@ -35,6 +35,15 @@ connector:
   mqttBroker:
     tcpPort: 1883
     wsPort: 8083
+    # mqtt storage, if left blank, the storage is disabled
+    # https://github.com/mochi-mqtt/server?tab=readme-ov-file#badger-db
+    storage: 
+      type: file  # file or redis
+      path: "./embed-mqtt.db" # when type is file
+      redis:
+        addr: 127.0.0.1:6379
+        db: 1
+        password:
     superUsers:
       - name: $tio
         password: public

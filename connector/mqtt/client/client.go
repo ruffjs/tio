@@ -51,7 +51,7 @@ func NewClient(cfg config.MqttClientConfig) Client {
 	opts.SetClientID(cfg.ClientId)
 	opts.SetUsername(cfg.User)
 	opts.SetPassword(cfg.Password)
-	cleanSession := false
+	cleanSession := true
 	if cfg.CleanSession != nil {
 		cleanSession = *cfg.CleanSession
 	}

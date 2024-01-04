@@ -3,9 +3,10 @@ package embed_test
 import (
 	"context"
 	"encoding/json"
-	"ruff.io/tio/connector"
 	"testing"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"ruff.io/tio/connector/mqtt/client"
 	"ruff.io/tio/connector/mqtt/embed"
@@ -25,7 +26,7 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 	port := 21883
 	brk := embed.InitBroker(embed.MochiConfig{
 		TcpPort: port,
-		AuthzFn: func(user, password string) bool {
+		AuthzFn: func(embed.ConnectParams) bool {
 			return true
 		},
 		AclFn: func(user string, topic string, write bool) bool {

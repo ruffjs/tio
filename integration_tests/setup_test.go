@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	connector2 "ruff.io/tio/connector"
 	"testing"
+
+	connector2 "ruff.io/tio/connector"
 
 	"ruff.io/tio/connector/mqtt/embed"
 
