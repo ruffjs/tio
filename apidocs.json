@@ -1,9 +1,9 @@
 {
  "swagger": "2.0",
  "info": {
-  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.1.0\n- GitCommit: 0d3efa6ff5b26647004e4825ba00dc77cc3f711c\n",
+  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.2.0\n- GitCommit: 7a0bc98597bba2cd9272718311e9ae5f4ca91700\n",
   "title": "tio",
-  "version": "1.1.0"
+  "version": "1.2.0"
  },
  "paths": {
   "/api/v1/jobs": {
@@ -338,7 +338,7 @@
   },
   "/api/v1/mqttBroker/embed/stats": {
    "get": {
-    "description": "The embedded mqtt broker of tio is used `https://github.com/mochi-co/mqtt`. This api is for getting it's stats info",
+    "description": "The embedded mqtt broker of tio is used `https://github.com/mochi-mqtt/server`. This api is for getting it's stats info",
     "consumes": [
      "application/json"
     ],
@@ -354,7 +354,7 @@
      "200": {
       "description": "OK",
       "schema": {
-       "$ref": "#/definitions/rest.Resp[github.com.mochi-co.mqtt.v2.system.Info]"
+       "$ref": "#/definitions/rest.Resp[github.com.mochi-mqtt.server.v2.system.Info]"
       }
      }
     }
@@ -1692,7 +1692,7 @@
     }
    }
   },
-  "rest.Resp[github.com.mochi-co.mqtt.v2.system.Info]": {
+  "rest.Resp[github.com.mochi-mqtt.server.v2.system.Info]": {
    "required": [
     "code",
     "message",
@@ -1988,13 +1988,13 @@
   },
   "shadow.ShadowWithStatus": {
    "required": [
-    "version",
     "tags",
     "updatedAt",
     "createdAt",
     "thingId",
     "state",
-    "metadata"
+    "metadata",
+    "version"
    ],
    "properties": {
     "connected": {
@@ -2228,11 +2228,11 @@
   },
   "thing.ThingWithStatus": {
    "required": [
-    "authType",
-    "updatedAt",
     "createdAt",
     "thingId",
-    "enabled"
+    "enabled",
+    "authType",
+    "updatedAt"
    ],
    "properties": {
     "authType": {
