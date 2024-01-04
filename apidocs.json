@@ -1,7 +1,7 @@
 {
  "swagger": "2.0",
  "info": {
-  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.2.0\n- GitCommit: 7a0bc98597bba2cd9272718311e9ae5f4ca91700\n",
+  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.2.0\n- GitCommit: 4bf506b4fdfead378b7e8d3d04ce6959916ca3d7\n",
   "title": "tio",
   "version": "1.2.0"
  },
@@ -1988,13 +1988,13 @@
   },
   "shadow.ShadowWithStatus": {
    "required": [
-    "tags",
-    "updatedAt",
-    "createdAt",
     "thingId",
     "state",
     "metadata",
-    "version"
+    "version",
+    "tags",
+    "updatedAt",
+    "createdAt"
    ],
    "properties": {
     "connected": {
@@ -2228,11 +2228,11 @@
   },
   "thing.ThingWithStatus": {
    "required": [
-    "createdAt",
-    "thingId",
     "enabled",
     "authType",
-    "updatedAt"
+    "updatedAt",
+    "createdAt",
+    "thingId"
    ],
    "properties": {
     "authType": {
