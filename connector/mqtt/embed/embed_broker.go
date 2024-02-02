@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"ruff.io/tio/connector"
@@ -149,8 +150,13 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			log.Infof("Add storage file badger hook")
 		}
 	} else if cfg.Storage.Type == "redis" {
+		pre := "mqtt:"
+		cPre := strings.TrimSpace(cfg.Storage.Redis.KeyPrefix)
+		if cfg.Storage.Redis.KeyPrefix != "" {
+			pre = cPre
+		}
 		err = svr.AddHook(new(redis.Hook), &redis.Options{
-			HPrefix: "mqtt:",
+			HPrefix: pre,
 			Options: &rv8.Options{
 				Addr:     cfg.Storage.Redis.Addr,
 				Password: cfg.Storage.Redis.Password,

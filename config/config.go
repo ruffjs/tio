@@ -43,9 +43,10 @@ type UserPassword struct {
 }
 
 type Redis struct {
-	Addr     string
-	Password string
-	DB       int
+	Addr      string
+	Password  string
+	DB        int
+	KeyPrefix string
 }
 
 type InnerMqttStorage struct {
