@@ -44,7 +44,7 @@ func Service(ctx context.Context, brk connector.Connectivity) *restful.WebServic
 		Doc("Get embedded mqtt broker clients").
 		Notes("WARN: This api is not for integration cause it is not ready, it is just for temporary debugging").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "OK", rest.RespOK(system.Info{})))
+		Returns(200, "OK", rest.RespOK(embed.Client{})))
 
 	return ws
 }
