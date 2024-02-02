@@ -55,6 +55,7 @@ type Broker interface {
 	Close() error
 	CloseClient(clientId string) bool
 	StatsInfo() *system.Info
+	AllClients() []Client
 }
 
 func BrokerInstance() Broker {
@@ -297,4 +298,62 @@ func getClientFn(e *mqtt.Server) func(id string) (*mqtt.Client, bool) {
 	return func(id string) (*mqtt.Client, bool) {
 		return e.Clients.Get(id)
 	}
+}
+
+// This api is not for integration, it 's for temporary debugging
+// TODO:
+//   - rethink the api
+//   - change 'Client' json field name to lowercase camel
+func (e *embedBroker) AllClients() []Client {
+	l := e.impl.Clients.GetAll()
+	rl := []Client{}
+	for _, c := range l {
+		sbs := []packets.Subscription{}
+		for _, s := range c.State.Subscriptions.GetAll() {
+			sbs = append(sbs, s)
+		}
+		rc := Client{
+			Properties: ClientProperties{
+				Will:            c.Properties.Will,
+				Username:        c.Properties.Username,
+				ProtocolVersion: c.Properties.ProtocolVersion,
+				Clean:           c.Properties.Clean,
+			},
+			State: ClientState{
+				StopCause:       c.StopCause(),
+				InflightSize:    c.State.Inflight.Len(),
+				Subscriptions:   sbs,
+				Keepalive:       c.State.Keepalive,
+				ServerKeepalive: c.State.ServerKeepalive,
+			},
+			Net: c.Net,
+			ID:  c.ID,
+		}
+		rl = append(rl, rc)
+	}
+	return rl
+}
+
+type Client struct {
+	Properties ClientProperties
+	State      ClientState
+	Net        mqtt.ClientConnection
+	ID         string
+}
+
+type ClientState struct {
+	// TopicAliases    mqtt.TopicAliases
+	StopCause       error
+	InflightSize    int
+	Subscriptions   []packets.Subscription
+	Keepalive       uint16
+	ServerKeepalive bool
+}
+
+type ClientProperties struct {
+	// Props           packets.Properties
+	Will            mqtt.Will
+	Username        []byte
+	ProtocolVersion byte
+	Clean           bool
 }

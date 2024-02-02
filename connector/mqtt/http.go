@@ -38,6 +38,14 @@ func Service(ctx context.Context, brk connector.Connectivity) *restful.WebServic
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", rest.RespOK(system.Info{})))
 
+	ws.Route(ws.GET("/embed/clients").
+		To(GetEmbedBrokerClients).
+		Operation("embed-mqtt-clients").
+		Doc("Get embedded mqtt broker clients").
+		Notes("WARN: This api is not for integration cause it is not ready, it is just for temporary debugging").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "OK", rest.RespOK(system.Info{})))
+
 	return ws
 }
 
@@ -63,4 +71,13 @@ func GetEmbedBrokerStats(req *restful.Request, resp *restful.Response) {
 	}
 	info := *embed.BrokerInstance().StatsInfo().Clone()
 	rest.SendResp(resp, 200, rest.RespOK(info))
+}
+
+func GetEmbedBrokerClients(req *restful.Request, resp *restful.Response) {
+	if embed.BrokerInstance() == nil {
+		rest.SendResp(resp, 200, rest.Resp[any]{Code: 400, Message: "broker is not running"})
+		return
+	}
+	l := embed.BrokerInstance().AllClients()
+	rest.SendResp(resp, 200, rest.RespOK(l))
 }
