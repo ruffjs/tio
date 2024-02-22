@@ -14,7 +14,7 @@ type thingRepo struct {
 }
 
 func NewThingRepo(db *gorm.DB) Repo {
-	return thingRepo{db: db}
+	return &thingRepo{db: db}
 }
 
 var _ Repo = (*thingRepo)(nil)
@@ -50,7 +50,15 @@ func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 	return ToThing(en), err
 }
 
-func (t thingRepo) Delete(ctx context.Context, id string) error {
+func (t *thingRepo) Update(ctx context.Context, id string, tu ThingUpdate) error {
+	if tu.Enabled == nil {
+		return nil
+	}
+	res := t.db.Model(&Entity{}).Where("id = ?", id).Update("enabled", *tu.Enabled)
+	return res.Error
+}
+
+func (t *thingRepo) Delete(ctx context.Context, id string) error {
 	err := t.db.Transaction(func(tx *gorm.DB) error {
 		// delete Thing
 		if er := tx.Delete(&Entity{Id: id}).Error; er != nil {
@@ -69,7 +77,7 @@ func (t thingRepo) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (t thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error) {
+func (t *thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error) {
 	offset := pq.Offset()
 	limit := pq.Limit()
 	var page model.PageData[Thing]
@@ -80,11 +88,15 @@ func (t thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thin
 		return page, nil
 	}
 	page.Total = total
-	t.db.WithContext(ctx).Model(&Entity{}).
+	q := t.db.WithContext(ctx).Model(&Entity{}).
 		Order("created_at ASC").
 		Offset(offset).
-		Limit(limit).
-		Find(&page.Content)
+		Limit(limit)
+	if pq.Enabled != nil {
+		q.Where("enabled = ?", *pq.Enabled)
+	}
+
+	q.Find(&page.Content)
 	if !pq.WithAuthValue {
 		for i := range page.Content {
 			page.Content[i].AuthValue = ""
@@ -93,7 +105,7 @@ func (t thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thin
 	return page, nil
 }
 
-func (t thingRepo) Get(ctx context.Context, id string) (*Thing, error) {
+func (t *thingRepo) Get(ctx context.Context, id string) (*Thing, error) {
 	en := Entity{Id: id}
 	res := t.db.First(&en)
 	err := res.Error
@@ -104,7 +116,7 @@ func (t thingRepo) Get(ctx context.Context, id string) (*Thing, error) {
 	return &th, err
 }
 
-func (t thingRepo) Exist(ctx context.Context, id string) (bool, error) {
+func (t *thingRepo) Exist(ctx context.Context, id string) (bool, error) {
 	var exists bool
 	err := t.db.Model(&Entity{}).
 		Select("count(*) > 0").

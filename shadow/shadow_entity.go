@@ -21,6 +21,7 @@ type Entity struct {
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 
 	ConnStatus ConnStatusEntity `gorm:"foreignKey:thing_id;constraint:OnDelete:CASCADE" json:"connStatus"`
+	Enabled    bool             `gorm:"-" json:"enabled"` // fetch from table "thing"
 }
 
 func (t Entity) TableName() string {

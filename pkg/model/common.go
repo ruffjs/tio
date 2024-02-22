@@ -24,3 +24,7 @@ type TimeSpan struct {
 	From time.Time // eg: 2022-11-01T15:00:00Z
 	To   time.Time
 }
+
+func Ref[T any](v T) *T {
+	return &v
+}

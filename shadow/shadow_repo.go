@@ -168,8 +168,10 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 
 	db := r.db.WithContext(ctx).
 		Model(&Entity{}).
+		Select("t.enabled", "shadow.*").
 		Joins("ConnStatus").
-		Preload("ConnStatus")
+		Preload("ConnStatus").
+		Joins("INNER JOIN thing t ON t.id=shadow.thing_id")
 	if q.Where != "" {
 		db.Where(q.Where)
 	}
@@ -187,14 +189,24 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 		db.Order(q.OrderBy)
 	}
 
-	results := make([]Entity, 0)
+	results := make([]struct {
+		Entity
+		Enabled bool
+	}, 0)
 	res = db.Offset(offset).
 		Limit(limit).
 		Find(&results)
 	if res.Error != nil {
 		return page, res.Error
 	}
-	page.Content = results
+
+	l := make([]Entity, 0)
+	for _, tmp := range results {
+		e := tmp.Entity
+		e.Enabled = tmp.Enabled
+		l = append(l, e)
+	}
+	page.Content = l
 
 	return page, nil
 }

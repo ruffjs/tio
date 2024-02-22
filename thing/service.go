@@ -18,6 +18,7 @@ import (
 
 type Service interface {
 	Create(ctx context.Context, th Thing) (Thing, error)
+	Update(ctx context.Context, id string, tu ThingUpdate) error
 	Delete(ctx context.Context, id string) error
 	Query(ctx context.Context, pq PageQuery) (Page, error)
 	Get(ctx context.Context, id string) (*Thing, error)
@@ -27,8 +28,9 @@ type Service interface {
 type Page = model.PageData[ThingWithStatus]
 
 type PageQuery struct {
-	WithAuthValue bool `json:"withAuthValue"`
-	WithStatus    bool `json:"withStatus"`
+	Enabled       *bool `json:"enabled"`
+	WithAuthValue bool  `json:"withAuthValue"`
+	WithStatus    bool  `json:"withStatus"`
 	model.PageQuery
 }
 
@@ -81,6 +83,20 @@ func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
 	}
 
 	return res, err
+}
+
+func (t *thingSvc) Update(ctx context.Context, id string, tu ThingUpdate) error {
+	if ok, err := t.repo.Exist(ctx, id); err != nil {
+		return err
+	} else if !ok {
+		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
+	}
+	if err := t.repo.Update(ctx, id, tu); err != nil {
+		return err
+	} else if tu.Enabled != nil && !*tu.Enabled {
+		t.connector.Close(id)
+	}
+	return nil
 }
 
 func (t *thingSvc) Delete(ctx context.Context, id string) error {

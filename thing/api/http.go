@@ -71,6 +71,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Operation("query").
 		Doc("get all things").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("enabled", "whether thing is enabled").DataType("boolean")).
 		Param(ws.QueryParameter("withAuthValue", "whether return authValue field").DataType("boolean")).
 		Param(ws.QueryParameter("withStatus", "whether return fields of status").DataType("boolean")).
 		Param(ws.QueryParameter("pageIndex", "page index, from 1").DataType("integer").DefaultValue("1")).
@@ -105,6 +106,14 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Operation("delete-one").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
+		Returns(200, "OK", rest.RespOK("")))
+
+	ws.Route(ws.PATCH("/{id}").
+		To(UpdateHandler(ctx, svc)).
+		Operation("update-one").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("id", "thing id")).
+		Reads(thing.ThingUpdate{}).
 		Returns(200, "OK", rest.RespOK("")))
 
 	return ws
@@ -180,6 +189,27 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 	}
 }
 
+func UpdateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		id := r.PathParameter("id")
+		var req thing.ThingUpdate
+		err := r.ReadEntity(&req)
+		if err != nil {
+			log.Infof("Error decoding body for update thing: %v", err)
+			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
+			return
+		}
+		if err := svc.Update(ctx, id, req); err != nil {
+			sent := checkHttpErrAndSend(err, w)
+			if !sent {
+				_ = w.WriteHeaderAndEntity(500, rest.Resp[string]{Code: 500, Message: err.Error()})
+			}
+		} else {
+			rest.SendRespOK(w, "")
+		}
+	}
+}
+
 func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		var resp CreateBatchResp
@@ -245,6 +275,9 @@ func getPgQry(r *restful.Request) thing.PageQuery {
 	q := thing.PageQuery{}
 	q.WithAuthValue, _ = strconv.ParseBool(r.QueryParameter("withAuthValue"))
 	q.WithStatus, _ = strconv.ParseBool(r.QueryParameter("withStatus"))
+	if e, err := strconv.ParseBool(r.QueryParameter("enabled")); err == nil {
+		q.Enabled = &e
+	}
 	q.PageQuery.PageIndex, err = strconv.Atoi(r.QueryParameter("pageIndex"))
 	if err != nil {
 		q.PageIndex = 1

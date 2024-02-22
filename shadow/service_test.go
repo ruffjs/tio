@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"ruff.io/tio/pkg/log"
+	"ruff.io/tio/thing"
 
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/db/mock"
@@ -18,16 +19,20 @@ import (
 	"ruff.io/tio/shadow"
 	shadowMock "ruff.io/tio/shadow/mock"
 	"ruff.io/tio/shadow/wire"
+
+	thingwire "ruff.io/tio/thing/wire"
 )
 
-func newTestSvc() (shadow.Service, *gorm.DB) {
+func newTestSvc() (shadow.Service, thing.Service, *gorm.DB) {
 	db := mock.NewSqliteConnTest()
-	err := db.AutoMigrate(&shadow.Entity{}, &shadow.ConnStatusEntity{})
+	err := db.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
 	if err != nil {
 		log.Fatalf("db AutoMigrate: %v", err)
 	}
 	time.Sleep(time.Millisecond * 100)
-	return wire.InitSvc(db, shadowMock.NewConnectivity()), db
+	svc := wire.InitSvc(db, shadowMock.NewConnectivity())
+	tsvc := thingwire.InitSvc(ctx, db, svc, shadowMock.NewConnectivity())
+	return svc, tsvc, db
 }
 
 var ctx = context.Background()
@@ -38,7 +43,7 @@ var stateVal = shadow.StateValue{
 		"period": 30,
 	},
 }
-var svc, db = newTestSvc()
+var svc, thingSvc, db = newTestSvc()
 
 func TestShadowSvc_Create(t *testing.T) {
 	id := fmt.Sprintf("for-create-%d", time.Now().UnixNano())
@@ -72,9 +77,10 @@ func TestShadowSvc_Create(t *testing.T) {
 
 func TestShadowSVc_Query(t *testing.T) {
 	id := fmt.Sprintf("for-query-%d", time.Now().UnixNano())
-	s, err := svc.Create(ctx, id)
+	_, err := thingSvc.Create(ctx, thing.Thing{Id: id, Enabled: true})
+	// s, err := svc.Create(ctx, id)
 	require.NoError(t, err)
-	require.Equal(t, id, s.ThingId)
+	// require.Equal(t, id, s.ThingId)
 
 	req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{
 		Desired: shadow.StateValue{
@@ -84,7 +90,7 @@ func TestShadowSVc_Query(t *testing.T) {
 			},
 		},
 	}}
-	s, err = svc.SetDesired(ctx, id, req)
+	_, err = svc.SetDesired(ctx, id, req)
 	require.NoError(t, err)
 
 	ss, err := svc.Query(ctx, model.PageQuery{PageIndex: 1, PageSize: 10},
@@ -172,7 +178,7 @@ func TestSvcImpl_Set(t *testing.T) {
 }
 
 func TestShadowSvc_SubscribeUpdate(t *testing.T) {
-	svc, _ := newTestSvc()
+	svc, _, _ := newTestSvc()
 	upd := struct {
 		ThingId     string
 		StateNotice shadow.StateUpdatedNotice
@@ -246,7 +252,7 @@ func TestShadowSvc_SubscribeUpdate(t *testing.T) {
 }
 
 func TestShadowSvc_SubscribeDelta(t *testing.T) {
-	svc, _ := newTestSvc()
+	svc, _, _ := newTestSvc()
 	thingId = fmt.Sprintf("for-delta-sub-%d", time.Now().UnixNano())
 	_, err := svc.Create(ctx, thingId)
 	require.NoError(t, err)

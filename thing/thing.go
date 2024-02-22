@@ -21,6 +21,10 @@ type Thing struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type ThingUpdate struct {
+	Enabled *bool `json:"enabled"`
+}
+
 type ThingWithStatus struct {
 	Thing
 	Connected      *bool      `json:"connected,omitempty"`
@@ -31,6 +35,7 @@ type ThingWithStatus struct {
 
 type Repo interface {
 	Create(ctx context.Context, th Thing) (Thing, error)
+	Update(ctx context.Context, id string, tu ThingUpdate) error
 	Delete(ctx context.Context, id string) error
 	Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error)
 	Get(ctx context.Context, id string) (*Thing, error)

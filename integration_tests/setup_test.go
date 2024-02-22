@@ -100,7 +100,7 @@ func setup() {
 }
 
 func crateThing(id string) thing.Thing {
-	th, err := thingSvc.Create(context.Background(), thing.Thing{Id: id})
+	th, err := thingSvc.Create(context.Background(), thing.Thing{Id: id, Enabled: true})
 	if err != nil {
 		log.Fatalf("Create thing error %v", err)
 	}

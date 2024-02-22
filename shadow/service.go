@@ -270,6 +270,7 @@ func (s *shadowSvc) toShadowWithStatus(list []Entity) []ShadowWithStatus {
 		}
 		ss := ShadowWithStatus{Shadow: sd}
 		cs := v.ConnStatus
+		ss.Enabled = v.Enabled
 		ss.Connected = &cs.Connected
 		ss.ConnectedAt = cs.ConnectedAt
 		ss.DisconnectedAt = cs.DisconnectedAt

@@ -24,14 +24,20 @@ func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thin
 			log.Infof("Mqtt client user %s client %s authz error: %v", user, clientId, err)
 			return false
 		}
+		if !th.Enabled {
+			log.Infof("Mqtt client user %s client %s password %s is not authorized cause thing is not Enabled",
+				user, clientId, password)
+			return false
+		}
 		if th.AuthValue == password {
-			if connParams.Clean == false {
+			if !connParams.Clean {
 				log.Warnf("Mqtt client user %s client %s authz error: things can not be allowed to use cleanSession false", user, clientId)
 				return false
 			}
 			return true
 		} else {
-			log.Infof("Mqtt client user %s client %s password %s is not authorized", user, clientId, password)
+			log.Infof("Mqtt client user %s client %s password %s is not authorized cause password is wrong",
+				user, clientId, password)
 			return false
 		}
 	}

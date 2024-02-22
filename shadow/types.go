@@ -18,6 +18,7 @@ type Shadow struct {
 }
 
 type ShadowWithStatus struct {
+	Enabled        bool       `json:"enabled"`
 	Connected      *bool      `json:"connected,omitempty"`
 	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
 	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`

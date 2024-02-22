@@ -4,8 +4,9 @@ package embed
 import (
 	"context"
 	"fmt"
-	"ruff.io/tio/connector"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"github.com/pkg/errors"
 )

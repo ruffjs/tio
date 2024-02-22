@@ -84,6 +84,31 @@ func TestThingSvc_Create(t *testing.T) {
 	})
 }
 
+func TestThingSvc_Update(t *testing.T) {
+	svc, _ := NewTestSvc()
+	th := thing.Thing{Id: "for-update-test"}
+	_, err := svc.Create(ctxTest, th)
+	require.NoError(t, err)
+	t.Run("Disable thing", func(t *testing.T) {
+		connDelCall := connector.On("Close", th.Id).Return(nil).Times(1)
+		defer connDelCall.Unset()
+		svc.Update(ctxTest, th.Id, thing.ThingUpdate{Enabled: model.Ref(false)})
+		connDelCall.Parent.AssertExpectations(t)
+		en, err := svc.Get(ctxTest, th.Id)
+		require.NoError(t, err)
+		require.Equal(t, en.Enabled, false)
+	})
+	t.Run("Enable thing", func(t *testing.T) {
+		connDelCall := connector.On("Close", th.Id).Return(nil).Times(0)
+		defer connDelCall.Unset()
+		svc.Update(ctxTest, th.Id, thing.ThingUpdate{Enabled: model.Ref(true)})
+		connDelCall.Parent.AssertExpectations(t)
+		en, err := svc.Get(ctxTest, th.Id)
+		require.NoError(t, err)
+		require.Equal(t, en.Enabled, true)
+	})
+}
+
 func TestThingSvc_Delete(t *testing.T) {
 	svc, sdSvc := NewTestSvc()
 	randId, _ := uuid.New().ID()
