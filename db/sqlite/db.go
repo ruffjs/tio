@@ -1,8 +1,8 @@
 package sqlite
 
 import (
-	"log"
-	"os"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -21,13 +21,19 @@ type Config struct {
 	ShowSql  bool
 }
 
+type loggerImp struct{}
+
+func (l *loggerImp) Printf(format string, args ...interface{}) {
+	slog.Info(fmt.Sprintf(format, args...))
+}
+
 func Connect(cfg Config) (*gorm.DB, error) {
 	logLevel := logger.Info
 	if !cfg.ShowSql {
 		logLevel = logger.Silent
 	}
 	l := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		&loggerImp{},
 		logger.Config{
 			SlowThreshold:             time.Millisecond * 200, // Slow SQL threshold
 			LogLevel:                  logLevel,               // Log level

@@ -63,7 +63,7 @@ func connectTioByMqtt() {
 	mqttClient = client.NewClient(cfg)
 	err := mqttClient.Connect(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }
 

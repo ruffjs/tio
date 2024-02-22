@@ -166,7 +166,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		}
 		err = cReq.validate()
 		if err != nil {
-			log.Info("Invalid request for create thing: %v", err)
+			log.Infof("Invalid request for create thing: %v", err)
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}

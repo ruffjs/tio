@@ -145,7 +145,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			Path: cfg.Storage.FilePath,
 		})
 		if err != nil {
-			log.Fatal("Add storage badger hook", err)
+			log.Fatalf("Add storage badger hook: %v", err)
 		} else {
 			log.Infof("Add storage file badger hook")
 		}
@@ -164,7 +164,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			},
 		})
 		if err != nil {
-			log.Fatal("Add storage redis hook", err)
+			log.Fatalf("Add storage redis hook: %v", err)
 		} else {
 			log.Info("Add storage redis hook")
 		}

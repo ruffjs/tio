@@ -114,7 +114,7 @@ func newDb(cfg config.Config) *gorm.DB {
 	case config.DBSqlite:
 		return newSqliteDB(cfg.DB.Sqlite)
 	default:
-		log.Fatal("Unknown database type: ", cfg.DB.Typ)
+		log.Fatalf("Unknown database type: %v", cfg.DB.Typ)
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func newDb(cfg config.Config) *gorm.DB {
 func newSqliteDB(cfg sqlite.Config) *gorm.DB {
 	db, err := sqlite.Connect(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 	return db
 }
@@ -130,7 +130,7 @@ func newSqliteDB(cfg sqlite.Config) *gorm.DB {
 func newMysqlDB(cfg mysql.Config) *gorm.DB {
 	conn, err := mysql.Connect(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 	return conn
 }

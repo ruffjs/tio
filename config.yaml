@@ -80,4 +80,4 @@ connector:
     apiPassword: public
 
 log:
-  level: debug # debug info warn error fatal
+  level: debug # debug info warn error 

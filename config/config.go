@@ -65,10 +65,9 @@ type InnerMqttBroker struct {
 	Storage    InnerMqttStorage
 	SuperUsers []UserPassword
 }
+
 type Config struct {
-	Log struct {
-		Level string
-	}
+	Log log.Config
 	API struct {
 		Port      int
 		Cors      bool

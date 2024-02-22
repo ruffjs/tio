@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -78,7 +79,7 @@ func connectTioByMqtt() {
 	mqttClient = client.NewClient(cfg)
 	err := mqttClient.Connect(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }
 
@@ -116,9 +117,9 @@ func createExampleThing() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("create thing error:", err)
+		log.Errorf("create thing error: %v", err)
 	}
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	log.Info(string(body))
 }
 
@@ -131,9 +132,9 @@ func deleteExampleThing() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("create thing error:", err)
+		log.Errorf("create thing error: %v", err)
 	}
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	log.Info(string(body))
 }
 
@@ -160,7 +161,7 @@ func setBrightnessByShadow() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("Modify Brightness error:", err)
+		log.Errorf("Modify Brightness error: %v", err)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
 	log.Info(string(body))
@@ -183,8 +184,8 @@ func flashLightByDirectMethod() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("Flash Light error:", err)
+		log.Errorf("Flash Light error: %v", err)
 	}
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	log.Info(string(body))
 }

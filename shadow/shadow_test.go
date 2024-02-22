@@ -10,7 +10,6 @@ import (
 	mockmq "ruff.io/tio/connector/mqtt/mock"
 	"ruff.io/tio/pkg/log"
 
-	"github.com/kpango/glg"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	mq "ruff.io/tio/connector/mqtt"
@@ -167,8 +166,6 @@ func mockMqtt(thingId, subTopic, pubTopic string, sc mockmq.SubCallback, pc mock
 // benchmark
 
 func Benchmark_GetReq(b *testing.B) {
-	glg.Get().SetLevel(glg.ERR)
-
 	mqCl := mockmq.NewMqttClient("", nil, nil)
 	conn := mockmq.NewAdapter(mqCl)
 

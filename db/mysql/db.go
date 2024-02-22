@@ -2,12 +2,10 @@ package mysql
 
 import (
 	"fmt"
-	"os"
+	"log/slog"
 	"time"
 
 	"ruff.io/tio/pkg/log"
-
-	glog "log"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -28,6 +26,12 @@ type Config struct {
 	ShowSql         bool
 }
 
+type loggerImp struct{}
+
+func (l *loggerImp) Printf(format string, args ...interface{}) {
+	slog.Info(fmt.Sprintf(format, args...))
+}
+
 func Connect(cfg Config) (*gorm.DB, error) {
 	// gorm:gorm@tcp(127.0.0.1:3306)/gorm?charset=utf8&parseTime=True&loc=Local
 	dsn := fmt.Sprintf(
@@ -40,7 +44,7 @@ func Connect(cfg Config) (*gorm.DB, error) {
 		logLevel = logger.Silent
 	}
 	l := logger.New(
-		glog.New(os.Stdout, "\r\n", glog.LstdFlags), // io writer
+		&loggerImp{},
 		logger.Config{
 			SlowThreshold:             time.Millisecond * 100, // Slow SQL threshold
 			LogLevel:                  logLevel,               // Log level

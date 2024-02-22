@@ -9,9 +9,8 @@ require (
 	github.com/go-openapi/spec v0.20.7
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofrs/uuid v4.2.0+incompatible
-	github.com/kpango/glg v1.6.13
 	github.com/manifoldco/promptui v0.9.0
-	github.com/mochi-mqtt/server/v2 v2.4.4
+	github.com/mochi-mqtt/server/v2 v2.4.6
 	github.com/panjf2000/ants/v2 v2.7.5
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/viper v1.13.0
@@ -67,11 +66,9 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
-	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/google/wire v0.5.0
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/kpango/fastime v1.1.4 // indirect
 	github.com/mattn/go-sqlite3 v1.14.16 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

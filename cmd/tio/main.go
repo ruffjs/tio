@@ -22,7 +22,6 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"github.com/kpango/glg"
 	"gorm.io/gorm"
 	"ruff.io/tio/config"
 	mq "ruff.io/tio/connector/mqtt"
@@ -53,23 +52,16 @@ const (
 func main() {
 	config.Version = Version
 	config.GitCommit = GitCommit
-	log.Infof("Version: %s GitCommit: %s", Version, GitCommit)
 
 	// load config
 	cfg := config.ReadConfig()
 	cfgJ, _ := json.Marshal(cfg)
-	log.Infof("Config: %s", cfgJ)
 
-	// set log level
-	if cfg.Log.Level != "" {
-		ll := glg.Atol(cfg.Log.Level)
-		if ll == glg.DEBG || ll == glg.INFO ||
-			ll == glg.WARN || ll == glg.ERR || ll == glg.FATAL {
-			glg.Get().SetLevel(ll)
-		} else {
-			log.Fatalf("Wrong log level %q", cfg.Log.Level)
-		}
-	}
+	// init logger
+	log.Init(cfg.Log)
+
+	log.Infof("Version: %s GitCommit: %s", Version, GitCommit)
+	log.Infof("Config: %s", cfgJ)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -222,7 +214,7 @@ func newDb(cfg config.Config) *gorm.DB {
 	case config.DBSqlite:
 		return newSqliteDB(cfg.DB.Sqlite)
 	default:
-		log.Fatal("Unknown database type: ", cfg.DB.Typ)
+		log.Fatalf("Unknown database type: %v", cfg.DB.Typ)
 	}
 	return nil
 }
@@ -230,7 +222,7 @@ func newDb(cfg config.Config) *gorm.DB {
 func newSqliteDB(cfg sqlite.Config) *gorm.DB {
 	db, err := sqlite.Connect(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 	return db
 }
@@ -238,7 +230,7 @@ func newSqliteDB(cfg sqlite.Config) *gorm.DB {
 func newMysqlDB(cfg mysql.Config) *gorm.DB {
 	conn, err := mysql.Connect(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 	return conn
 }
