@@ -31,6 +31,7 @@ dist/*
 .DS_Store
 
 # Web
+node_modules
 web/logs
 web/*.log
 web/npm-debug.log*
