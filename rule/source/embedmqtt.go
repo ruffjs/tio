@@ -37,7 +37,7 @@ func (m *embedMqttImpl) sub() {
 			Payload: msg.Payload,
 		}
 		if m.handler != nil {
-			go m.handler(mm)
+			m.handler(mm)
 		}
 	})
 }
