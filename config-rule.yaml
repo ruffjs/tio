@@ -1,0 +1,43 @@
+# data integration
+
+# connectors used by sources or sinks
+connectors:
+  - name: test-conn
+    type: amqp
+    options:
+      url: amqp://guest:guest@localhost:5672/
+
+# data sources
+sources:
+  - name: test-src1
+    type: embed-mqtt
+    options:
+      topic: $iothub/things/#
+      qos: 1
+  - name: test-src2
+    type: embed-mqtt
+    options:
+      topic: $iothub/user/#
+      qos: 1
+# data sinks
+sinks:
+  - name: test-sink
+    type: amqp
+    connector: test-conn
+    options:
+      exchange: test
+      routingKey: route
+
+# sources --> process(TODO: filter and transform) --> sinks
+rules:
+  - name: test-rule
+    sources:
+      - test-src1
+      - test-src2
+    # process:
+    #   - type: filter
+    #     ...
+    #   - type: transform
+    #   - ...
+    sinks:
+      - test-sink

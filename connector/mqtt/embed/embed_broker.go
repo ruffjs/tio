@@ -7,11 +7,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 
 	"ruff.io/tio/connector"
+	"ruff.io/tio/shadow"
 
 	rv8 "github.com/go-redis/redis/v8"
 	mqtt "github.com/mochi-mqtt/server/v2"
@@ -49,6 +51,9 @@ var broker *embedBroker
 
 type Broker interface {
 	Publish(topic string, payload []byte, retain bool, qos byte) error
+
+	// callback function `cb` can't be blocked because of concurrent
+	Subscribe(topic string, cb func(m Msg)) error
 	IsConnected(clientId string) bool
 	OnConnect() <-chan connector.Event
 	ClientInfo(clientId string) (connector.ClientInfo, error)
@@ -57,6 +62,13 @@ type Broker interface {
 	CloseClient(clientId string) bool
 	StatsInfo() *system.Info
 	AllClients() []Client
+}
+
+type Msg struct {
+	ThingId string
+	Topic   string
+	Created int64
+	Payload []byte
 }
 
 func BrokerInstance() Broker {
@@ -92,6 +104,27 @@ func (e *embedBroker) StatsInfo() *system.Info {
 
 func (e *embedBroker) Publish(topic string, payload []byte, retain bool, qos byte) error {
 	return e.impl.Publish(topic, payload, retain, qos)
+}
+
+func (e *embedBroker) Subscribe(topic string, cb func(m Msg)) error {
+	// TODO generate subscriptionId ?
+	// https://github.com/mochi-mqtt/server?tab=readme-ov-file#inline-subscribe
+	// Note that only QoS 0 is supported for inline subscriptions.
+	// If you wish to have multiple callbacks for the same filter,
+	// you can use the MQTTv5 subscriptionId property to differentiate.
+	subscriptionId := 1
+	return e.impl.Subscribe(topic, subscriptionId, func(cl *mqtt.Client, sub packets.Subscription, pk packets.Packet) {
+		thId, err := shadow.GetThingIdFromTopic(pk.TopicName)
+		if err != nil {
+			slog.Error("Can't get thing id from topic in embed mqtt broker subscription", "error", err)
+		}
+		cb(Msg{
+			ThingId: thId,
+			Topic:   pk.TopicName,
+			Created: pk.Created,
+			Payload: pk.Payload,
+		})
+	})
 }
 
 func (e *embedBroker) Close() error {

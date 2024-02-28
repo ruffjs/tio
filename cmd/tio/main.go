@@ -12,6 +12,7 @@ import (
 
 	"ruff.io/tio/job"
 	"ruff.io/tio/ntp"
+	"ruff.io/tio/rule"
 
 	"ruff.io/tio"
 	"ruff.io/tio/api"
@@ -98,6 +99,9 @@ func main() {
 		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc)
 		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn)
 	}
+
+	// boot data integration rule
+	rule.Boot(ctx)
 
 	// init
 	if err := connector.Start(ctx); err != nil {

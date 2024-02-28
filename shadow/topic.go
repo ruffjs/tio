@@ -88,11 +88,12 @@ func topicThingPrefixOf(thingId string) string {
 
 func GetThingIdFromTopic(topic string) (string, error) {
 	arr := strings.Split(topic, "/")
-	if len(arr) < 4 {
-		return "", errors.Errorf("topic name is invalid %s", topic)
+	l := len(arr)
+	if strings.HasPrefix(topic, TopicThingsPrefix) && l >= 3 {
+		return arr[2], nil
 	}
-	if arr[0] != "$iothub" || arr[1] != "things" {
-		return "", errors.Errorf("topic name is invalid %s", topic)
+	if strings.HasPrefix(topic, TopicUserThingsPrefix) && l >= 4 {
+		return arr[3], nil
 	}
-	return arr[2], nil
+	return "", errors.Errorf("topic name is invalid %s", topic)
 }
