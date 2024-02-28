@@ -49,7 +49,7 @@ func Service(ctx context.Context, svc job.MgrService, wsTh *restful.WebService) 
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(wsJob.PathParameter("jobId", "")).
 		Returns(200, "OK", rest.RespOK(job.Detail{})))
-	wsJob.Route(wsJob.PUT("/{jobId}").
+	wsJob.Route(wsJob.PATCH("/{jobId}").
 		To(updateJobHandler(ctx, svc)).
 		Operation("update").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
