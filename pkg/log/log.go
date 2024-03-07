@@ -21,16 +21,14 @@ var logLevel = map[string]slog.Level{
 var defaultLogger *slog.Logger
 
 func Init(c Config) {
-	defaultLogger = slog.New(slog.NewTextHandler(os.Stderr, nil))
-
-	slog.SetDefault(defaultLogger)
-
-	if l, ok := logLevel[strings.ToUpper(c.Level)]; ok {
-		slog.SetLogLoggerLevel(l)
-	} else {
+	l, ok := logLevel[strings.ToUpper(c.Level)]
+	if !ok {
 		panic("Wrong log level config: " + c.Level)
 	}
 
+	defaultLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l}))
+
+	slog.SetDefault(defaultLogger)
 }
 
 // Deprecated: use slog directly
