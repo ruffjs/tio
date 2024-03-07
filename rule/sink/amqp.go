@@ -85,12 +85,12 @@ func (a *amqpImpl) publishLoop() {
 }
 
 func (a *amqpImpl) setup() error {
-	if a.conn.Conn.IsClosed() {
+	if a.conn.Conn().IsClosed() {
 		if err := a.conn.Setup(); err != nil {
 			return err
 		}
 	}
-	ch, err := a.conn.Conn.Channel()
+	ch, err := a.conn.Conn().Channel()
 	if err != nil {
 		return err
 	}

@@ -13,18 +13,23 @@ type AmqpConfig struct {
 type Amqp struct {
 	name   string
 	config AmqpConfig
-	Conn   *amqp.Connection
+	conn   *amqp.Connection
 }
 
-// type check
-var _ Conn = &Amqp{}
-
-func NewAmqp(name string, c AmqpConfig) *Amqp {
+func NewAmqp(name string, c AmqpConfig) Conn {
 	a := &Amqp{
 		config: c,
 	}
 	a.Setup()
 	return a
+}
+
+func (a *Amqp) Conn() *amqp.Connection {
+	return a.conn
+}
+
+func (a *Amqp) Name() string {
+	return a.name
 }
 
 func (a *Amqp) Type() string {
@@ -39,6 +44,6 @@ func (a *Amqp) Setup() error {
 	} else {
 		slog.Info("Amqp connection established", "name", a.name)
 	}
-	a.Conn = conn
+	a.conn = conn
 	return nil
 }

@@ -3,6 +3,7 @@ package thing
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -174,7 +175,11 @@ func TopicAcl(superUsers []config.UserPassword, thingId string, topic string, wr
 	if strings.HasPrefix(topic, thingTopicPrefix) || strings.HasPrefix(topic, userThingTopicPrefix) {
 		return true
 	} else if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
-		log.Debugf("Mqqt subscribe deny, thingId=%q, topic=%q", thingId, topic)
+		op := "subscribe"
+		if write {
+			op = "publish"
+		}
+		slog.Debug("Mqqt acl deny", "op", op, "thingId", thingId, "topic", topic)
 		return false
 	}
 	return true

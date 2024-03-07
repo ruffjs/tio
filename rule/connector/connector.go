@@ -12,6 +12,7 @@ const (
 )
 
 type Conn interface {
+	Name() string
 	Type() string
 	Setup() error
 }
