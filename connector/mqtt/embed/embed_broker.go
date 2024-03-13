@@ -316,15 +316,15 @@ func (e *embedBroker) CloseClient(clientId string) bool {
 	return false
 }
 
-func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.Event]) func(topic string, evt connector.Event) {
-	return func(topic string, evt connector.Event) {
+func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.Event]) func(topic string, retain bool, evt connector.Event) {
+	return func(topic string, retain bool, evt connector.Event) {
 		payload, err := json.Marshal(evt)
 		if err != nil {
 			log.Errorf("Unmarshal event payload %#v: %v", evt, err)
 			return
 		}
 		evtBus.Publish(presenceEventName, evt)
-		err = e.Publish(topic, payload, true, 1)
+		err = e.Publish(topic, payload, retain, 1)
 		if err != nil {
 			log.Errorf("Publish %s event %#v error: %v", evt.EventType, evt, err)
 		} else {

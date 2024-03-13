@@ -8,8 +8,11 @@ import (
 
 // presence topic
 const (
-	// TopicPresenceTmpl = "$iothub/events/presence/{clientId}"
-	// TopicPresenceAll  = "$iothub/events/presence/+"
+	// for event
+	TopicEventPresenceTmpl = "$iothub/events/things/{thingId}/presence"
+	TopicEventPresenceAll  = "$iothub/events/things/+/presence"
+
+	// for retain message
 	TopicPresenceTmpl = "$iothub/things/{thingId}/presence"
 	TopicPresenceAll  = "$iothub/things/+/presence"
 )
@@ -90,6 +93,6 @@ func TopicPresence(thingId string) string {
 	return strings.ReplaceAll(TopicPresenceTmpl, "{thingId}", thingId)
 }
 
-func TopicAllPresence() string {
-	return strings.ReplaceAll(TopicPresenceTmpl, "{thingId}", "+")
+func TopicPresenceEvent(thingId string) string {
+	return strings.ReplaceAll(TopicEventPresenceTmpl, "{thingId}", thingId)
 }

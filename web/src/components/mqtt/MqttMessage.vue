@@ -12,7 +12,8 @@
               <span class="mqtt-message-meta-label">Topic:</span>
               <span class="mqtt-message-meta-value">{{ message.topic }}</span>
               <span class="mqtt-message-meta-label qos">QoS:</span>
-              <span class="mqtt-message-meta-value">{{ message.qos }}</span>
+              <span class="mqtt-message-meta-value retain">{{ message.qos }}</span>
+              <span v-if="message.retain" class="mqtt-message-meta-label retain">Retained</span>
             </div>
             <div class="mqtt-message-data">{{ String(message.payload) }}</div>
           </div>
@@ -175,11 +176,15 @@ onUnmounted(() => {
         overflow: hidden;
 
         .mqtt-message-meta {
-          color: #666;
+          margin-bottom: 4px;
+          color: #999;
           .mqtt-message-meta-label {
             margin-right: 6px;
             font-weight: 600;
             &.qos {
+              margin-left: 16px;
+            }
+            &.retain {
               margin-left: 16px;
             }
           }

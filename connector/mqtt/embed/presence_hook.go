@@ -3,6 +3,7 @@ package embed
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -10,12 +11,11 @@ import (
 
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
-	"ruff.io/tio/pkg/log"
 )
 
 type presenceHook struct {
 	mqtt.HookBase
-	publishEventFn func(topic string, evt connector.Event)
+	publishEventFn func(topic string, retain bool, evt connector.Event)
 	getClientFn    func(id string) (*mqtt.Client, bool)
 }
 
@@ -31,14 +31,13 @@ func (h *presenceHook) Provides(b byte) bool {
 }
 
 func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
-	log.Debugf("Mqtt OnConnect now=%d clientId=%s username=%s ip=%s, packet=%#v",
-		time.Now().UnixNano(), cl.ID, cl.Properties.Username, cl.Net.Remote, pk)
+	slog.Debug("Mqtt OnConnect", "clientId", cl.ID, "username", cl.Properties.Username, "ip", cl.Net.Remote)
 	exist, ok := h.getClientFn(cl.ID)
 	if !ok || exist.Closed() {
-		log.Debugf("Ignore OnConnect message "+
+		slog.Debug("Ignore OnConnect message "+
 			"cause client is disconnected,"+
-			" may be concurrent connect and disconnect. clientId=%q username=%q",
-			cl.ID, cl.Properties.Username)
+			" may be concurrent connect and disconnect",
+			"clientId", cl.ID, "username", cl.Properties.Username)
 		return
 	}
 	now := time.Now()
@@ -46,20 +45,22 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
 		evt := toEvent(cl, connector.EventConnected, now, "")
-		go h.publishEventFn(connector.TopicPresence(cl.ID), evt)
+		go func() {
+			h.publishEventFn(connector.TopicPresence(cl.ID), true, evt)
+			h.publishEventFn(connector.TopicPresenceEvent(cl.ID), false, evt)
+		}()
 	}
 }
 
 func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
-	log.Debugf("Mqtt OnDisconnect now=%d clientId=%s username=%s ip=%s, error=%v",
-		time.Now().UnixNano(), cl.ID, cl.Properties.Username, cl.Net.Remote, err)
+	slog.Debug("Mqtt OnDisconnect", "clientId", cl.ID, "username", cl.Properties.Username, "ip", cl.Net.Remote)
 
 	exist, ok := h.getClientFn(cl.ID)
 	if ok && !exist.Closed() {
-		log.Debugf("Ignore OnDisconnect message, "+
-			"cause client is connected, may be concurrent connect and disconnect. "+
-			"clientId=%q username=%q,"+
-			cl.ID, cl.Properties.Username)
+		slog.Debug("Ignore OnDisconnect message "+
+			"cause client is connected,"+
+			" may be concurrent connect and disconnect",
+			"clientId", cl.ID, "username", cl.Properties.Username)
 		return
 	}
 	now := time.Now()
@@ -67,7 +68,10 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	broker.updateClient(cinfo)
 	if isPublishPresent(string(cl.Properties.Username)) {
 		evt := toEvent(cl, connector.EventDisconnected, now, fmt.Sprintf("%s", err))
-		go h.publishEventFn(connector.TopicPresence(cl.ID), evt)
+		go func() {
+			h.publishEventFn(connector.TopicPresence(cl.ID), true, evt)
+			h.publishEventFn(connector.TopicPresenceEvent(cl.ID), false, evt)
+		}()
 	}
 }
 
