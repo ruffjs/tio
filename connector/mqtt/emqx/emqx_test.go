@@ -3,13 +3,15 @@ package emqx_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"ruff.io/tio/connector"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"ruff.io/tio/connector/mqtt/client"
 
@@ -73,16 +75,35 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	latestPub := struct {
+	cases := []struct {
+		thingId string
+		typ     string
+	}{
+		{"ccc1-for-conn", connector.EventConnected},
+		{"ccc2-for-conn", connector.EventDisconnected},
+		{"ccc3-for-conn", connector.EventConnected},
+	}
+
+	latestPub := []struct {
 		topic string
-		event connector.Event
+		event connector.PresenceEvent
 	}{}
 	// mock mqtt client
 	pubCallback := func(topic string, qos byte, retained bool, payload interface{}) {
+		if !strings.Contains(topic, "-for-conn/presence") {
+			// Only connection messages for this test are collected
+			return
+		}
 		log.Debugf("====PUB==== topic=%q payload=%q", topic, payload)
-		latestPub.topic = topic
-		err := json.Unmarshal(payload.([]byte), &latestPub.event)
+		e := struct {
+			topic string
+			event connector.PresenceEvent
+		}{
+			topic: topic,
+		}
+		err := json.Unmarshal(payload.([]byte), &e.event)
 		require.NoError(t, err)
+		latestPub = append(latestPub, e)
 	}
 	subCallback := func(ctx context.Context, topic string, qos byte, callback mqtt.MessageHandler) {
 		log.Debugf("====SUB==== topic=%q", topic)
@@ -100,14 +121,6 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 	close(token.DoneCh)
 	pubCall := mockMqtt.On("Publish", mock.Anything, mq.DefaultQos, mock.Anything, mock.Anything).Return(token)
 
-	cases := []struct {
-		thingId string
-		typ     string
-	}{
-		{"ccc1", connector.EventConnected},
-		{"ccc2", connector.EventDisconnected},
-		{"ccc3", connector.EventConnected},
-	}
 	for _, c := range cases {
 		log.Debugf("====== thing %v ", c.thingId)
 		var pubData []byte
@@ -119,11 +132,19 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 			mockMqtt.Publish(emqxTopicDisc(c.thingId), mq.DefaultQos, false, pubData)
 		}
 		time.Sleep(time.Millisecond * 5)
-		topic := connector.TopicPresence(c.thingId)
-		require.Equal(t, topic, latestPub.topic, "presence topic")
-		require.Equal(t, c.typ, latestPub.event.EventType, "presence type")
-		d := time.Now().UnixMilli() - latestPub.event.Timestamp
-		require.True(t, d > 0 && d < 20, "presence time")
+
+		slog.Info("====", "vv", latestPub)
+		require.Equal(t, 2, len(latestPub), "event length should be equal to 2")
+
+		topicPre := connector.TopicPresence(c.thingId)
+		topicPreEvt := connector.TopicPresenceEvent(c.thingId)
+		for _, l := range latestPub {
+			slog.Info("topic presence", "evt", l)
+			require.True(t, topicPre == l.topic || topicPreEvt == l.topic, "topic")
+			d := time.Now().UnixMilli() - l.event.Timestamp
+			require.True(t, d > 0 && d < 20, "presence time")
+		}
+		latestPub = latestPub[:0]
 	}
 
 	pubCall.Unset()

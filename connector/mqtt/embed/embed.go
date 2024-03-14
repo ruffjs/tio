@@ -27,7 +27,7 @@ func (m *embedMqttAdapter) IsConnected(thingId string) (bool, error) {
 	return BrokerInstance().IsConnected(thingId), nil
 }
 
-func (m *embedMqttAdapter) OnConnect() <-chan connector.Event {
+func (m *embedMqttAdapter) OnConnect() <-chan connector.PresenceEvent {
 	return BrokerInstance().OnConnect()
 }
 

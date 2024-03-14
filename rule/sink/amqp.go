@@ -2,6 +2,7 @@ package sink
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -85,6 +86,9 @@ func (a *amqpImpl) publishLoop() {
 }
 
 func (a *amqpImpl) setup() error {
+	if a.conn.Conn() == nil {
+		return fmt.Errorf("amqp connection not established")
+	}
 	if a.conn.Conn().IsClosed() {
 		if err := a.conn.Setup(); err != nil {
 			return err
@@ -95,5 +99,6 @@ func (a *amqpImpl) setup() error {
 		return err
 	}
 	a.channel = ch
+	slog.Info("Amqp channel inited")
 	return nil
 }

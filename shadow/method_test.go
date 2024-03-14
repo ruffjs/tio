@@ -2,6 +2,9 @@ package shadow_test
 
 import (
 	"encoding/json"
+	"testing"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/mock"
 	"ruff.io/tio/connector"
@@ -9,8 +12,6 @@ import (
 	mockmq "ruff.io/tio/connector/mqtt/mock"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/shadow"
@@ -130,8 +131,8 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 	token := &mockmq.Token{DoneCh: d}
 	for _, c := range cases {
 		mockAdapter := mockmq.NewAdapter(mockMqtt)
-		presenceCh := make(chan connector.Event)
-		var outCh <-chan connector.Event = presenceCh
+		presenceCh := make(chan connector.PresenceEvent)
+		var outCh <-chan connector.PresenceEvent = presenceCh
 		mockAdapter.On("OnConnect").Return(outCh)
 
 		reqTopic := shadow.TopicMethodRequest(c.req.ThingId, c.req.Method)
@@ -161,7 +162,7 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 			if cCopy.req.ConnTimeout > 0 && cCopy.err == nil {
 				// wait for connect
 				time.Sleep(time.Millisecond * time.Duration(cCopy.req.ConnTimeout*100))
-				presenceCh <- connector.Event{ThingId: cCopy.req.ThingId, EventType: connector.EventConnected}
+				presenceCh <- connector.PresenceEvent{ThingId: cCopy.req.ThingId, ClientId: cCopy.req.ThingId, EventType: connector.EventConnected}
 			}
 			// wait for method invoking
 			time.Sleep(time.Millisecond * time.Duration(cCopy.timeoutMs))

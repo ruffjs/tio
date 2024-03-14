@@ -3,8 +3,9 @@ package mock
 import (
 	"context"
 	"math/rand"
-	"ruff.io/tio/connector"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	mq "ruff.io/tio/connector/mqtt/client"
 
@@ -193,9 +194,9 @@ func (m *AdapterImpl) Publish(topic string, qos byte, retained bool, payload []b
 
 var _ connector.Connector = (*AdapterImpl)(nil)
 
-func (m *AdapterImpl) OnConnect() <-chan connector.Event {
+func (m *AdapterImpl) OnConnect() <-chan connector.PresenceEvent {
 	args := m.Called()
-	res := args.Get(0).(<-chan connector.Event)
+	res := args.Get(0).(<-chan connector.PresenceEvent)
 	return res
 }
 

@@ -3,9 +3,10 @@ package emqx
 import (
 	"context"
 	"encoding/json"
-	"ruff.io/tio/connector"
 	"sync"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	mq "ruff.io/tio/connector/mqtt/client"
@@ -58,7 +59,7 @@ func syncPresence(ctx context.Context, mqCl mq.Client,
 func receivePresence(ctx context.Context, mqCl mq.Client) {
 	topic := connector.TopicPresenceAll
 	err := mqCl.Subscribe(ctx, connector.TopicPresenceAll, 1, func(c mqtt.Client, m mqtt.Message) {
-		var e connector.Event
+		var e connector.PresenceEvent
 		// log.Debugf("Got presence event: %s %s", m.Topic(), m.Payload())
 		err := json.Unmarshal(m.Payload(), &e)
 		if err != nil {
@@ -78,7 +79,7 @@ func receivePresence(ctx context.Context, mqCl mq.Client) {
 	}
 }
 
-func (s *presenceSyncImpl) updateLocalPresence(id string, e connector.Event) {
+func (s *presenceSyncImpl) updateLocalPresence(id string, e connector.PresenceEvent) {
 	s.RLock()
 	defer s.RUnlock()
 	if old, ok := s.presenceEvents[id]; ok {
@@ -110,11 +111,11 @@ func (s *presenceSyncImpl) diffAndPub(
 	getClient func(id string) (client, bool),
 	mqCl mq.Client) {
 	for thingId, c := range s.presenceEvents {
-		var e connector.Event
+		var e connector.PresenceEvent
 		if c.connected {
-			e = connector.Event{EventType: connector.EventConnected, Timestamp: c.connectedAt}
+			e = connector.PresenceEvent{EventType: connector.EventConnected, Timestamp: c.connectedAt}
 		} else {
-			e = connector.Event{EventType: connector.EventDisconnected, Timestamp: c.disconnectedAt}
+			e = connector.PresenceEvent{EventType: connector.EventDisconnected, Timestamp: c.disconnectedAt}
 		}
 		s.diffAndPubForThing(ctx, startTime, thingId, e, getClient, mqCl)
 	}
@@ -124,29 +125,31 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 	ctx context.Context,
 	startTime time.Time,
 	thingId string,
-	retainedEvent connector.Event,
+	retainedEvent connector.PresenceEvent,
 	getClient func(id string) (client, bool),
 	mqCl mq.Client,
 ) {
 	if n, ok := getClient(thingId); ok {
 		// time and connect state diff
 		if n.info.Connected && n.info.ConnectedAt.UnixMilli() > retainedEvent.Timestamp {
-			evt := connector.Event{
+			evt := connector.PresenceEvent{
 				EventType:  connector.EventConnected,
 				Timestamp:  n.info.ConnectedAt.UnixMilli(),
 				ThingId:    n.info.Username,
+				ClientId:   n.info.ClientId,
 				RemoteAddr: n.info.IpAddress,
 			}
-			notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
+			notifyEvent(ctx, mqCl, thingId, evt)
 			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
 		} else if !n.info.Connected && n.info.DisconnectedAt.UnixMilli() > retainedEvent.Timestamp {
-			evt := connector.Event{
+			evt := connector.PresenceEvent{
 				EventType:  connector.EventDisconnected,
 				Timestamp:  n.info.DisconnectedAt.UnixMilli(),
 				ThingId:    n.info.Username,
+				ClientId:   n.info.ClientId,
 				RemoteAddr: n.info.IpAddress,
 			}
-			notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
+			notifyEvent(ctx, mqCl, thingId, evt)
 			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
 		}
 	} else {
@@ -156,16 +159,17 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 		}
 
 		// no client connected now means that the client has been disconnected at some time before
-		evt := connector.Event{
+		evt := connector.PresenceEvent{
 			EventType:        connector.EventDisconnected,
 			Timestamp:        startTime.UnixMilli(),
 			ThingId:          thingId,
+			ClientId:         n.info.ClientId,
 			DisconnectReason: "disconnected during tio downtime",
 		}
 		log.Debugf(
 			"Sync presence: to publish thing %q disconnected: %#v, it is disconnected when server is down",
 			thingId, evt)
-		notifyEvent(ctx, mqCl, thingId, connector.TopicPresence(thingId), evt)
+		notifyEvent(ctx, mqCl, thingId, evt)
 	}
 }
 
@@ -183,24 +187,26 @@ func (s *presenceSyncImpl) pubNewEvents(
 			}
 			// get it again because it may have been updated.
 			if n, ok := getClient(c.info.ClientId); ok {
-				var evt connector.Event
+				var evt connector.PresenceEvent
 				if n.info.Connected {
-					evt = connector.Event{
+					evt = connector.PresenceEvent{
 						EventType:  connector.EventConnected,
 						Timestamp:  n.info.ConnectedAt.UnixMilli(),
 						ThingId:    n.info.Username,
+						ClientId:   n.info.ClientId,
 						RemoteAddr: n.info.IpAddress,
 					}
 				} else {
-					evt = connector.Event{
+					evt = connector.PresenceEvent{
 						EventType:  connector.EventDisconnected,
 						Timestamp:  n.info.DisconnectedAt.UnixMilli(),
 						ThingId:    n.info.Username,
+						ClientId:   n.info.ClientId,
 						RemoteAddr: n.info.IpAddress,
 					}
 				}
 				log.Debugf("Sync presence: to publish thing %q new event: %#v", c.info.ClientId, evt)
-				notifyEvent(ctx, mqCl, c.info.ClientId, connector.TopicPresence(c.info.ClientId), evt)
+				notifyEvent(ctx, mqCl, c.info.ClientId, evt)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+
 	"ruff.io/tio/connector"
 	"ruff.io/tio/shadow"
 
@@ -22,7 +23,7 @@ func NewConnectivity() *Connectivity {
 	return &Connectivity{}
 }
 
-func (g *Connectivity) OnConnect() <-chan connector.Event {
+func (g *Connectivity) OnConnect() <-chan connector.PresenceEvent {
 	panic("implement me")
 }
 

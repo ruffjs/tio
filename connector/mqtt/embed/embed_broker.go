@@ -55,7 +55,7 @@ type Broker interface {
 	// callback function `cb` can't be blocked because of concurrent
 	Subscribe(topic string, cb func(m Msg)) error
 	IsConnected(clientId string) bool
-	OnConnect() <-chan connector.Event
+	OnConnect() <-chan connector.PresenceEvent
 	ClientInfo(clientId string) (connector.ClientInfo, error)
 	AllClientInfo() ([]connector.ClientInfo, error)
 	Close() error
@@ -78,7 +78,7 @@ func BrokerInstance() Broker {
 func InitBroker(c MochiConfig) Broker {
 	newOnce.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		evtBus := eventbus.NewEventBus[connector.Event]()
+		evtBus := eventbus.NewEventBus[connector.PresenceEvent]()
 		s := initBroker(ctx, c, evtBus)
 		broker = &embedBroker{
 			impl:             s,
@@ -92,7 +92,7 @@ func InitBroker(c MochiConfig) Broker {
 type embedBroker struct {
 	impl             *mqtt.Server
 	clients          sync.Map // map[string]shadow.ClientInfo
-	presenceEventBus *eventbus.EventBus[connector.Event]
+	presenceEventBus *eventbus.EventBus[connector.PresenceEvent]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -141,7 +141,7 @@ func (e *embedBroker) IsConnected(clientId string) bool {
 	return false
 }
 
-func (e *embedBroker) OnConnect() <-chan connector.Event {
+func (e *embedBroker) OnConnect() <-chan connector.PresenceEvent {
 	return e.presenceEventBus.Subscribe(presenceEventName)
 }
 
@@ -162,7 +162,7 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 	return clients, nil
 }
 
-func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.Event]) *mqtt.Server {
+func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) *mqtt.Server {
 	svr := mqtt.New(&mqtt.Options{
 		InlineClient: true,
 	})
@@ -316,8 +316,8 @@ func (e *embedBroker) CloseClient(clientId string) bool {
 	return false
 }
 
-func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.Event]) func(topic string, retain bool, evt connector.Event) {
-	return func(topic string, retain bool, evt connector.Event) {
+func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.PresenceEvent]) func(topic string, retain bool, evt connector.PresenceEvent) {
+	return func(topic string, retain bool, evt connector.PresenceEvent) {
 		payload, err := json.Marshal(evt)
 		if err != nil {
 			log.Errorf("Unmarshal event payload %#v: %v", evt, err)

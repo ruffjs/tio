@@ -43,7 +43,7 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 	require.NoError(t, err)
 
 	err = monCl.Subscribe(ctx, connector.TopicPresence("+"), 0, func(c mqtt.Client, m mqtt.Message) {
-		var evt connector.Event
+		var evt connector.PresenceEvent
 		err := json.Unmarshal(m.Payload(), &evt)
 		require.NoError(t, err, "should unmarshal event")
 		thingId, err := shadow.GetThingIdFromTopic(m.Topic())
@@ -62,7 +62,7 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 		clId := c
 		go func() {
 			// client connect and disconnect
-			cl := client.NewClient(config.MqttClientConfig{ClientId: clId, Port: port, Host: host})
+			cl := client.NewClient(config.MqttClientConfig{ClientId: clId, User: clId, Port: port, Host: host})
 			err = cl.Connect(ctx)
 			require.NoError(t, err)
 			// wait connect event handle done

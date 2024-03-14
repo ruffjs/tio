@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/sink"
 )
@@ -24,7 +25,9 @@ func TestAmqp(t *testing.T) {
 		Url: "amqp://guest:guest@localhost:5672/",
 	}
 	conn := connector.NewAmqp("test", *connCfg)
-	c := sink.NewAmqp("test", *cfg, conn)
+	con, ok := conn.(*connector.Amqp)
+	require.True(t, ok)
+	c := sink.NewAmqp("test", *cfg, con)
 	c.Publish(sink.Msg{
 		ThingId: "thing",
 		Payload: []byte(`{"a": 1}`),

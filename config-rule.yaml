@@ -17,7 +17,7 @@ sources:
   - name: test-src2
     type: embed-mqtt
     options:
-      topic: $iothub/user/#
+      topic: $iothub/user/things/+/property
       qos: 1
 # data sinks
 sinks:
@@ -25,8 +25,8 @@ sinks:
     type: amqp
     connector: test-conn
     options:
-      exchange: test
-      routingKey: route
+      exchange: dev-tio
+      routingKey: 
 
 # sources --> process(TODO: filter and transform) --> sinks
 rules:

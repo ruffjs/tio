@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"ruff.io/tio/connector"
+	"log/slog"
 	"sync"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	mq "ruff.io/tio/connector/mqtt/client"
 
@@ -93,7 +95,7 @@ type emqxAdapter struct {
 	mqttClient       mq.Client
 	apiToken         string
 	clients          sync.Map // map[string]client
-	presenceEventBus *eventbus.EventBus[connector.Event]
+	presenceEventBus *eventbus.EventBus[connector.PresenceEvent]
 }
 
 var _ connector.Connectivity = (*emqxAdapter)(nil)
@@ -102,7 +104,7 @@ func NewEmqxAdapter(cfg config.EmqxAdapterConfig, mqCl mq.Client) connector.Conn
 	return &emqxAdapter{
 		config:           cfg,
 		mqttClient:       mqCl,
-		presenceEventBus: eventbus.NewEventBus[connector.Event](),
+		presenceEventBus: eventbus.NewEventBus[connector.PresenceEvent](),
 	}
 }
 
@@ -133,7 +135,7 @@ func (e *emqxAdapter) IsConnected(thingId string) (bool, error) {
 	return info.Connected, nil
 }
 
-func (e *emqxAdapter) OnConnect() <-chan connector.Event {
+func (e *emqxAdapter) OnConnect() <-chan connector.PresenceEvent {
 	return e.presenceEventBus.Subscribe(presenceEventName)
 }
 
@@ -264,7 +266,7 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 			})
 			evt := toConnectEvent(d)
 			e.presenceEventBus.Publish(presenceEventName, evt)
-			notifyEvent(ctx, e.mqttClient, d.ClientId, connector.TopicPresence(d.ClientId), evt)
+			notifyEvent(ctx, e.mqttClient, d.Username, evt)
 		}()
 	})
 	if err != nil {
@@ -296,7 +298,7 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 			})
 			evt := toDisconnectEvent(d)
 			e.presenceEventBus.Publish(presenceEventName, evt)
-			notifyEvent(ctx, e.mqttClient, d.ClientId, connector.TopicPresence(d.ClientId), evt)
+			notifyEvent(ctx, e.mqttClient, d.Username, evt)
 		}()
 	})
 	if err != nil {
@@ -305,27 +307,37 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 	return nil
 }
 
-func notifyEvent(ctx context.Context, mqCl mq.Client, clientId, topic string, evt connector.Event) {
-	if mq.IsSysClient(clientId) {
-		log.Debugf("Ignored system mqtt client event %q", clientId)
+func notifyEvent(ctx context.Context, mqCl mq.Client, username string, evt connector.PresenceEvent) {
+	if mq.IsSysClient(username) {
+		slog.Debug("Ignored system mqtt client presence event", "username", username)
 		return
 	}
 	payload, err := json.Marshal(evt)
 	if err != nil {
-		log.Errorf("Unmarshal event payload %#v: %v", evt, err)
+		slog.Error("Unmarshal event payload", "event", evt, "error", err)
 		return
 	}
 	// if ctx.Err() != nil {
 	// 	log.Warnf("Broker closed before notify")
 	// 	return
 	// }
+
+	topic := connector.TopicPresence(username)
 	tk := mqCl.Publish(topic, 1, true, payload)
 	tk.Wait()
 	if tk.Error() != nil {
-		log.Errorf("Publish %s event, topic=%q event=%#v error: %v",
-			evt.EventType, topic, evt, tk.Error())
+		slog.Error("Publish presence retain", "eventType", evt.EventType, "topic", topic, "event", evt, "error", tk.Error())
 	} else {
-		log.Infof("Published %s event, topic=%q event=%#v", evt.EventType, topic, evt)
+		slog.Info("Published presence retain", "eventType", evt.EventType, "topic", topic, "event", evt)
+	}
+
+	topic = connector.TopicPresenceEvent(username)
+	tk = mqCl.Publish(topic, 1, false, payload)
+	tk.Wait()
+	if tk.Error() != nil {
+		slog.Error("Publish presence event", "eventType", evt.EventType, "topic", topic, "event", evt, "error", tk.Error())
+	} else {
+		slog.Info("Published presence event", "eventType", evt.EventType, "topic", topic, "event", evt)
 	}
 }
 
@@ -334,21 +346,23 @@ func genAuthToken(user, password string) string {
 	return "Basic " + tk
 }
 
-func toConnectEvent(d MqttConnectedEvent) connector.Event {
-	evt := connector.Event{
+func toConnectEvent(d MqttConnectedEvent) connector.PresenceEvent {
+	evt := connector.PresenceEvent{
 		EventType:  connector.EventConnected,
 		Timestamp:  d.ConnectedAt,
 		ThingId:    d.Username,
+		ClientId:   d.ClientId,
 		RemoteAddr: d.IpAddress,
 	}
 	return evt
 }
 
-func toDisconnectEvent(d MqttDisconnectedEvent) connector.Event {
-	evt := connector.Event{
+func toDisconnectEvent(d MqttDisconnectedEvent) connector.PresenceEvent {
+	evt := connector.PresenceEvent{
 		EventType:        connector.EventDisconnected,
 		Timestamp:        d.DisconnectedAt,
 		ThingId:          d.Username,
+		ClientId:         d.ClientId,
 		RemoteAddr:       d.IpAddress,
 		DisconnectReason: d.Reason,
 	}

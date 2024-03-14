@@ -32,7 +32,7 @@ func prepare(t *testing.T, mockJc bool) (
 	mkMethod *test.MethodHandler,
 	sdSetter *sdMock.StateDesiredSetter,
 	conn *mqMock.AdapterImpl,
-	onConnCh chan connector.Event,
+	onConnCh chan connector.PresenceEvent,
 ) {
 	ctx = context.Background()
 	db := dbMock.NewSqliteConnTest()
@@ -44,8 +44,8 @@ func prepare(t *testing.T, mockJc bool) (
 	mockMqtt := mqMock.NewMqttClient("", nil, nil)
 	c := mqMock.NewAdapter(mockMqtt)
 	conn = &c
-	onConnCh = make(chan connector.Event)
-	var outCh <-chan connector.Event = onConnCh
+	onConnCh = make(chan connector.PresenceEvent)
+	var outCh <-chan connector.PresenceEvent = onConnCh
 	conn.On("OnConnect").Return(outCh)
 
 	repo = job.NewRepo(db)
@@ -192,7 +192,7 @@ func Test_jobCenter_sysOperation(t *testing.T) {
 				connCall.Unset()
 				connCall = conn.On("IsConnected", mock.Anything).Return(true, nil)
 				for _, th := range createReq.TargetConfig.Things {
-					onConnCh <- connector.Event{ThingId: th, EventType: connector.EventConnected}
+					onConnCh <- connector.PresenceEvent{ThingId: th, ClientId: th, EventType: connector.EventConnected}
 				}
 				// wait task to be completed
 				time.Sleep(time.Millisecond * 60)

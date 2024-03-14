@@ -76,15 +76,16 @@ type Connectivity interface {
 
 type ConnectChecker interface {
 	IsConnected(thingId string) (bool, error)
-	OnConnect() <-chan Event
+	OnConnect() <-chan PresenceEvent
 	ClientInfo(thingId string) (ClientInfo, error)
 	AllClientInfo() ([]ClientInfo, error)
 }
 
-type Event struct {
+type PresenceEvent struct {
 	Timestamp        int64  `json:"timestamp"`
 	EventType        string `json:"eventType"`
 	ThingId          string `json:"thingId"`
+	ClientId         string `json:"clientId"`
 	RemoteAddr       string `json:"remoteAddr"`
 	DisconnectReason string `json:"disconnectReason,omitempty"`
 }

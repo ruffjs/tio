@@ -512,7 +512,7 @@ func DeepCopyMap(src map[string]any) map[string]any {
 	return tgt
 }
 
-func toClientInfo(e connector.Event) connector.ClientInfo {
+func toClientInfo(e connector.PresenceEvent) connector.ClientInfo {
 	conn := false
 	if e.EventType == connector.EventConnected {
 		conn = true

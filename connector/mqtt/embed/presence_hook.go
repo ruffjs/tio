@@ -15,7 +15,7 @@ import (
 
 type presenceHook struct {
 	mqtt.HookBase
-	publishEventFn func(topic string, retain bool, evt connector.Event)
+	publishEventFn func(topic string, retain bool, evt connector.PresenceEvent)
 	getClientFn    func(id string) (*mqtt.Client, bool)
 }
 
@@ -31,36 +31,38 @@ func (h *presenceHook) Provides(b byte) bool {
 }
 
 func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
-	slog.Debug("Mqtt OnConnect", "clientId", cl.ID, "username", cl.Properties.Username, "ip", cl.Net.Remote)
+	username := string(cl.Properties.Username)
+	slog.Debug("Mqtt OnConnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote)
 	exist, ok := h.getClientFn(cl.ID)
 	if !ok || exist.Closed() {
 		slog.Debug("Ignore OnConnect message "+
 			"cause client is disconnected,"+
 			" may be concurrent connect and disconnect",
-			"clientId", cl.ID, "username", cl.Properties.Username)
+			"clientId", cl.ID, "username", username)
 		return
 	}
 	now := time.Now()
 	cinfo := toClientInfo(cl, true, &now, nil, nil)
 	broker.updateClient(cinfo)
-	if isPublishPresent(string(cl.Properties.Username)) {
+	if isPublishPresent(username) {
 		evt := toEvent(cl, connector.EventConnected, now, "")
 		go func() {
-			h.publishEventFn(connector.TopicPresence(cl.ID), true, evt)
-			h.publishEventFn(connector.TopicPresenceEvent(cl.ID), false, evt)
+			h.publishEventFn(connector.TopicPresence(username), true, evt)
+			h.publishEventFn(connector.TopicPresenceEvent(username), false, evt)
 		}()
 	}
 }
 
 func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
-	slog.Debug("Mqtt OnDisconnect", "clientId", cl.ID, "username", cl.Properties.Username, "ip", cl.Net.Remote)
+	username := string(cl.Properties.Username)
+	slog.Debug("Mqtt OnDisconnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote)
 
 	exist, ok := h.getClientFn(cl.ID)
 	if ok && !exist.Closed() {
 		slog.Debug("Ignore OnDisconnect message "+
 			"cause client is connected,"+
 			" may be concurrent connect and disconnect",
-			"clientId", cl.ID, "username", cl.Properties.Username)
+			"clientId", cl.ID, "username", username)
 		return
 	}
 	now := time.Now()
@@ -69,8 +71,8 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	if isPublishPresent(string(cl.Properties.Username)) {
 		evt := toEvent(cl, connector.EventDisconnected, now, fmt.Sprintf("%s", err))
 		go func() {
-			h.publishEventFn(connector.TopicPresence(cl.ID), true, evt)
-			h.publishEventFn(connector.TopicPresenceEvent(cl.ID), false, evt)
+			h.publishEventFn(connector.TopicPresence(username), true, evt)
+			h.publishEventFn(connector.TopicPresenceEvent(username), false, evt)
 		}()
 	}
 }
@@ -98,12 +100,13 @@ func toClientInfo(cl *mqtt.Client, connected bool,
 	return res
 }
 
-func toEvent(cl *mqtt.Client, typ string, t time.Time, err string) connector.Event {
-	return connector.Event{
+func toEvent(cl *mqtt.Client, typ string, t time.Time, err string) connector.PresenceEvent {
+	return connector.PresenceEvent{
 		EventType:        typ,
 		Timestamp:        t.UnixMilli(),
 		RemoteAddr:       cl.Net.Remote,
 		ThingId:          string(cl.Properties.Username),
+		ClientId:         cl.ID,
 		DisconnectReason: err,
 	}
 }
