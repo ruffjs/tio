@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/viper"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
 )
@@ -76,7 +77,20 @@ func initRule(ctx context.Context, rc RuleConfig) {
 			os.Exit(1)
 		}
 	}
-	r := NewRule(ctx, rc.Name, srcs, sks)
+	plist := make([]process.Process, 0)
+	for _, cfg := range rc.Process {
+		p, err := process.NewProcess(process.Config{
+			Name: cfg.Name,
+			Type: cfg.Type,
+			Jq:   cfg.Jq,
+		})
+		if err != nil {
+			slog.Error("Rule init process failed", "rule", rc.Name, "process", cfg.Name, "error", err)
+			os.Exit(1)
+		}
+		plist = append(plist, p)
+	}
+	r := NewRule(ctx, rc.Name, srcs, plist, sks)
 	if _, ok := rules[rc.Name]; ok {
 		slog.Error("Rule name duplicated", "name", rc.Name)
 		os.Exit(1)

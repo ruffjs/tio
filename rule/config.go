@@ -17,7 +17,14 @@ type Config struct {
 type RuleConfig struct {
 	Name    string
 	Sources []string
+	Process []Process
 	Sinks   []string
+}
+
+type Process struct {
+	Name string
+	Type string
+	Jq   string
 }
 
 type AmqpSinkOption struct {

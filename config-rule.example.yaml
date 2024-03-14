@@ -2,42 +2,56 @@
 
 # connectors used by sources or sinks
 connectors:
-  - name: test-conn
+  - name: conn1
     type: amqp
     options:
       url: amqp://guest:guest@localhost:5672/
 
 # data sources
 sources:
-  - name: test-src1
+  - name: src1
     type: embed-mqtt
     options:
-      topic: $iothub/things/#
+      topic: $iothub/things/+/presence
       qos: 1
-  - name: test-src2
+  - name: src2
     type: embed-mqtt
     options:
-      topic: $iothub/user/#
+      topic: $iothub/user/things/+/property
       qos: 1
 # data sinks
 sinks:
-  - name: test-sink
+  - name: sink1
     type: amqp
-    connector: test-conn
+    connector: conn1
     options:
-      exchange: test
-      routingKey: route
+      exchange: exch1
+      routingKey: 
 
-# sources --> process(TODO: filter and transform) --> sinks
+# Sources --> Process(filter and transform chain) --> Sinks
+# Only json messages are supported
+#
+# processing message using gojq https://github.com/itchyny/gojq
+#
+# Message format :
+# {
+#   "thingId": "thignId",
+#   "topic": "message/mqtt/topic"
+#   "payload": {
+#     "a": "a value of message payload"
+#   } 
+# }
 rules:
   - name: test-rule
     sources:
-      - test-src1
-      - test-src2
-    # process:
-    #   - type: filter
-    #     ...
-    #   - type: transform
-    #   - ...
+      - src1
+      - src2
+    process:
+      - type: filter
+        name: keep-bigger-than-10
+        jq: ".payload.data.a > 10"  # should return true of false result
+      - type: transform
+        name: to-field-x
+        jq: "{ X: .payload.data.a }" # result like: {"X": 11}
     sinks:
-      - test-sink
+      - sink1
