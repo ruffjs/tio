@@ -164,7 +164,8 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 
 func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) *mqtt.Server {
 	svr := mqtt.New(&mqtt.Options{
-		InlineClient: true,
+		InlineClient:           true,
+		SysTopicResendInterval: 5,
 	})
 
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
@@ -255,13 +256,11 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		log.Fatalf("Add mqtt broker websocket listener failed: %v", err)
 	}
 
-	go func() {
-		err = svr.Serve()
-		if err != nil {
-			log.Fatalf("Start embedded mqtt broker failed: %v", err)
-		}
-		log.Infof("Started embedded mqtt broker, listening on %s", addr)
-	}()
+	err = svr.Serve()
+	if err != nil {
+		log.Fatalf("Start embedded mqtt broker failed: %v", err)
+	}
+	log.Infof("Started embedded mqtt broker, listening on %s", addr)
 
 	return svr
 }
