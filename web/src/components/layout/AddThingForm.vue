@@ -16,14 +16,14 @@
         <el-input
           v-model="form.thingId"
           autocomplete="off"
-          placeholder="Please input thing id"
+          placeholder="it can contain number,letter, - and _"
         />
       </el-form-item>
       <el-form-item label="Password" prop="password" :label-width="formLabelWidth">
         <el-input
           v-model="form.password"
           type="password"
-          placeholder="Please input password"
+          placeholder="input or it will be automatically generated"
           show-password
           autocomplete="off"
         />
@@ -45,7 +45,7 @@ import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 const formLabelWidth = "100px";
 const rules = {
   thingId: [
-    { required: true, message: "Please input Thing Id", trigger: "change" },
+    { required: true, message: "Please input Thing Id, which can contain number,letter, -, _ ", trigger: "change" },
     // { min: 1, max: 30, message: "Length should be 1 to 30", trigger: "change", },
     {
       validator: (_rule: any, value: any, callback: any) => {
@@ -61,7 +61,7 @@ const rules = {
   ],
   password: [
     {
-      required: true,
+      required: false,
       message: "Please input password",
       trigger: "change",
     },
