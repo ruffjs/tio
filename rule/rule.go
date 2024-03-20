@@ -114,6 +114,7 @@ func (r *ruleImpl) process(msg source.Msg) (output *[]byte, next bool) {
 	next = false
 
 	if len(r.processors) == 0 {
+		next = true
 		return
 	}
 
