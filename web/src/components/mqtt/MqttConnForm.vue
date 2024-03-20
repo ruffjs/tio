@@ -633,7 +633,7 @@ const emptyToNull = (data) => {
 let testClient = null;
 const onSuccess = () => {
   connecting.value = false;
-  testClient?.end(true);
+  testClient?.end();
   ElNotification({
     title: "Connected",
     message: `Test client <${form.name}> connected`,
@@ -642,7 +642,7 @@ const onSuccess = () => {
 };
 const onFailed = (error) => {
   connecting.value = false;
-  testClient?.end(true, (err) => {
+  testClient?.end(false, (err) => {
     if (err) {
     } else {
       const message = error?.toString() ? error.toString() : `Cconnect failed`;
@@ -657,7 +657,7 @@ const onFailed = (error) => {
 const onClose = () => {
   console.log("test client close");
   connecting.value = false;
-  testClient?.end(true);
+  testClient?.end(false);
 };
 const onEnd = () => {
   console.log("test client end");

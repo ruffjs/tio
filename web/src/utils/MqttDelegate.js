@@ -114,7 +114,7 @@ class MqttDelegate {
   }
   disconnect(cb) {
     if (this.client?.end) {
-      this.client.end(true, (err) => {
+      this.client.end((err) => {
         if (err) {
           console.error("error", err);
           cb && cb(err);
