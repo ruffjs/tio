@@ -214,7 +214,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	}
 
 	addr := fmt.Sprintf(":%d", cfg.TcpPort)
-	tcp := listeners.NewTCP("tio-tcp", addr, nil)
+	tcp := listeners.NewTCP(listeners.Config{ID: "tio-tcp", Type: "tcp", Address: addr})
 	err = svr.AddListener(tcp)
 	if err != nil {
 		log.Fatalf("Start mqtt server add tcp listener failed: %v", err)
@@ -224,8 +224,12 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	if cfg.TcpSslPort > 0 && cfg.KeyFile != "" && cfg.CertFile != "" {
 		cert = readCert(cfg.KeyFile, cfg.CertFile)
 		addr = fmt.Sprintf(":%d", cfg.TcpSslPort)
-		tcpSsl := listeners.NewTCP("tio-tcp-ssl", addr,
-			&listeners.Config{TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}}})
+		tcpSsl := listeners.NewTCP(listeners.Config{
+			ID:        "tio-tcp-ssl",
+			Type:      "tcp",
+			Address:   addr,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+		})
 		err = svr.AddListener(tcpSsl)
 		if err != nil {
 			log.Fatalf("Start mqtt server add ssl listener failed: %v", err)
@@ -239,8 +243,12 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			cert = readCert(cfg.KeyFile, cfg.CertFile)
 		}
 		addr = fmt.Sprintf(":%d", cfg.WssPort)
-		wss := listeners.NewWebsocket("tio-wss", addr,
-			&listeners.Config{TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}}})
+		wss := listeners.NewTCP(listeners.Config{
+			ID:        "tio-wss",
+			Type:      "ws",
+			Address:   addr,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+		})
 		err = svr.AddListener(wss)
 		if err != nil {
 			log.Fatalf("Start mqtt server add wss listener failed: %v", err)
@@ -250,7 +258,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	}
 
 	wsAddr := fmt.Sprintf(":%d", cfg.WsPort)
-	ws := listeners.NewWebsocket("tio-ws", wsAddr, nil)
+	ws := listeners.NewWebsocket(listeners.Config{ID: "tio-ws", Type: "ws", Address: wsAddr})
 	err = svr.AddListener(ws)
 	if err != nil {
 		log.Fatalf("Add mqtt broker websocket listener failed: %v", err)
