@@ -84,7 +84,15 @@ func InitBroker(c MochiConfig) Broker {
 			impl:             s,
 			presenceEventBus: evtBus,
 			ctx:              ctx,
-			cancel:           cancel}
+			cancel:           cancel,
+		}
+
+		// start
+		err := s.Serve()
+		if err != nil {
+			log.Fatalf("Start embedded mqtt broker failed: %v", err)
+		}
+
 	})
 	return broker
 }
@@ -263,12 +271,6 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	if err != nil {
 		log.Fatalf("Add mqtt broker websocket listener failed: %v", err)
 	}
-
-	err = svr.Serve()
-	if err != nil {
-		log.Fatalf("Start embedded mqtt broker failed: %v", err)
-	}
-	log.Infof("Started embedded mqtt broker, listening on %s", addr)
 
 	return svr
 }
