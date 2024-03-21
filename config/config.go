@@ -38,47 +38,51 @@ const (
 )
 
 type UserPassword struct {
-	Name     string
-	Password string
+	Name     string `json:"name"`
+	Password string `json:"-"`
 }
 
 type Redis struct {
-	Addr      string
-	Password  string
-	DB        int
-	KeyPrefix string
+	Addr      string `json:"redis"`
+	Password  string `json:"-"`
+	DB        int    `json:"db"`
+	KeyPrefix string `json:"keyPrefix"`
 }
 
 type InnerMqttStorage struct {
-	Type     string
-	FilePath string
-	Redis    Redis
+	Type     string `json:"type"`
+	FilePath string `json:"filePath"`
+	Redis    Redis  `json:"redis"`
 }
 
 type InnerMqttBroker struct {
-	TcpPort    int
-	TcpSslPort int
-	WsPort     int
-	WssPort    int
-	CertFile   string
-	KeyFile    string
-	Storage    InnerMqttStorage
-	SuperUsers []UserPassword
+	TcpPort          int              `json:"tcpPort"`
+	TcpSslPort       int              `json:"tcpSslPort"`
+	WsPort           int              `json:"wsPort"`
+	WssPort          int              `json:"wssPort"`
+	PublicTcpPort    *int             `json:"publicTcpPort"`
+	PublicTcpSslPort *int             `json:"publicTcpSslPort"`
+	PublicWsPort     *int             `json:"publicWsPort"`
+	PublicWssPort    *int             `json:"publicWssPort"`
+	CertFile         string           `json:"-"`
+	KeyFile          string           `json:"-"`
+	Storage          InnerMqttStorage `json:"storage"`
+	SuperUsers       []UserPassword   `json:"superUsers"`
 }
 
 type Config struct {
-	Log log.Config
+	Log log.Config `json:"log"`
 	API struct {
-		Port      int
-		Cors      bool
-		BasicAuth UserPassword
-	}
+		Port      int          `json:"port"`
+		Cors      bool         `json:"cors"`
+		BasicAuth UserPassword `json:"basicAuth"`
+	} `json:"api"`
 	DB struct {
-		Typ    string `mapstructure:"type"`
-		Mysql  mysql.Config
-		Sqlite sqlite.Config
-	}
-	Connector Connector
+		Typ    string        `json:"type" mapstructure:"type"`
+		Mysql  mysql.Config  `json:"mysql"`
+		Sqlite sqlite.Config `json:"sqlite"`
+	} `json:"db"`
+	Connector Connector `json:"connector"`
 }
 
 func ReadConfig() Config {
@@ -106,10 +110,10 @@ func ReadConfig() Config {
 }
 
 type Connector struct {
-	Typ        string `mapstructure:"type"`
-	MqttClient MqttClientConfig
-	MqttBroker InnerMqttBroker
-	Emqx       EmqxAdapterConfig
+	Typ        string            `json:"type" mapstructure:"type"`
+	MqttClient MqttClientConfig  `json:"mqttClient"`
+	MqttBroker InnerMqttBroker   `json:"mqttBroker"`
+	Emqx       EmqxAdapterConfig `json:"emqx"`
 }
 
 type MqttClientConfig struct {
@@ -117,14 +121,14 @@ type MqttClientConfig struct {
 	Host         string `json:"host"`
 	Port         int    `json:"port"`
 	User         string `json:"user"`
-	Password     string `json:"password"`
+	Password     string `json:"-"`
 	WillTopic    string `json:"WillTopic"`
 	WillPayload  string `json:"willPayload"`
 	CleanSession *bool  `json:"cleanSession"`
 }
 
 type EmqxAdapterConfig struct {
-	ApiPrefix   string // like http://localhost:18083
-	ApiUser     string
-	ApiPassword string
+	ApiPrefix   string `json:"apiPrefix"` // like http://localhost:18083
+	ApiUser     string `json:"apiUser"`
+	ApiPassword string `json:"-"`
 }

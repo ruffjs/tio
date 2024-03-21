@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	Level string
+	Level string `json:"level,omitempty"`
 }
 
 var logLevel = map[string]slog.Level{

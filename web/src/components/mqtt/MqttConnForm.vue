@@ -545,8 +545,8 @@
 
 <script setup>
 import { reactive, ref, watch, nextTick, computed } from "vue";
-// import { useStore } from "vuex";
-import { createClient, getDefaultForm } from "@/utils/mqtt";
+import { useStore } from "vuex";
+import { createClient, getDefaultForm, getDefaultMqttPort } from "@/utils/mqtt";
 import { Warning, RefreshRight } from "@element-plus/icons-vue";
 
 import dayjs from "dayjs";
@@ -556,6 +556,8 @@ import useMqtt from "@/reactives/useMqtt";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import useLayout from "@/reactives/useLayout";
 import { genClientIdSuffix } from "@/utils/generators";
+
+const store = useStore();
 
 let oldName = "";
 let connectedToken = "";
@@ -773,7 +775,7 @@ watch(isConnFormVisible, async () => {
     if (thing) {
       connectedToken = connectedCbT.value;
       form.userrole = "thing";
-      form.name = `Client For ${createThingId.value} (default)`;
+      form.name = `${createThingId.value} (default)`;
       form.username = createThingId.value;
       form.clientId = createThingId.value;
       form.password = thing.authValue;
@@ -782,6 +784,7 @@ watch(isConnFormVisible, async () => {
   } else {
     Object.assign(form, getDefaultForm());
   }
+  form.port = getDefaultMqttPort(store.state.app.tioConfig);
 });
 
 const resetClientID = () => {

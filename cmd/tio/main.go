@@ -141,10 +141,12 @@ func main() {
 	jobWs.Filter(api.LoggingMiddleware).Filter(azf)
 
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
+	cfgWs := config.Service(ctx, cfg)
 
 	restful.DefaultContainer.Add(thingWs)
 	restful.DefaultContainer.Add(mqWs)
 	restful.DefaultContainer.Add(jobWs)
+	restful.DefaultContainer.Add(cfgWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {

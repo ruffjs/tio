@@ -13,17 +13,17 @@ import (
 )
 
 type Config struct {
-	Host            string
-	Port            string
-	User            string
-	Password        string
-	DB              string
-	Charset         string
-	Timezone        string
-	MaxIdleConns    int
-	MaxOpenConns    int
-	ConnMaxLifetime int // seconds
-	ShowSql         bool
+	Host            string `json:"host"`
+	Port            string `json:"port"`
+	User            string `json:"user"`
+	Password        string `json:"-"`
+	DB              string `json:"db"`
+	Charset         string `json:"charset"`
+	Timezone        string `json:"timezone"`
+	MaxIdleConns    int    `json:"maxIdleConns"`
+	MaxOpenConns    int    `json:"maxOpenConns"`
+	ConnMaxLifetime int    `json:"connMaxLifetime"` // seconds
+	ShowSql         bool   `json:"showSql"`
 }
 
 type loggerImp struct{}

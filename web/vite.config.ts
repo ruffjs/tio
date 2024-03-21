@@ -25,6 +25,10 @@ export default defineConfig({
         target: "http://localhost:9000/",
         changeOrigin: true,
       },
+      "/private/api": {
+        target: "http://localhost:9000/",
+        changeOrigin: true,
+      },
     },
   },
 });

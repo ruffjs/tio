@@ -18,6 +18,7 @@ export default {
   namespaced: true,
   state() {
     return {
+      tioConfig: {},
       things: [],
       shadowListUpdateTag: 0,
       currentShadow: {},
@@ -38,8 +39,15 @@ export default {
         httpRequestLogs,
       });
     },
+    tioConfig({ commit }, tioConfig) {
+      console.log('set tioConfig', tioConfig);
+      commit("setState", {
+        tioConfig,
+      });
+    },
   },
 } as StoreOptions<{
+  tioConfig: {};
   things: any[];
   shadowListUpdateTag: number;
   currentShadow: Record<string, any>;

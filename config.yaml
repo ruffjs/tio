@@ -47,12 +47,25 @@ connector:
   # Only the tcp protocol is enabled by default,
   # and if the ssl, wss ports are not configured, they will not be enabled.
   mqttBroker:
-    tcpPort: 1883           # default is 1883s4
+    tcpPort: 1883           # default is 1883
     # tcpSslPort: 8883        # tcp SSL/TLS, default is 0 means it is disabled
     wsPort: 8083            # mqtt over websocket, default is 8083
     # wssPort: 8084           # mqtt over websocket(SSL/TLS), default is 0 means it is disabled
+
+    # The following public ports are used externally to understand the current available external ports,
+    # NOT for the tio server, 
+    # such as publicWsPort or publicWssPort as the default port of mqtt client on the web console. 
+    # If these ports are left blank, the previous ports value are used by default
+
+    # publicTcpPort: 
+    # publicTcpSslPort: 
+    # publicWsPort: 
+    # publicWssPort: 
+
+
     # If tcpSslPort or wssPort has configured, certFile and keyFile must also be configured
     # require X509 PEM encoded file
+
     # certFile: "./cert-key.pem"
     # keyFile: "./cert.pem"
 

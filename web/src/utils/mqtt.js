@@ -214,8 +214,22 @@ export const getInitMeatModel = () => ({
   subscriptionIdentifier: undefined,
 });
 
+export const getDefaultMqttPort = (tioConfig) => {
+  console.log('tioConfig', tioConfig?.connector?.mqttBroker?.wsPort);
+  const isHttps = window.location.protocol === "https:";
+  let port = 8083;
+  if (tioConfig?.connector?.type == "embed") {
+    const brk = tioConfig.connector.mqttBroker;
+    port = isHttps
+      ? (brk.publicWssPort ? brk.publicWssPort : brk.wssPort)
+      : (brk.publicWsPort ? brk.publicWsPort : brk.wsPort);
+  }
+  return port;
+}
+
 export const getDefaultForm = () => {
   const { hostname, protocol } = window.location;
+  const isHttps = protocol === "https:";
   return {
     userrole: "server",
     clientId: "", // getClientId(),
@@ -223,7 +237,7 @@ export const getDefaultForm = () => {
     updateAt: dayjs().format("YYYY-MM-DD HH:mm:ss:SSS"),
     name: "",
     clean: true,
-    protocol: protocol === "https:" ? "wss" : "ws",
+    protocol: isHttps ? "wss" : "ws",
     host: hostname,
     keepalive: 60,
     connectTimeout: 10,
