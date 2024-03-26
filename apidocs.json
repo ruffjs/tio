@@ -1,9 +1,9 @@
 {
  "swagger": "2.0",
  "info": {
-  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.2.0\n- GitCommit: 4bf506b4fdfead378b7e8d3d04ce6959916ca3d7\n",
+  "description": "A tiny iothub core\n\nBuild Info:\n- Version: 1.3.0\n- GitCommit: 3e9cdf0d0e604eb1aeeb23b9aeee39c2b98fea21\n",
   "title": "tio",
-  "version": "1.2.0"
+  "version": "1.3.0"
  },
  "paths": {
   "/api/v1/jobs": {
@@ -124,7 +124,41 @@
      }
     }
    },
-   "put": {
+   "delete": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "jobs"
+    ],
+    "operationId": "delete",
+    "parameters": [
+     {
+      "type": "string",
+      "name": "jobId",
+      "in": "path",
+      "required": true
+     },
+     {
+      "type": "boolean",
+      "default": false,
+      "name": "force",
+      "in": "query"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   },
+   "patch": {
     "consumes": [
      "application/json"
     ],
@@ -149,40 +183,6 @@
       "schema": {
        "$ref": "#/definitions/job.UpdateReq"
       }
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK",
-      "schema": {
-       "$ref": "#/definitions/rest.Resp[string]"
-      }
-     }
-    }
-   },
-   "delete": {
-    "consumes": [
-     "application/json"
-    ],
-    "produces": [
-     "application/json"
-    ],
-    "tags": [
-     "jobs"
-    ],
-    "operationId": "delete",
-    "parameters": [
-     {
-      "type": "string",
-      "name": "jobId",
-      "in": "path",
-      "required": true
-     },
-     {
-      "type": "boolean",
-      "default": false,
-      "name": "force",
-      "in": "query"
      }
     ],
     "responses": {
@@ -336,6 +336,30 @@
     }
    }
   },
+  "/api/v1/mqttBroker/embed/clients": {
+   "get": {
+    "description": "WARN: This api is not for integration cause it is not ready, it is just for temporary debugging",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "mqttBroker"
+    ],
+    "summary": "Get embedded mqtt broker clients",
+    "operationId": "embed-mqtt-clients",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.connector.mqtt.embed.Client]"
+      }
+     }
+    }
+   }
+  },
   "/api/v1/mqttBroker/embed/stats": {
    "get": {
     "description": "The embedded mqtt broker of tio is used `https://github.com/mochi-mqtt/server`. This api is for getting it's stats info",
@@ -374,6 +398,12 @@
     "summary": "get all things",
     "operationId": "query",
     "parameters": [
+     {
+      "type": "boolean",
+      "description": "whether thing is enabled",
+      "name": "enabled",
+      "in": "query"
+     },
      {
       "type": "boolean",
       "description": "whether return authValue field",
@@ -571,6 +601,43 @@
       "name": "id",
       "in": "path",
       "required": true
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[string]"
+      }
+     }
+    }
+   },
+   "patch": {
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "things"
+    ],
+    "operationId": "update-one",
+    "parameters": [
+     {
+      "type": "string",
+      "description": "thing id",
+      "name": "id",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+       "$ref": "#/definitions/thing.ThingUpdate"
+      }
      }
     ],
     "responses": {
@@ -947,6 +1014,30 @@
     }
    }
   },
+  "/private/api/config": {
+   "get": {
+    "description": "WARN: This api is not for integration",
+    "consumes": [
+     "application/json"
+    ],
+    "produces": [
+     "application/json"
+    ],
+    "tags": [
+     "private"
+    ],
+    "summary": "Get tio config",
+    "operationId": "get-config",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "schema": {
+       "$ref": "#/definitions/rest.Resp[ruff.io.tio.config.Config]"
+      }
+     }
+    }
+   }
+  },
   "/private/api/things/{id}/topicAcl": {
    "get": {
     "description": "for emqx integration topic acl",
@@ -994,6 +1085,43 @@
   }
  },
  "definitions": {
+  ".api": {
+   "required": [
+    "port",
+    "cors",
+    "basicAuth"
+   ],
+   "properties": {
+    "basicAuth": {
+     "$ref": "#/definitions/config.UserPassword"
+    },
+    "cors": {
+     "type": "boolean"
+    },
+    "port": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  ".db": {
+   "required": [
+    "type",
+    "mysql",
+    "sqlite"
+   ],
+   "properties": {
+    "mysql": {
+     "$ref": "#/definitions/mysql.Config"
+    },
+    "sqlite": {
+     "$ref": "#/definitions/sqlite.Config"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
   "api.CreateBatchResp": {
    "required": [
     "invalidList",
@@ -1099,6 +1227,337 @@
      "description": "SQL-like query string",
      "type": "string",
      "default": "select * from shadow"
+    }
+   }
+  },
+  "bufio.Reader": {
+   "required": [
+    "buf",
+    "rd",
+    "r",
+    "w",
+    "err",
+    "lastByte",
+    "lastRuneSize"
+   ],
+   "properties": {
+    "buf": {
+     "type": "string"
+    },
+    "err": {
+     "$ref": "#/definitions/error"
+    },
+    "lastByte": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "lastRuneSize": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "r": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "rd": {
+     "$ref": "#/definitions/io.Reader"
+    },
+    "w": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "bytes.Buffer": {
+   "required": [
+    "buf",
+    "off",
+    "lastRead"
+   ],
+   "properties": {
+    "buf": {
+     "type": "string"
+    },
+    "lastRead": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "off": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "config.Config": {
+   "required": [
+    "log",
+    "api",
+    "db",
+    "connector"
+   ],
+   "properties": {
+    "api": {
+     "$ref": "#/definitions/.api"
+    },
+    "connector": {
+     "$ref": "#/definitions/config.Connector"
+    },
+    "db": {
+     "$ref": "#/definitions/.db"
+    },
+    "log": {
+     "$ref": "#/definitions/log.Config"
+    }
+   }
+  },
+  "config.Connector": {
+   "required": [
+    "type",
+    "mqttClient",
+    "mqttBroker",
+    "emqx"
+   ],
+   "properties": {
+    "emqx": {
+     "$ref": "#/definitions/config.EmqxAdapterConfig"
+    },
+    "mqttBroker": {
+     "$ref": "#/definitions/config.InnerMqttBroker"
+    },
+    "mqttClient": {
+     "$ref": "#/definitions/config.MqttClientConfig"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "config.EmqxAdapterConfig": {
+   "required": [
+    "apiPrefix",
+    "apiUser"
+   ],
+   "properties": {
+    "apiPrefix": {
+     "type": "string"
+    },
+    "apiUser": {
+     "type": "string"
+    }
+   }
+  },
+  "config.InnerMqttBroker": {
+   "required": [
+    "tcpPort",
+    "tcpSslPort",
+    "wsPort",
+    "wssPort",
+    "publicTcpPort",
+    "publicTcpSslPort",
+    "publicWsPort",
+    "publicWssPort",
+    "storage",
+    "superUsers"
+   ],
+   "properties": {
+    "publicTcpPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "publicTcpSslPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "publicWsPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "publicWssPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "storage": {
+     "$ref": "#/definitions/config.InnerMqttStorage"
+    },
+    "superUsers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/config.UserPassword"
+     }
+    },
+    "tcpPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "tcpSslPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "wsPort": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "wssPort": {
+     "type": "integer",
+     "format": "int32"
+    }
+   }
+  },
+  "config.InnerMqttStorage": {
+   "required": [
+    "type",
+    "filePath",
+    "redis"
+   ],
+   "properties": {
+    "filePath": {
+     "type": "string"
+    },
+    "redis": {
+     "$ref": "#/definitions/config.Redis"
+    },
+    "type": {
+     "type": "string"
+    }
+   }
+  },
+  "config.MqttClientConfig": {
+   "required": [
+    "clientId",
+    "host",
+    "port",
+    "user",
+    "WillTopic",
+    "willPayload",
+    "cleanSession"
+   ],
+   "properties": {
+    "WillTopic": {
+     "type": "string"
+    },
+    "cleanSession": {
+     "type": "boolean"
+    },
+    "clientId": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "port": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "user": {
+     "type": "string"
+    },
+    "willPayload": {
+     "type": "string"
+    }
+   }
+  },
+  "config.Redis": {
+   "required": [
+    "redis",
+    "db",
+    "keyPrefix"
+   ],
+   "properties": {
+    "db": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "keyPrefix": {
+     "type": "string"
+    },
+    "redis": {
+     "type": "string"
+    }
+   }
+  },
+  "config.UserPassword": {
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "name": {
+     "type": "string"
+    }
+   }
+  },
+  "embed.Client": {
+   "required": [
+    "Properties",
+    "State",
+    "Net",
+    "ID"
+   ],
+   "properties": {
+    "ID": {
+     "type": "string"
+    },
+    "Net": {
+     "$ref": "#/definitions/mqtt.ClientConnection"
+    },
+    "Properties": {
+     "$ref": "#/definitions/embed.ClientProperties"
+    },
+    "State": {
+     "$ref": "#/definitions/embed.ClientState"
+    }
+   }
+  },
+  "embed.ClientProperties": {
+   "required": [
+    "Will",
+    "Username",
+    "ProtocolVersion",
+    "Clean"
+   ],
+   "properties": {
+    "Clean": {
+     "type": "boolean"
+    },
+    "ProtocolVersion": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "Username": {
+     "type": "string"
+    },
+    "Will": {
+     "$ref": "#/definitions/mqtt.Will"
+    }
+   }
+  },
+  "embed.ClientState": {
+   "required": [
+    "StopCause",
+    "InflightSize",
+    "Subscriptions",
+    "Keepalive",
+    "ServerKeepalive"
+   ],
+   "properties": {
+    "InflightSize": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Keepalive": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "ServerKeepalive": {
+     "type": "boolean"
+    },
+    "StopCause": {
+     "$ref": "#/definitions/error"
+    },
+    "Subscriptions": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/packets.Subscription"
+     }
     }
    }
   },
@@ -1655,6 +2114,13 @@
     }
    }
   },
+  "log.Config": {
+   "properties": {
+    "level": {
+     "type": "string"
+    }
+   }
+  },
   "model.PageData[interface {}]": {
    "required": [
     "total",
@@ -1692,6 +2158,190 @@
     }
    }
   },
+  "mqtt.ClientConnection": {
+   "required": [
+    "Conn",
+    "bconn",
+    "outbuf",
+    "Remote",
+    "Listener",
+    "Inline"
+   ],
+   "properties": {
+    "Conn": {
+     "$ref": "#/definitions/net.Conn"
+    },
+    "Inline": {
+     "type": "boolean"
+    },
+    "Listener": {
+     "type": "string"
+    },
+    "Remote": {
+     "type": "string"
+    },
+    "bconn": {
+     "$ref": "#/definitions/bufio.Reader"
+    },
+    "outbuf": {
+     "$ref": "#/definitions/bytes.Buffer"
+    }
+   }
+  },
+  "mqtt.Will": {
+   "required": [
+    "Payload",
+    "User",
+    "TopicName",
+    "Flag",
+    "WillDelayInterval",
+    "Qos",
+    "Retain"
+   ],
+   "properties": {
+    "Flag": {
+     "type": "integer",
+     "format": "integer"
+    },
+    "Payload": {
+     "type": "string"
+    },
+    "Qos": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "Retain": {
+     "type": "boolean"
+    },
+    "TopicName": {
+     "type": "string"
+    },
+    "User": {
+     "type": "array",
+     "items": {
+      "$ref": "#/definitions/packets.UserProperty"
+     }
+    },
+    "WillDelayInterval": {
+     "type": "integer",
+     "format": "integer"
+    }
+   }
+  },
+  "mysql.Config": {
+   "required": [
+    "host",
+    "port",
+    "user",
+    "db",
+    "charset",
+    "timezone",
+    "maxIdleConns",
+    "maxOpenConns",
+    "connMaxLifetime",
+    "showSql"
+   ],
+   "properties": {
+    "charset": {
+     "type": "string"
+    },
+    "connMaxLifetime": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "db": {
+     "type": "string"
+    },
+    "host": {
+     "type": "string"
+    },
+    "maxIdleConns": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "maxOpenConns": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "port": {
+     "type": "string"
+    },
+    "showSql": {
+     "type": "boolean"
+    },
+    "timezone": {
+     "type": "string"
+    },
+    "user": {
+     "type": "string"
+    }
+   }
+  },
+  "packets.Subscription": {
+   "required": [
+    "ShareName",
+    "Filter",
+    "Identifier",
+    "Identifiers",
+    "RetainHandling",
+    "Qos",
+    "RetainAsPublished",
+    "NoLocal",
+    "FwdRetainedFlag"
+   ],
+   "properties": {
+    "Filter": {
+     "type": "string"
+    },
+    "FwdRetainedFlag": {
+     "type": "boolean"
+    },
+    "Identifier": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "Identifiers": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer"
+     }
+    },
+    "NoLocal": {
+     "type": "boolean"
+    },
+    "Qos": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "RetainAsPublished": {
+     "type": "boolean"
+    },
+    "RetainHandling": {
+     "type": "integer",
+     "format": "byte"
+    },
+    "ShareName": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "packets.UserProperty": {
+   "required": [
+    "k",
+    "v"
+   ],
+   "properties": {
+    "k": {
+     "type": "string"
+    },
+    "v": {
+     "type": "string"
+    }
+   }
+  },
   "rest.Resp[github.com.mochi-mqtt.server.v2.system.Info]": {
    "required": [
     "code",
@@ -1705,6 +2355,44 @@
     },
     "data": {
      "$ref": "#/definitions/system.Info"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.config.Config]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/config.Config"
+    },
+    "message": {
+     "type": "string"
+    }
+   }
+  },
+  "rest.Resp[ruff.io.tio.connector.mqtt.embed.Client]": {
+   "required": [
+    "code",
+    "message",
+    "data"
+   ],
+   "properties": {
+    "code": {
+     "type": "integer",
+     "format": "int32"
+    },
+    "data": {
+     "$ref": "#/definitions/embed.Client"
     },
     "message": {
      "type": "string"
@@ -1988,6 +2676,7 @@
   },
   "shadow.ShadowWithStatus": {
    "required": [
+    "enabled",
     "thingId",
     "state",
     "metadata",
@@ -2011,6 +2700,9 @@
     "disconnectedAt": {
      "type": "string",
      "format": "date-time"
+    },
+    "enabled": {
+     "type": "boolean"
     },
     "metadata": {
      "$ref": "#/definitions/shadow.Metadata"
@@ -2082,6 +2774,20 @@
     "version": {
      "type": "integer",
      "format": "int64"
+    }
+   }
+  },
+  "sqlite.Config": {
+   "required": [
+    "FilePath",
+    "ShowSql"
+   ],
+   "properties": {
+    "FilePath": {
+     "type": "string"
+    },
+    "ShowSql": {
+     "type": "boolean"
     }
    }
   },
@@ -2226,13 +2932,23 @@
     }
    }
   },
+  "thing.ThingUpdate": {
+   "required": [
+    "enabled"
+   ],
+   "properties": {
+    "enabled": {
+     "type": "boolean"
+    }
+   }
+  },
   "thing.ThingWithStatus": {
    "required": [
-    "enabled",
-    "authType",
     "updatedAt",
     "createdAt",
-    "thingId"
+    "thingId",
+    "enabled",
+    "authType"
    ],
    "properties": {
     "authType": {
