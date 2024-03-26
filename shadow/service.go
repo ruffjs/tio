@@ -72,8 +72,8 @@ type Repo interface {
 	Create(ctx context.Context, thingId string, s Shadow) (*Shadow, error)
 	Delete(ctx context.Context, thingId string) error
 	Update(ctx context.Context, thingId string, version int64, s Shadow) (*Shadow, error)
-	Get(ctx context.Context, thingId string) (*Shadow, error)
-	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[Entity], error)
+	Get(ctx context.Context, thingId string) (*ShadowWithEnable, error)
+	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[ShadowWithStatus], error)
 
 	UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error
 	UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error
@@ -230,8 +230,7 @@ func (s *shadowSvc) Query(ctx context.Context, pq model.PageQuery, query string)
 		return Page{}, err
 	}
 
-	ssList := s.toShadowWithStatus(p.Content)
-	mList, err := entityToMap(ssList)
+	mList, err := entityToMap(p.Content)
 	if err != nil {
 		return Page{}, err
 	}
@@ -260,26 +259,6 @@ func entityToMap(list []ShadowWithStatus) ([]map[string]interface{}, error) {
 	return res, nil
 }
 
-func (s *shadowSvc) toShadowWithStatus(list []Entity) []ShadowWithStatus {
-	res := make([]ShadowWithStatus, len(list))
-	for i, v := range list {
-		sd, err := toShadow(v)
-		if err != nil {
-			log.Errorf("shadow convert error %v, shadow: %#v", err, sd)
-			continue
-		}
-		ss := ShadowWithStatus{Shadow: sd}
-		cs := v.ConnStatus
-		ss.Enabled = v.Enabled
-		ss.Connected = &cs.Connected
-		ss.ConnectedAt = cs.ConnectedAt
-		ss.DisconnectedAt = cs.DisconnectedAt
-		ss.RemoteAddr = cs.RemoteAddr
-		res[i] = ss
-	}
-	return res
-}
-
 func (s *shadowSvc) Get(ctx context.Context, thingId string, opt GetOption) (ShadowWithStatus, error) {
 	ss, err := s.repo.Get(ctx, thingId)
 	if err != nil {
@@ -288,7 +267,7 @@ func (s *shadowSvc) Get(ctx context.Context, thingId string, opt GetOption) (Sha
 	if ss == nil {
 		return ShadowWithStatus{}, model.ErrNotFound
 	}
-	res := ShadowWithStatus{Shadow: *ss}
+	res := ShadowWithStatus{Shadow: ss.Shadow, Enabled: ss.Enabled}
 	if opt.WithStatus {
 		ci, err := s.connectorChecker.ClientInfo(thingId)
 		if err == nil {
@@ -360,7 +339,7 @@ func (s *shadowSvc) setState(
 		// update
 
 		ss.Version++
-		reS, err := txtRepo.Update(ctx, thingId, version, *ss)
+		reS, err := txtRepo.Update(ctx, thingId, version, ss.Shadow)
 		if err != nil {
 			return err
 		}
@@ -468,7 +447,7 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 		mergerShadow := MergeTags(cur.Tags, t.Tags)
 		cur.Version++
 		cur.Tags = mergerShadow
-		_, err = txtRepo.Update(ctx, thingId, t.Version, *cur)
+		_, err = txtRepo.Update(ctx, thingId, t.Version, cur.Shadow)
 		return err
 	})
 	if err != nil {

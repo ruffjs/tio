@@ -17,6 +17,11 @@ type shadowRepo struct {
 	db *gorm.DB
 }
 
+type EntityWithEnable struct {
+	Entity
+	Enabled bool
+}
+
 func (r shadowRepo) ExecWithTx(f func(txtRepo Repo) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := NewShadowRepo(tx)
@@ -125,18 +130,22 @@ func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context, updateTim
 	return res.Error
 }
 
-func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
-	en := Entity{ThingId: thingId}
-	res := r.db.First(&en)
+func (r shadowRepo) Get(ctx context.Context, thingId string) (*ShadowWithEnable, error) {
+	e := EntityWithEnable{}
+	res := r.db.Model(&Entity{}).
+		Select("t.enabled", "shadow.*").
+		Joins("LEFT JOIN thing t ON t.id=shadow.thing_id").
+		Where("shadow.thing_id=?", thingId).
+		First(&e)
+
 	err := res.Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	s, err := toShadow(en)
-	if err != nil {
-		return nil, err
-	}
-	return &s, err
+	s, err := toShadow(e.Entity)
+	se := ShadowWithEnable{Enabled: e.Enabled, Shadow: s}
+
+	return &se, err
 }
 
 func (r shadowRepo) GetVersion(ctx context.Context, thingId string) (version int64, err error) {
@@ -160,10 +169,10 @@ func (r shadowRepo) Delete(ctx context.Context, thingId string) error {
 	return errors.Wrap(err, "delete shadow "+thingId)
 }
 
-func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuerySql) (model.PageData[Entity], error) {
+func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuerySql) (model.PageData[ShadowWithStatus], error) {
 	offset := pq.Offset()
 	limit := pq.Limit()
-	var page model.PageData[Entity]
+	var page model.PageData[ShadowWithStatus]
 	var total int64
 
 	db := r.db.WithContext(ctx).
@@ -189,10 +198,7 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 		db.Order(q.OrderBy)
 	}
 
-	results := make([]struct {
-		Entity
-		Enabled bool
-	}, 0)
+	results := make([]EntityWithEnable, 0)
 	res = db.Offset(offset).
 		Limit(limit).
 		Find(&results)
@@ -200,15 +206,30 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 		return page, res.Error
 	}
 
-	l := make([]Entity, 0)
-	for _, tmp := range results {
-		e := tmp.Entity
-		e.Enabled = tmp.Enabled
-		l = append(l, e)
-	}
+	l, err := toShadowWithStatus(results)
 	page.Content = l
 
-	return page, nil
+	return page, err
+}
+
+func toShadowWithStatus(list []EntityWithEnable) ([]ShadowWithStatus, error) {
+	res := make([]ShadowWithStatus, len(list))
+	for i, v := range list {
+		ss := ShadowWithStatus{}
+		if s, err := toShadow(v.Entity); err != nil {
+			return res, errors.WithMessage(err, "entity toShadow")
+		} else {
+			ss.Shadow = s
+		}
+		ss.Enabled = v.Enabled
+		cs := v.ConnStatus
+		ss.Connected = &cs.Connected
+		ss.ConnectedAt = cs.ConnectedAt
+		ss.DisconnectedAt = cs.DisconnectedAt
+		ss.RemoteAddr = cs.RemoteAddr
+		res[i] = ss
+	}
+	return res, nil
 }
 
 var _ Repo = (*shadowRepo)(nil)
