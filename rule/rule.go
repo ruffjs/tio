@@ -10,8 +10,10 @@ package rule
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/panjf2000/ants/v2"
 	"ruff.io/tio/rule/process"
@@ -155,20 +157,45 @@ func (r *ruleImpl) process(msg source.Msg) (output *[]byte, next bool) {
 	// if has been tranformed, marshal it to bytes
 	// otherwise use the original payload
 	if hasTrans {
-		if s, ok := input.(string); ok {
-			b := []byte(s)
-			output = &b
-		} else {
-			b, err := json.Marshal(input)
-			if err != nil {
-				slog.Error("Rule failed to marshal output msg", "msg", msg, "output", input, "error", err)
-				return
-			}
-			output = &b
+		output, err = marshal(input)
+		if err != nil {
+			slog.Error("Rule failed to marshal process output", "msg", msg, "output", input, "error", err)
+			return
 		}
 	}
 
 	next = true
+	return
+}
+
+func marshal(input any) (output *[]byte, err error) {
+	if s, ok := input.(string); ok {
+		b := []byte(s)
+		output = &b
+	} else if arr, ok := input.([]any); ok {
+		res := ""
+		for _, i := range arr {
+			if s, ok := i.(string); ok {
+				res += s + "\n"
+			} else {
+				if b, err := json.Marshal(i); err == nil {
+					res += string(b) + "\n"
+				} else {
+					return nil, fmt.Errorf("marshal %v", i)
+				}
+			}
+		}
+		res = strings.TrimSuffix(res, "\n")
+		b := []byte(res)
+		output = &b
+	} else {
+		b, er := json.Marshal(input)
+		if er != nil {
+			err = er
+			return
+		}
+		output = &b
+	}
 	return
 }
 
