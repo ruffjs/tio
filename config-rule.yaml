@@ -6,27 +6,41 @@ connectors:
     type: amqp
     options:
       url: amqp://guest:guest@localhost:5672/
+  - name: test-tsdb
+    type: influxdb
+    options:
+      url: http://localhost:8086
+      org: ruff
+      bucket: test
+      token: Zndv6HzF-VxtUzwPe4eLDoH4DrSZ57UmffofEV_m-5dEJT3S0E5X3J9yTwhw9o6C3l4gRWUkwia4GKYti_b-Wg==
+      timePrecision: ms
+      timeout: 3
 
 # data sources
 sources:
   - name: test-src1
     type: embed-mqtt
     options:
-      topic: $iothub/things/#
+      topic: $iothub/events/things/+/presence
       qos: 1
-  - name: test-src2
-    type: embed-mqtt
-    options:
-      topic: $iothub/user/things/+/property
-      qos: 1
+  # - name: test-src2
+  #   type: embed-mqtt
+  #   options:
+  #     topic: $iothub/user/things/+/property
+  #     qos: 1
 # data sinks
 sinks:
+  # - name: test-sink
+  #   type: amqp
+  #   connector: test-conn
+  #   options:
+  #     exchange: dev-tio
+  #     routingKey: 
+
   - name: test-sink
-    type: amqp
-    connector: test-conn
+    type: influxdb
+    connector: test-tsdb
     options:
-      exchange: dev-tio
-      routingKey: 
 
 # Sources --> Process(filter and transform) --> Sinks
 # Only json messages are supported
@@ -42,17 +56,18 @@ sinks:
 #   } 
 # }
 
-# rules:
-#   - name: test-rule
-#     sources:
-#       - test-src1
-#       - test-src2
-#     process:
-#       - type: filter
-#         name: keep-bigger-than-10
-#         jq: ".payload.data.a > 10"
-#       - type: transform
-#         name: to-field-x
-#         jq: "{ X: .payload.data.a }"
-#     sinks:
-#       - test-sink
+rules:
+  - name: test-rule
+    sources:
+      - test-src1
+      # - test-src2
+    process:
+      # - type: filter
+      #   name: keep-bigger-than-10
+      #   jq: ".payload.data.a > 10"
+      - type: transform
+        name: to-line-protocol
+        jq: |
+            .payload | "presence,thingId=" + .thingId + " v=" + (.eventType=="connected"|tostring) + " " + (.timestamp|tostring)
+    sinks:
+      - test-sink

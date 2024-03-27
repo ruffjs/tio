@@ -9,7 +9,25 @@ import (
 	"ruff.io/tio/rule/connector"
 )
 
-// AMQP sink for message forward
+// MySQL sink, use raw SQL
+// Transform data to SQL and sink data to MySQL.
+
+// Example for update or insert latest data properties
+//   - input: {
+// 							"payload": {
+// 								"sn": "wm-liu",
+// 								"data": {
+// 									"temp": 112,
+// 									"hum": 50
+// 								}
+// 							}
+// 						}
+//   - jq:      .payload as {sn: $sn, data: $data} | $data
+//            		| to_entries
+//            		| map(" (\"" + .key + "\", \"" + $sn + "\", NOW(), \"" + (.value | tostring) + "\",\"" + (.value | type)  + "\")")
+//            		| join(",")
+//  		          | "INSERT INTO `data_latest` (`name`, `sn`, `time`, `value`, `type`) VALUES" + .  + "ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `value` = VALUES(`value`), `type`=VALUES(`type`)"
+//   - output: INSERT INTO `data_latest` (`name`, `sn`, `time`, `value`, `type`) VALUES ("temp", "wm-liu", NOW(), "112","number"), ("hum", "wm-liu", NOW(), "50","number")ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `value` = VALUES(`value`), `type`=VALUES(`type`)
 
 const TypeMySQL = "mysql"
 
