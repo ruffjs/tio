@@ -2,19 +2,23 @@ package connector
 
 import (
 	"fmt"
-
-	"github.com/mitchellh/mapstructure"
+	"log/slog"
+	"os"
 )
 
+type Status string
+
 const (
-	TypeAMQP = "amqp"
-	// more type in future
+	StatusConnecting   = "connecting"
+	StatusConnected    = "connected"
+	StatusDisconnected = "disconnected"
 )
 
 type Conn interface {
 	Name() string
 	Type() string
-	Setup() error
+	Connect() error
+	Status() Status
 }
 
 type Config struct {
@@ -23,16 +27,23 @@ type Config struct {
 	Options map[string]any
 }
 
-func New(cfg Config) (Conn, error) {
-	switch cfg.Type {
-	case TypeAMQP:
-		var ac AmqpConfig
-		if err := mapstructure.Decode(cfg.Options, &ac); err != nil {
-			return nil, err
-		}
-		c := NewAmqp(cfg.Name, ac)
-		return c, nil
-	default:
-		return nil, fmt.Errorf("unsupported connector type: %v", cfg.Type)
+type CreateFunc func(name string, cfg map[string]any) Conn
+
+var registry map[string]CreateFunc = make(map[string]CreateFunc)
+
+func Register(typ string, f CreateFunc) {
+	if _, ok := registry[typ]; ok {
+		slog.Error("Duplicate register connector", "type", typ)
+		os.Exit(1)
 	}
+	registry[typ] = f
+	slog.Info("Rule connector registered", "type", typ)
+}
+
+func New(cfg Config) (Conn, error) {
+	f, ok := registry[cfg.Type]
+	if !ok {
+		return nil, fmt.Errorf("connector not found")
+	}
+	return f(cfg.Name, cfg.Options), nil
 }

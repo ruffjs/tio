@@ -119,11 +119,11 @@ func initSink(cfg sink.Config) {
 	}
 	s, err := sink.New(cfg, c)
 	if err != nil {
-		slog.Error("Init rule connector", "name", cfg.Name, "type", cfg.Type, "error", err)
+		slog.Error("Init rule sink", "name", cfg.Name, "type", cfg.Type, "error", err)
 		os.Exit(1)
 	}
-	if _, ok := conns[cfg.Name]; ok {
-		slog.Error("Duplicated name for rule connector", "name", cfg.Name)
+	if _, ok := sinks[cfg.Name]; ok {
+		slog.Error("Duplicated name for rule sink", "name", cfg.Name)
 		os.Exit(1)
 	}
 	sinks[cfg.Name] = s

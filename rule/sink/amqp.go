@@ -4,13 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"ruff.io/tio/rule/connector"
 )
 
 // AMQP sink for message forward
+
+const TypeAMQP = "amqp"
+
+func init() {
+	Register(TypeAMQP, NewAmqp)
+}
 
 type AmqpConfig struct {
 	Exchange   string `json:"exchange"`
@@ -19,11 +27,22 @@ type AmqpConfig struct {
 	// WaitAckTimeout time.Duration `json:"waitAckTimeout"`
 }
 
-func NewAmqp(name string, cfg AmqpConfig, conn *connector.Amqp) Sink {
+func NewAmqp(name string, cfg map[string]any, conn connector.Conn) Sink {
+	var ac AmqpConfig
+	if err := mapstructure.Decode(cfg, &ac); err != nil {
+		slog.Error("decode sink amqp config", "name", name, "error", err)
+		os.Exit(1)
+	}
+	c, ok := conn.(*connector.Amqp)
+	if !ok {
+		slog.Error("wrong connector for amqp sink")
+		os.Exit(1)
+	}
+
 	a := &amqpImpl{
 		name:   name,
-		config: cfg,
-		conn:   conn,
+		config: ac,
+		conn:   c,
 		ch:     make(chan *Msg, 10000),
 	}
 	a.setup()
@@ -37,6 +56,10 @@ type amqpImpl struct {
 	ch      chan *Msg
 	conn    *connector.Amqp
 	channel *amqp.Channel
+}
+
+func (a *amqpImpl) Name() string {
+	return a.name
 }
 
 func (*amqpImpl) Type() string {
@@ -90,7 +113,7 @@ func (a *amqpImpl) setup() error {
 		return fmt.Errorf("amqp connection not established")
 	}
 	if a.conn.Conn().IsClosed() {
-		if err := a.conn.Setup(); err != nil {
+		if err := a.conn.Connect(); err != nil {
 			return err
 		}
 	}

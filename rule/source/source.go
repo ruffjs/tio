@@ -2,13 +2,10 @@ package source
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
-	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio/rule/connector"
-)
-
-const (
-	TypeEmbedMqtt = "embed-mqtt"
 )
 
 type Msg struct {
@@ -20,8 +17,9 @@ type Msg struct {
 type MsgHander func(msg Msg)
 
 type Source interface {
-	OnMsg(h MsgHander)
 	Type() string
+	Name() string
+	OnMsg(h MsgHander)
 }
 
 type Config struct {
@@ -31,16 +29,23 @@ type Config struct {
 	Options   map[string]any
 }
 
-func New(cfg Config, conn connector.Conn) (Source, error) {
-	switch cfg.Type {
-	case TypeEmbedMqtt:
-		var mcf EmbedMqttConfig
-		if err := mapstructure.Decode(cfg.Options, &mcf); err != nil {
-			return nil, fmt.Errorf("decode inner-mqtt options:%v", err)
-		}
-		s := NewEmbedMqtt(mcf)
-		return s, nil
-	default:
-		return nil, fmt.Errorf("unsupported source type %q", cfg.Type)
+type CreateFunc func(name string, cfg map[string]any, conn connector.Conn) Source
+
+var registry map[string]CreateFunc = make(map[string]CreateFunc)
+
+func Register(typ string, f CreateFunc) {
+	if _, ok := registry[typ]; ok {
+		slog.Error("Duplicate register sink", "type", typ)
+		os.Exit(1)
 	}
+	registry[typ] = f
+	slog.Info("Rule sink registered", "type", typ)
+}
+
+func New(cfg Config, conn connector.Conn) (Source, error) {
+	f, ok := registry[cfg.Type]
+	if !ok {
+		return nil, fmt.Errorf("source not found")
+	}
+	return f(cfg.Name, cfg.Options, conn), nil
 }

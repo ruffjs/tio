@@ -17,17 +17,17 @@ func TestAmqp(t *testing.T) {
 	}
 
 	slog.SetLogLoggerLevel(slog.LevelDebug)
-	cfg := &sink.AmqpConfig{
-		Exchange:   "test",
-		RoutingKey: "route",
+	cfg := map[string]any{
+		"exchange":   "test",
+		"routingKey": "route",
 	}
-	connCfg := &connector.AmqpConfig{
-		Url: "amqp://guest:guest@localhost:5672/",
+	connCfg := map[string]any{
+		"url": "amqp://guest:guest@localhost:5672/",
 	}
-	conn := connector.NewAmqp("test", *connCfg)
+	conn := connector.NewAmqp("test", connCfg)
 	con, ok := conn.(*connector.Amqp)
 	require.True(t, ok)
-	c := sink.NewAmqp("test", *cfg, con)
+	c := sink.NewAmqp("test", cfg, con)
 	c.Publish(sink.Msg{
 		ThingId: "thing",
 		Payload: []byte(`{"a": 1}`),

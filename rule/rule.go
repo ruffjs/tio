@@ -155,12 +155,17 @@ func (r *ruleImpl) process(msg source.Msg) (output *[]byte, next bool) {
 	// if has been tranformed, marshal it to bytes
 	// otherwise use the original payload
 	if hasTrans {
-		b, err := json.Marshal(input)
-		if err != nil {
-			slog.Error("Rule failed to marshal output msg", "msg", msg, "output", input, "error", err)
-			return
+		if s, ok := input.(string); ok {
+			b := []byte(s)
+			output = &b
+		} else {
+			b, err := json.Marshal(input)
+			if err != nil {
+				slog.Error("Rule failed to marshal output msg", "msg", msg, "output", input, "error", err)
+				return
+			}
+			output = &b
 		}
-		output = &b
 	}
 
 	next = true
