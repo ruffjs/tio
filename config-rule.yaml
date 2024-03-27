@@ -56,18 +56,18 @@ sinks:
 #   } 
 # }
 
-rules:
-  - name: test-rule
-    sources:
-      - test-src1
-      # - test-src2
-    process:
-      # - type: filter
-      #   name: keep-bigger-than-10
-      #   jq: ".payload.data.a > 10"
-      - type: transform
-        name: to-line-protocol
-        jq: |
-            .payload | "presence,thingId=" + .thingId + " v=" + (.eventType=="connected"|tostring) + " " + (.timestamp|tostring)
-    sinks:
-      - test-sink
+# rules:
+#   - name: test-rule
+#     sources:
+#       - test-src1
+#       # - test-src2
+#     process:
+#       # - type: filter
+#       #   name: keep-bigger-than-10
+#       #   jq: ".payload.data.a > 10"
+#       - type: transform
+#         name: to-line-protocol
+#         jq: |
+#             .payload | "presence,thingId=" + .thingId + " v=" + (.eventType=="connected"|tostring) + " " + (.timestamp|tostring)
+#     sinks:
+#       - test-sink

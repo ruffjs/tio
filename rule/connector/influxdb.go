@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/imroc/req/v3"
+	"github.com/go-resty/resty/v2"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -39,7 +39,7 @@ type InfluxDBConfig struct {
 type InfluxDB struct {
 	name   string
 	config InfluxDBConfig
-	client *req.Client
+	client *resty.Client
 }
 
 func (c *InfluxDB) Status() Status {
@@ -58,20 +58,20 @@ func (c *InfluxDB) Connect() error {
 	return nil
 }
 
-func (c *InfluxDB) Client() *req.Client {
+func (c *InfluxDB) Client() *resty.Client {
 	return c.client
 }
 
-func (c *InfluxDB) initClient() *req.Client {
-	cl := req.C().
+func (c *InfluxDB) initClient() *resty.Client {
+	cl := resty.New().
 		SetBaseURL(c.config.Url+"/api/v2/write").
-		SetCommonQueryParam("org", c.config.Org).
-		SetCommonQueryParam("bucket", c.config.Bucket).
-		SetCommonQueryParam("precision", c.config.TimePrecision).
-		SetCommonHeader("Authorization", "Token "+c.config.Token).
-		SetCommonHeader("Content-Type", "text/plain; charset=utf-8").
-		SetCommonHeader("Accept", "application/json")
-	cl.SetTimeout(time.Duration(c.config.Timeout) * time.Second)
+		SetQueryParam("org", c.config.Org).
+		SetQueryParam("bucket", c.config.Bucket).
+		SetQueryParam("precision", c.config.TimePrecision).
+		SetHeader("Authorization", "Token "+c.config.Token).
+		SetHeader("Content-Type", "text/plain; charset=utf-8").
+		SetHeader("Accept", "application/json").
+		SetTimeout(time.Duration(c.config.Timeout) * time.Second)
 
 	return cl
 }

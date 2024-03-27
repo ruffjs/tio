@@ -69,16 +69,15 @@ func (s *InfluxDBImpl) Publish(msg Msg) {
 func (s *InfluxDBImpl) publishLoop() {
 	for {
 		msg := <-s.ch
-		r := s.conn.Client().
-			Post().
-			SetBodyBytes(msg.Payload).
-			Do()
-		if r.IsErrorState() {
-			if b, err := r.ToBytes(); err == nil {
-				slog.Error("Rule sinke InfluxDB post data", "error", r.Err, "result", b)
-			} else {
-				slog.Error("Rule sinke InfluxDB post data", "error", r.Err)
-			}
+		r, err := s.conn.Client().R().
+			SetBody(msg.Payload).
+			Post("")
+		if err != nil {
+			slog.Error("Rule sinke InfluxDB post data", "error", err, "resposeBody", r.Body())
+		} else if r.IsError() {
+			slog.Error("Rule sink InfluxDB post data", "httpStatus", r.StatusCode, "resposeBody", r.Body())
+		} else {
+			slog.Debug("Rule sink InfluxDB post data SUCCESS")
 		}
 	}
 }
