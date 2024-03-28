@@ -19,6 +19,7 @@ type MsgHander func(msg Msg)
 type Source interface {
 	Type() string
 	Name() string
+	// OnMsg a new handler is accepted with each invoke
 	OnMsg(h MsgHander)
 }
 

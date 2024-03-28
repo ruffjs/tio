@@ -36,9 +36,9 @@ func NewEmbedMqtt(name string, cfg EmbedMqttConfig) Source {
 }
 
 type embedMqttImpl struct {
-	name    string
-	config  EmbedMqttConfig
-	handler MsgHander
+	name     string
+	config   EmbedMqttConfig
+	handlers []MsgHander
 }
 
 func (m *embedMqttImpl) Name() string {
@@ -50,7 +50,7 @@ func (*embedMqttImpl) Type() string {
 }
 
 func (m *embedMqttImpl) OnMsg(h MsgHander) {
-	m.handler = h
+	m.handlers = append(m.handlers, h)
 }
 
 func (m *embedMqttImpl) sub() {
@@ -60,8 +60,8 @@ func (m *embedMqttImpl) sub() {
 			Topic:   msg.Topic,
 			Payload: string(msg.Payload),
 		}
-		if m.handler != nil {
-			m.handler(mm)
+		for _, h := range m.handlers {
+			h(mm)
 		}
 	})
 }
