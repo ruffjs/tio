@@ -77,7 +77,7 @@ func (s *InfluxDBImpl) publishLoop() {
 		} else if r.IsError() {
 			slog.Error("Rule sink InfluxDB post data", "httpStatus", r.StatusCode, "resposeBody", r.Body())
 		} else {
-			slog.Debug("Rule sink InfluxDB post data SUCCESS")
+			slog.Debug("Rule sink InfluxDB post data SUCCESS", "payload", msg.Payload)
 		}
 	}
 }

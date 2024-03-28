@@ -85,6 +85,8 @@ func (s *mysqlImpl) publishLoop() {
 		sql := string(msg.Payload)
 		if res := s.conn.DB().Exec(sql); res.Error != nil {
 			slog.Error("MySQL sink exec failed", "error", res.Error, "sql", sql)
+		} else {
+			slog.Debug("MySQL sink exec succeeded", "payload", sql)
 		}
 	}
 }

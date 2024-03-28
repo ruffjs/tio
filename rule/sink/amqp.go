@@ -30,12 +30,12 @@ type AmqpConfig struct {
 func NewAmqp(name string, cfg map[string]any, conn connector.Conn) Sink {
 	var ac AmqpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("decode sink amqp config", "name", name, "error", err)
+		slog.Error("Rule sink AMQP decode config", "name", name, "error", err)
 		os.Exit(1)
 	}
 	c, ok := conn.(*connector.Amqp)
 	if !ok {
-		slog.Error("wrong connector for amqp sink")
+		slog.Error("Rule sink AMQP wrong connector")
 		os.Exit(1)
 	}
 
@@ -101,16 +101,16 @@ func (a *amqpImpl) publishLoop() {
 			},
 		)
 		if err != nil {
-			slog.Error("Amqp publish error", "name", a.name, "error", err)
+			slog.Error("Rule sink AMQP publish error", "name", a.name, "error", err)
 		} else {
-			slog.Debug("Amqp published message", "name", a.name, "thingId", msg.ThingId)
+			slog.Debug("Rule sink AMQP published message", "name", a.name, "thingId", msg.ThingId)
 		}
 	}
 }
 
 func (a *amqpImpl) setup() error {
 	if a.conn.Conn() == nil {
-		return fmt.Errorf("amqp connection not established")
+		return fmt.Errorf("sink AMQP connection not established")
 	}
 	if a.conn.Conn().IsClosed() {
 		if err := a.conn.Connect(); err != nil {
@@ -122,6 +122,6 @@ func (a *amqpImpl) setup() error {
 		return err
 	}
 	a.channel = ch
-	slog.Info("Amqp channel inited")
+	slog.Info("Rule sink AMQP  channel inited")
 	return nil
 }
