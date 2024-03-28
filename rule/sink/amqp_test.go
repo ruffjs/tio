@@ -30,7 +30,7 @@ func TestAmqp(t *testing.T) {
 	c := sink.NewAmqp("test", cfg, con)
 	c.Publish(sink.Msg{
 		ThingId: "thing",
-		Payload: []byte(`{"a": 1}`),
+		Payload: `{"a": 1}`,
 	})
 	time.Sleep(time.Millisecond * 100)
 }

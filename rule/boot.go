@@ -112,10 +112,15 @@ func initConn(cfg connector.Config) {
 }
 
 func initSink(cfg sink.Config) {
-	c, ok := conns[cfg.Connector]
-	if !ok {
-		slog.Error("Init sink got no connector for amqp sink", "sinkName", cfg.Name, "connectorName", cfg.Connector)
-		os.Exit(1)
+	var c connector.Conn
+	if cfg.Connector != "" {
+		cc, ok := conns[cfg.Connector]
+		if !ok {
+			slog.Error("Init sink got no connector", "sinkName", cfg.Name, "sinkType", cfg.Type, "connectorName", cfg.Connector)
+			os.Exit(1)
+		} else {
+			c = cc
+		}
 	}
 	s, err := sink.New(cfg, c)
 	if err != nil {
@@ -134,7 +139,7 @@ func initSource(cfg source.Config) {
 	if cfg.Connector != "" {
 		cc, ok := conns[cfg.Connector]
 		if !ok {
-			slog.Error("Init sink got no connector for amqp sink", "sinkName", cfg.Name, "connectorName", cfg.Connector)
+			slog.Error("Init sink got no connector", "sinkName", cfg.Name, "sinkType", cfg.Type, "connectorName", cfg.Connector)
 			os.Exit(1)
 		} else {
 			c = cc

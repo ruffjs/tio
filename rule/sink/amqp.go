@@ -97,7 +97,7 @@ func (a *amqpImpl) publishLoop() {
 					"topic":   msg.Topic,
 				},
 				Timestamp: time.Now(),
-				Body:      msg.Payload,
+				Body:      []byte(msg.Payload),
 			},
 		)
 		if err != nil {

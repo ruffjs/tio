@@ -9,9 +9,9 @@ import (
 )
 
 type Msg struct {
-	ThingId string
-	Topic   string
-	Payload []byte
+	ThingId string `json:"thingId"`
+	Topic   string `json:"topic"`
+	Payload string `json:"payload"`
 }
 type Sink interface {
 	Type() string

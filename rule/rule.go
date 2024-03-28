@@ -73,7 +73,7 @@ func (r *ruleImpl) Start() error {
 		src.OnMsg(func(msg source.Msg) {
 			// enable nonblocking with go pool
 			err := gopool.Submit(func() {
-				var out []byte
+				var out string
 				// process
 				if pout, ok := r.process(msg); ok {
 					out = *pout
@@ -86,7 +86,7 @@ func (r *ruleImpl) Start() error {
 					sk.Publish(sink.Msg{
 						ThingId: msg.ThingId,
 						Topic:   msg.Topic,
-						Payload: out,
+						Payload: string(out),
 					})
 				}
 			})
@@ -111,7 +111,7 @@ func (r *ruleImpl) Stop() error {
 	return nil
 }
 
-func (r *ruleImpl) process(msg source.Msg) (output *[]byte, next bool) {
+func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 	output = &msg.Payload
 	next = false
 
@@ -157,11 +157,13 @@ func (r *ruleImpl) process(msg source.Msg) (output *[]byte, next bool) {
 	// if has been tranformed, marshal it to bytes
 	// otherwise use the original payload
 	if hasTrans {
-		output, err = marshal(input)
+		b, err := marshal(input)
 		if err != nil {
 			slog.Error("Rule failed to marshal process output", "msg", msg, "output", input, "error", err)
 			return
 		}
+		s := string(*b)
+		output = &s
 	}
 
 	next = true
@@ -201,7 +203,7 @@ func marshal(input any) (output *[]byte, err error) {
 
 func msgToProcessInput(msg source.Msg) (any, error) {
 	var payload any
-	err := json.Unmarshal(msg.Payload, &payload)
+	err := json.Unmarshal([]byte(msg.Payload), &payload)
 	if err != nil {
 		return nil, err
 	}

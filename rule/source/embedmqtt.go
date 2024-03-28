@@ -58,7 +58,7 @@ func (m *embedMqttImpl) sub() {
 		mm := Msg{
 			ThingId: msg.ThingId,
 			Topic:   msg.Topic,
-			Payload: msg.Payload,
+			Payload: string(msg.Payload),
 		}
 		if m.handler != nil {
 			m.handler(mm)
