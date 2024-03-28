@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
+	"ruff.io/tio/pkg/model"
 )
 
 func TestEmbedBrokerConnectivity(t *testing.T) {
@@ -46,7 +46,7 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 		var evt connector.PresenceEvent
 		err := json.Unmarshal(m.Payload(), &evt)
 		require.NoError(t, err, "should unmarshal event")
-		thingId, err := shadow.GetThingIdFromTopic(m.Topic())
+		thingId, err := model.GetThingIdFromTopic(m.Topic())
 		require.NoError(t, err)
 		if evt.EventType == connector.EventConnected {
 			gotConn = append(gotConn, thingId)

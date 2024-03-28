@@ -11,7 +11,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	mq "ruff.io/tio/connector/mqtt/client"
 	"ruff.io/tio/pkg/log"
-	"ruff.io/tio/shadow"
+	"ruff.io/tio/pkg/model"
 )
 
 // For synchronize client connections state
@@ -66,7 +66,7 @@ func receivePresence(ctx context.Context, mqCl mq.Client) {
 			log.Errorf("Unmarshal presence event %s error: %v", m.Payload(), err)
 			return
 		}
-		thingId, err := shadow.GetThingIdFromTopic(m.Topic())
+		thingId, err := model.GetThingIdFromTopic(m.Topic())
 		if err != nil {
 			log.Errorf("Can't get thing id from topic %s: %v", m.Topic(), err)
 			return

@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"ruff.io/tio/connector"
-	"ruff.io/tio/shadow"
 
 	rv8 "github.com/go-redis/redis/v8"
 	mqtt "github.com/mochi-mqtt/server/v2"
@@ -26,6 +25,7 @@ import (
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
 	"ruff.io/tio/pkg/log"
+	"ruff.io/tio/pkg/model"
 )
 
 const presenceEventName = "presence"
@@ -99,7 +99,7 @@ func InitBroker(c MochiConfig) Broker {
 
 type embedBroker struct {
 	impl             *mqtt.Server
-	clients          sync.Map // map[string]shadow.ClientInfo
+	clients          sync.Map
 	presenceEventBus *eventbus.EventBus[connector.PresenceEvent]
 
 	ctx    context.Context
@@ -122,7 +122,7 @@ func (e *embedBroker) Subscribe(topic string, cb func(m Msg)) error {
 	// you can use the MQTTv5 subscriptionId property to differentiate.
 	subscriptionId := 1
 	return e.impl.Subscribe(topic, subscriptionId, func(cl *mqtt.Client, sub packets.Subscription, pk packets.Packet) {
-		thId, err := shadow.GetThingIdFromTopic(pk.TopicName)
+		thId, err := model.GetThingIdFromTopic(pk.TopicName)
 		if err != nil {
 			slog.Error("Can't get thing id from topic in embed mqtt broker subscription", "error", err)
 		}

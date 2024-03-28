@@ -3,10 +3,12 @@ package shadow
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
 
 	"ruff.io/tio/pkg/log"
+	"ruff.io/tio/pkg/model"
 )
 
 type Operation int
@@ -81,7 +83,7 @@ func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, err
 	outCh := make(chan GetReqMsg, MsgChanCap)
 	err := h.client.Subscribe(ctx, TopicAllGet(), DefaultQos, func(msg connector.Message) {
 		go func() {
-			thingId, err := GetThingIdFromTopic(msg.Topic())
+			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
 				log.Errorf("Got wrong topic msg topic for shadow get request")
 				return
@@ -112,7 +114,7 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 	outCh := make(chan StateReqMsg, MsgChanCap)
 	err := h.client.Subscribe(ctx, TopicAllUpdate(), DefaultQos, func(msg connector.Message) {
 		go func() {
-			thingId, err := GetThingIdFromTopic(msg.Topic())
+			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
 				log.Errorf("Got wrong topic msg topic for state update request")
 				return

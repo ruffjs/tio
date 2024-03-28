@@ -5,8 +5,6 @@ package shadow
 
 import (
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // topics
@@ -84,16 +82,4 @@ func TopicDeltaStateOf(thingId string) string {
 
 func topicThingPrefixOf(thingId string) string {
 	return strings.Replace(TopicPrefixTmpl, "{thingId}", thingId, -1)
-}
-
-func GetThingIdFromTopic(topic string) (string, error) {
-	arr := strings.Split(topic, "/")
-	l := len(arr)
-	if strings.HasPrefix(topic, TopicThingsPrefix) && l >= 3 {
-		return arr[2], nil
-	}
-	if strings.HasPrefix(topic, TopicUserThingsPrefix) && l >= 4 {
-		return arr[3], nil
-	}
-	return "", errors.Errorf("topic name is invalid %s", topic)
 }

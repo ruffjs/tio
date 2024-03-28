@@ -2,14 +2,15 @@ package ntp
 
 import (
 	"context"
-	"ruff.io/tio/connector"
-	"ruff.io/tio/shadow"
 	"strings"
 	"time"
+
+	"ruff.io/tio/connector"
 
 	"encoding/json"
 
 	"ruff.io/tio/pkg/log"
+	"ruff.io/tio/pkg/model"
 )
 
 // Client publish a message `NtpReq` to server via topic `TopicReq`
@@ -67,7 +68,7 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 	err := h.client.Subscribe(ctx, topic, DefaultQos, func(msg connector.Message) {
 		go func() {
 			serverRecvTime := time.Now().UnixMilli()
-			thingId, err := shadow.GetThingIdFromTopic(msg.Topic())
+			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
 				log.Errorf("Got wrong topic msg topic for ntp request: %s, topic=%q", err, msg.Topic())
 				return

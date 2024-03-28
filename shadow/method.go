@@ -2,13 +2,14 @@ package shadow
 
 import (
 	"context"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
-	"strings"
-	"sync"
-	"time"
 
 	"encoding/json"
 )
@@ -237,7 +238,7 @@ func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {
 	topic := TopicMethodAllResponse()
 	err := h.connector.Subscribe(ctx, topic, 1, func(msg connector.Message) {
 		go func() {
-			thingId, err := GetThingIdFromTopic(msg.Topic())
+			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
 				log.Errorf("Got wrong topic msg topic for method response")
 				return
