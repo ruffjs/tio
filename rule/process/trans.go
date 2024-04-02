@@ -6,10 +6,6 @@ import (
 
 // Transfer the message fields and format to the defined schema.
 
-type Trans interface {
-	Run(v any) (any, error)
-}
-
 type transProcess struct {
 	name string
 	jq   *jqRunner

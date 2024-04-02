@@ -40,17 +40,17 @@ func init() {
 }
 
 type Rule interface {
-	Start() error
+	Name() string
+	Start(ctx context.Context) error
 	Stop() error
 }
 
-func NewRule(ctx context.Context, name string,
+func NewRule(name string,
 	sources []source.Source,
 	processors []process.Process,
 	sinks []sink.Sink,
 ) Rule {
 	r := &ruleImpl{
-		ctx:        ctx,
 		name:       name,
 		sources:    sources,
 		processors: processors,
@@ -61,21 +61,24 @@ func NewRule(ctx context.Context, name string,
 }
 
 type ruleImpl struct {
-	ctx        context.Context
 	name       string
 	sources    []source.Source
 	processors []process.Process
 	sinks      []sink.Sink
 }
 
-func (r *ruleImpl) Start() error {
+func (r *ruleImpl) Name() string {
+	return r.name
+}
+
+func (r *ruleImpl) Start(ctx context.Context) error {
 	for _, src := range r.sources {
 		src.OnMsg(func(msg source.Msg) {
 			// enable nonblocking with go pool
 			err := gopool.Submit(func() {
 				var out string
 				// process
-				if pout, ok := r.process(msg); ok {
+				if pout, ok := r.process(msg); ok && pout != nil {
 					out = *pout
 				} else {
 					return
@@ -96,9 +99,10 @@ func (r *ruleImpl) Start() error {
 					"msgThingId", msg.ThingId, "msgTopic", msg.Topic, "error", err)
 			}
 		})
+		src.Start()
 	}
 	go func() {
-		<-r.ctx.Done()
+		<-ctx.Done()
 		r.Stop()
 	}()
 	return nil
@@ -106,7 +110,7 @@ func (r *ruleImpl) Start() error {
 
 func (r *ruleImpl) Stop() error {
 	for _, src := range r.sources {
-		src.OnMsg(nil)
+		src.Stop()
 	}
 	return nil
 }
@@ -128,8 +132,8 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 	hasTrans := false
 
 	for _, p := range r.processors {
-		// filter
-		if p.Type() == process.TypeFilter {
+		switch p.Type() {
+		case process.TypeFilter:
 			o, err := p.Run(input)
 			if err != nil {
 				slog.Error("Rule failed to process filter msg", "process", p.Name(), "msg", msg, "error", err)
@@ -140,10 +144,7 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 			} else {
 				return
 			}
-		}
-
-		// transform
-		if p.Type() == process.TypeTrans {
+		case process.TypeTrans:
 			o, err := p.Run(input)
 			if err != nil {
 				slog.Error("Rule failed to process transform msg", "process", p.Name(), "msg", msg, "error", err)
@@ -151,10 +152,13 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 			}
 			input = o
 			hasTrans = true
+		default:
+			slog.Error("Rule failed to process msg cause unknown process type", "process", p.Name(), "type", p.Type())
+			os.Exit(1)
 		}
 	}
 
-	// if has been tranformed, marshal it to bytes
+	// if has been tranformed, marshal it to string
 	// otherwise use the original payload
 	if hasTrans {
 		b, err := marshal(input)
@@ -162,18 +166,19 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 			slog.Error("Rule failed to marshal process output", "msg", msg, "output", input, "error", err)
 			return
 		}
-		s := string(*b)
-		output = &s
+		output = b
 	}
 
 	next = true
 	return
 }
 
-func marshal(input any) (output *[]byte, err error) {
+func marshal(input any) (output *string, err error) {
+	if input == nil {
+		return nil, nil
+	}
 	if s, ok := input.(string); ok {
-		b := []byte(s)
-		output = &b
+		output = &s
 	} else if arr, ok := input.([]any); ok {
 		res := ""
 		for _, i := range arr {
@@ -188,15 +193,15 @@ func marshal(input any) (output *[]byte, err error) {
 			}
 		}
 		res = strings.TrimSuffix(res, "\n")
-		b := []byte(res)
-		output = &b
+		output = &res
 	} else {
 		b, er := json.Marshal(input)
 		if er != nil {
 			err = er
 			return
 		}
-		output = &b
+		s := string(b)
+		output = &s
 	}
 	return
 }

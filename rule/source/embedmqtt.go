@@ -31,14 +31,27 @@ func NewEmbedMqtt(name string, cfg EmbedMqttConfig) Source {
 		name:   name,
 		config: cfg,
 	}
-	m.sub()
 	return m
 }
 
 type embedMqttImpl struct {
-	name     string
-	config   EmbedMqttConfig
-	handlers []MsgHander
+	name           string
+	config         EmbedMqttConfig
+	subscriptionId int
+	handlers       []MsgHander
+}
+
+func (m *embedMqttImpl) Start() {
+	m.sub()
+}
+
+func (m *embedMqttImpl) Stop() {
+	if m.subscriptionId > 0 {
+		err := embed.BrokerInstance().Unsubscribe(m.config.Topic, m.subscriptionId)
+		if err != nil {
+			slog.Error("Rule source embed-mqtt stop, failed to unsubscribe", "name", m.name, "error", err)
+		}
+	}
 }
 
 func (m *embedMqttImpl) Name() string {
@@ -54,7 +67,7 @@ func (m *embedMqttImpl) OnMsg(h MsgHander) {
 }
 
 func (m *embedMqttImpl) sub() {
-	embed.BrokerInstance().Subscribe(m.config.Topic, func(msg embed.Msg) {
+	subId, err := embed.BrokerInstance().Subscribe(m.config.Topic, func(msg embed.Msg) {
 		mm := Msg{
 			ThingId: msg.ThingId,
 			Topic:   msg.Topic,
@@ -64,4 +77,9 @@ func (m *embedMqttImpl) sub() {
 			h(mm)
 		}
 	})
+	m.subscriptionId = subId
+	if err != nil {
+		slog.Error("Rule source embed-mqtt subscribe failed", "name", m.name, "topic", m.config.Topic)
+		os.Exit(1)
+	}
 }

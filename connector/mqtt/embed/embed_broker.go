@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"ruff.io/tio/connector"
 
@@ -53,7 +54,9 @@ type Broker interface {
 	Publish(topic string, payload []byte, retain bool, qos byte) error
 
 	// callback function `cb` can't be blocked because of concurrent
-	Subscribe(topic string, cb func(m Msg)) error
+	Subscribe(topic string, cb func(m Msg)) (subscriptionId int, err error)
+	Unsubscribe(topic string, subscriptionId int) error
+
 	IsConnected(clientId string) bool
 	OnConnect() <-chan connector.PresenceEvent
 	ClientInfo(clientId string) (connector.ClientInfo, error)
@@ -114,14 +117,17 @@ func (e *embedBroker) Publish(topic string, payload []byte, retain bool, qos byt
 	return e.impl.Publish(topic, payload, retain, qos)
 }
 
-func (e *embedBroker) Subscribe(topic string, cb func(m Msg)) error {
+var inlineSubIdCursor atomic.Int32
+
+func (e *embedBroker) Subscribe(topic string, cb func(m Msg)) (subscriptionId int, err error) {
 	// TODO generate subscriptionId ?
 	// https://github.com/mochi-mqtt/server?tab=readme-ov-file#inline-subscribe
 	// Note that only QoS 0 is supported for inline subscriptions.
 	// If you wish to have multiple callbacks for the same filter,
 	// you can use the MQTTv5 subscriptionId property to differentiate.
-	subscriptionId := 1
-	return e.impl.Subscribe(topic, subscriptionId, func(cl *mqtt.Client, sub packets.Subscription, pk packets.Packet) {
+	subId := inlineSubIdCursor.Add(1)
+	subscriptionId = int(subId)
+	err = e.impl.Subscribe(topic, subscriptionId, func(cl *mqtt.Client, sub packets.Subscription, pk packets.Packet) {
 		thId, err := model.GetThingIdFromTopic(pk.TopicName)
 		if err != nil {
 			slog.Error("Can't get thing id from topic in embed mqtt broker subscription", "error", err)
@@ -133,6 +139,11 @@ func (e *embedBroker) Subscribe(topic string, cb func(m Msg)) error {
 			Payload: pk.Payload,
 		})
 	})
+	return
+}
+
+func (e *embedBroker) Unsubscribe(topic string, subscriptionId int) error {
+	return e.impl.Unsubscribe(topic, subscriptionId)
 }
 
 func (e *embedBroker) Close() error {

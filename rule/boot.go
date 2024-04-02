@@ -46,19 +46,21 @@ func Boot(ctx context.Context) {
 
 	// Crete rules
 	for _, rc := range cfg.Rules {
-		initRule(ctx, rc)
+		initRule(rc)
 	}
 
-	start()
+	start(ctx)
 }
 
-func start() {
+func start(ctx context.Context) {
 	for _, r := range rules {
-		r.Start()
+		if err := r.Start(ctx); err != nil {
+			slog.Error("Rule start failed", "name", r.Name(), "error", err)
+		}
 	}
 }
 
-func initRule(ctx context.Context, rc RuleConfig) {
+func initRule(rc RuleConfig) {
 	sks := make([]sink.Sink, 0)
 	srcs := make([]source.Source, 0)
 	for _, sn := range rc.Sinks {
@@ -90,7 +92,7 @@ func initRule(ctx context.Context, rc RuleConfig) {
 		}
 		plist = append(plist, p)
 	}
-	r := NewRule(ctx, rc.Name, srcs, plist, sks)
+	r := NewRule(rc.Name, srcs, plist, sks)
 	if _, ok := rules[rc.Name]; ok {
 		slog.Error("Rule name duplicated", "name", rc.Name)
 		os.Exit(1)
