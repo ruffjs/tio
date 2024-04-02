@@ -13,19 +13,7 @@ import (
 const TypeTdengine = "tdengine"
 
 func init() {
-	Register(TypeTdengine, func(name string, cfg map[string]any) Conn {
-		var ac TdengineConfig
-		if err := mapstructure.Decode(cfg, &ac); err != nil {
-			slog.Error("Failed to decode config", "error", err)
-			os.Exit(1)
-		}
-		c := &Tdengine{
-			name:   name,
-			config: ac,
-		}
-		c.client = c.initClient()
-		return c
-	})
+	Register(TypeTdengine, newTdengine)
 }
 
 type TdengineConfig struct {
@@ -43,8 +31,34 @@ type Tdengine struct {
 	client *resty.Client
 }
 
+func newTdengine(name string, cfg map[string]any) (Conn, error) {
+	var ac TdengineConfig
+	if err := mapstructure.Decode(cfg, &ac); err != nil {
+		slog.Error("Failed to decode config", "error", err)
+		os.Exit(1)
+	}
+	c := &Tdengine{
+		name:   name,
+		config: ac,
+	}
+	c.client = c.initClient()
+	return c, nil
+}
+
+func (c *Tdengine) Close() error {
+	c.client.GetClient().CloseIdleConnections()
+	// TODO finish send msg in buffer
+	return nil
+}
+
 func (c *Tdengine) Status() Status {
-	panic("unimplemented")
+	err := testConnectByUrl(c.config.Url)
+	if err != nil {
+		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
+		return StatusDisconnected
+	} else {
+		return StatusConnected
+	}
 }
 
 func (c *Tdengine) Name() string {

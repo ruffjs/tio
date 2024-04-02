@@ -1,29 +1,31 @@
 package connector
 
 import (
+	"fmt"
 	"log/slog"
-	"os"
+	"net"
+	"net/url"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 )
 
 const TypeHttp = "http"
 
 func init() {
-	Register(TypeHttp, func(name string, cfg map[string]any) Conn {
+	Register(TypeHttp, func(name string, cfg map[string]any) (Conn, error) {
 		var ac HttpConfig
 		if err := mapstructure.Decode(cfg, &ac); err != nil {
-			slog.Error("Failed to decode config", "error", err)
-			os.Exit(1)
+			return nil, errors.WithMessage(err, "decode config")
 		}
 		c := &Http{
 			name:   name,
 			config: ac,
 		}
 		c.client = c.initClient()
-		return c
+		return c, nil
 	})
 }
 
@@ -39,8 +41,19 @@ type Http struct {
 	client *resty.Client
 }
 
+func (c *Http) Close() error {
+	c.client.GetClient().CloseIdleConnections()
+	return nil
+}
+
 func (c *Http) Status() Status {
-	panic("unimplemented")
+	err := testConnectByUrl(c.config.Url)
+	if err != nil {
+		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
+		return StatusDisconnected
+	} else {
+		return StatusConnected
+	}
 }
 
 func (c *Http) Name() string {
@@ -64,4 +77,18 @@ func (c *Http) initClient() *resty.Client {
 		SetBaseURL(c.config.Url).
 		SetHeaders(c.config.Headers).
 		SetTimeout(time.Duration(c.config.Timeout) * time.Second)
+}
+
+func testConnectByUrl(urlStr string) error {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return err
+	}
+	addr := fmt.Sprintf("%s:%s", u.Host, u.Port())
+	conn, err := net.DialTimeout("tcp", addr, time.Second*2)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	return nil
 }

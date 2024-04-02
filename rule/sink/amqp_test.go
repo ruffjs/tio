@@ -24,7 +24,7 @@ func TestAmqp(t *testing.T) {
 	connCfg := map[string]any{
 		"url": "amqp://guest:guest@localhost:5672/",
 	}
-	conn := connector.NewAmqp("test", connCfg)
+	conn, _ := connector.NewAmqp("test", connCfg)
 	con, ok := conn.(*connector.Amqp)
 	require.True(t, ok)
 	c := sink.NewAmqp("test", cfg, con)

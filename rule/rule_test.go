@@ -129,6 +129,8 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 		Topic:   "$iothub/things/test-thing/hi",
 		Payload: "{}",
 	}
+	srcStartCall1 := src1.On("Start")
+	srcStartCall2 := src2.On("Start")
 	srcStopCall1 := src1.On("Stop")
 	srcStopCall2 := src2.On("Stop")
 	pubCall1 := sk1.On("Publish", mock.Anything).Once()
@@ -152,7 +154,7 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 	sk1.AssertCalled(t, "Publish", sinkMsg)
 	sk2.AssertCalled(t, "Publish", sinkMsg)
 
-	// Source "Stop" method should be invoked
+	// Source "Start" and "Stop" method should be invoked
 	cancel()
 	time.Sleep(time.Millisecond)
 	srcStopCall1.Parent.AssertExpectations(t)
@@ -161,6 +163,8 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 	pubCall1.Unset()
 	pubCall2.Unset()
 	ptRunCall.Unset()
+	srcStartCall1.Unset()
+	srcStartCall2.Unset()
 	srcStopCall1.Unset()
 	srcStopCall2.Unset()
 }
@@ -192,9 +196,13 @@ func Test_RuleProcessMarshal(t *testing.T) {
 	for _, c := range cases {
 		o, err := rule.Marshal_for_test(c.input)
 		if c.hasErr {
-			require.Error(t, err)
+			require.Errorf(t, err, "input %v should has error", c.input)
 			continue
 		}
-		require.Equal(t, c.output, *o)
+		var out any = nil
+		if o != nil {
+			out = *o
+		}
+		require.Equal(t, c.output, out)
 	}
 }

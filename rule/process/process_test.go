@@ -118,7 +118,7 @@ func Test_Filter(t *testing.T) {
 }
 
 func Test_Transform(t *testing.T) {
-	f, err := process.NewFilter("test-trans", ".a")
+	f, err := process.NewTrans("test-trans", ".a")
 	require.NoError(t, err)
 
 	cases := []struct {

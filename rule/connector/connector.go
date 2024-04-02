@@ -9,15 +9,15 @@ import (
 type Status string
 
 const (
-	StatusConnecting   = "connecting"
-	StatusConnected    = "connected"
-	StatusDisconnected = "disconnected"
+	StatusConnected    Status = "connected"
+	StatusDisconnected Status = "disconnected"
 )
 
 type Conn interface {
 	Name() string
 	Type() string
 	Connect() error
+	Close() error
 	Status() Status
 }
 
@@ -27,7 +27,7 @@ type Config struct {
 	Options map[string]any
 }
 
-type CreateFunc func(name string, cfg map[string]any) Conn
+type CreateFunc func(name string, cfg map[string]any) (Conn, error)
 
 var registry map[string]CreateFunc = make(map[string]CreateFunc)
 
@@ -45,5 +45,5 @@ func New(cfg Config) (Conn, error) {
 	if !ok {
 		return nil, fmt.Errorf("connector not found")
 	}
-	return f(cfg.Name, cfg.Options), nil
+	return f(cfg.Name, cfg.Options)
 }

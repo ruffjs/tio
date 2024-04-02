@@ -2,10 +2,10 @@ package connector
 
 import (
 	"log/slog"
-	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"ruff.io/tio/db/mysql"
 )
@@ -15,18 +15,17 @@ import (
 const TypeMySQL = "mysql"
 
 func init() {
-	Register(TypeMySQL, func(name string, cfg map[string]any) Conn {
+	Register(TypeMySQL, func(name string, cfg map[string]any) (Conn, error) {
 		var ac mysql.Config
 		if err := mapstructure.Decode(cfg, &ac); err != nil {
-			slog.Error("Failed to decode config", "error", err)
-			os.Exit(1)
+			return nil, errors.WithMessage(err, "decode config")
 		}
 		c := &MySQL{
 			name:   name,
 			config: ac,
 		}
 		c.Connect()
-		return c
+		return c, nil
 	})
 }
 
@@ -36,8 +35,24 @@ type MySQL struct {
 	db     *gorm.DB
 }
 
+func (c *MySQL) Close() error {
+	if d, err := c.db.DB(); err != nil {
+		return errors.WithMessage(err, "get db")
+	} else {
+		return d.Close()
+	}
+}
+
 func (c *MySQL) Status() Status {
-	panic("unimplemented")
+	d, err := c.db.DB()
+	if err != nil {
+		return StatusDisconnected
+	}
+	if err := d.Ping(); err != nil {
+		return StatusDisconnected
+	} else {
+		return StatusConnected
+	}
 }
 
 func (c *MySQL) Name() string {

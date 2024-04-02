@@ -2,28 +2,27 @@ package connector
 
 import (
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 )
 
 const TypeInfluxDB = "influxdb"
 
 func init() {
-	Register(TypeInfluxDB, func(name string, cfg map[string]any) Conn {
+	Register(TypeInfluxDB, func(name string, cfg map[string]any) (Conn, error) {
 		var ac InfluxDBConfig
 		if err := mapstructure.Decode(cfg, &ac); err != nil {
-			slog.Error("Failed to decode config", "error", err)
-			os.Exit(1)
+			return nil, errors.WithMessage(err, "decode config")
 		}
 		c := &InfluxDB{
 			name:   name,
 			config: ac,
 		}
 		c.client = c.initClient()
-		return c
+		return c, nil
 	})
 }
 
@@ -42,8 +41,20 @@ type InfluxDB struct {
 	client *resty.Client
 }
 
+func (c *InfluxDB) Close() error {
+	c.client.GetClient().CloseIdleConnections()
+	// TODO finish send msg in buffer
+	return nil
+}
+
 func (c *InfluxDB) Status() Status {
-	panic("unimplemented")
+	err := testConnectByUrl(c.config.Url)
+	if err != nil {
+		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
+		return StatusDisconnected
+	} else {
+		return StatusConnected
+	}
 }
 
 func (c *InfluxDB) Name() string {

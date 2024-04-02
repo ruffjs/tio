@@ -2,9 +2,9 @@ package connector
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -18,17 +18,16 @@ type AmqpConfig struct {
 	Url string `json:"url"` // eg: amqp://guest:guest@localhost:5672/
 }
 
-func NewAmqp(name string, cfg map[string]any) Conn {
+func NewAmqp(name string, cfg map[string]any) (Conn, error) {
 	var ac AmqpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("Failed to decode config", "error", err)
-		os.Exit(1)
+		return nil, errors.WithMessage(err, "decode config")
 	}
 	a := &Amqp{
 		config: ac,
 	}
 	a.Connect()
-	return a
+	return a, nil
 }
 
 type Amqp struct {
@@ -37,8 +36,16 @@ type Amqp struct {
 	conn   *amqp.Connection
 }
 
+func (a *Amqp) Close() error {
+	return a.conn.Close()
+}
+
 func (a *Amqp) Status() Status {
-	panic("unimplemented")
+	s := StatusDisconnected
+	if !a.conn.IsClosed() {
+		s = StatusConnected
+	}
+	return s
 }
 
 func (a *Amqp) Conn() *amqp.Connection {
