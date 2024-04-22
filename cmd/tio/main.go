@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"ruff.io/tio/auth"
 	"ruff.io/tio/job"
 	"ruff.io/tio/ntp"
 	"ruff.io/tio/rule"
@@ -94,10 +95,11 @@ func main() {
 	}, job.NewRepo(dbConn), connector, connector, methodHandler, shadowSvc)
 	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
 
+	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers)
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
 		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc)
-		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn)
+		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
 	}
 
 	// boot data integration rule
@@ -147,7 +149,7 @@ func main() {
 	restful.DefaultContainer.Add(mqWs)
 	restful.DefaultContainer.Add(jobWs)
 	restful.DefaultContainer.Add(cfgWs)
-	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration())
+	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration(aclFn))
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {
 		restful.DefaultContainer.Filter(restful.OPTIONSFilter())
@@ -196,7 +198,11 @@ func autoMigrate(conn *gorm.DB) {
 	time.Sleep(time.Millisecond * 100)
 }
 
-func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, authzFn embed.AuthzFn) embed.Broker {
+func startMqttBroker(ctx context.Context,
+	cfg config.InnerMqttBroker,
+	authzFn embed.AuthzFn,
+	aclFn auth.AclFn,
+) embed.Broker {
 	return embed.InitBroker(embed.MochiConfig{
 		TcpPort:    cfg.TcpPort,
 		TcpSslPort: cfg.TcpSslPort,
@@ -206,9 +212,7 @@ func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, authzFn em
 		CertFile:   cfg.CertFile,
 		Storage:    cfg.Storage,
 		AuthzFn:    authzFn,
-		AclFn: func(user string, topic string, write bool) bool {
-			return thing.TopicAcl(cfg.SuperUsers, user, topic, write)
-		},
+		AclFn:      aclFn,
 		SuperUsers: cfg.SuperUsers,
 	})
 }

@@ -9,6 +9,20 @@ import (
 	"ruff.io/tio/shadow"
 )
 
+type Repo interface {
+	Create(ctx context.Context, th Thing) (Thing, error)
+	Update(ctx context.Context, id string, tu thingPatch) error
+	Delete(ctx context.Context, id string) error
+	Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error)
+	Get(ctx context.Context, id string) (*Thing, error)
+	Exist(ctx context.Context, id string) (bool, error)
+}
+
+type thingPatch struct {
+	Enabled        *bool `json:"enabled"`
+	GatewayThingId *string
+}
+
 type thingRepo struct {
 	db *gorm.DB
 }
@@ -50,11 +64,19 @@ func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 	return ToThing(en), err
 }
 
-func (t *thingRepo) Update(ctx context.Context, id string, tu ThingUpdate) error {
-	if tu.Enabled == nil {
+func (t *thingRepo) Update(ctx context.Context, id string, tu thingPatch) error {
+	var u map[string]any = make(map[string]any)
+	if tu.Enabled != nil {
+		u["enabled"] = *tu.Enabled
+	}
+	if tu.GatewayThingId != nil {
+		u["gateway_thing_id"] = *tu.GatewayThingId
+	}
+	if len(u) == 0 {
 		return nil
 	}
-	res := t.db.Model(&Entity{}).Where("id = ?", id).Update("enabled", *tu.Enabled)
+
+	res := t.db.Model(&Entity{}).Where("id = ?", id).Updates(u)
 	return res.Error
 }
 

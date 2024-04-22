@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ruff.io/tio/auth"
 	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
@@ -18,8 +19,9 @@ import (
 )
 
 type CreateReq struct {
-	ThingId  string `json:"thingId"`
-	Password string `json:"password"`
+	ThingId   string `json:"thingId"`
+	Password  string `json:"password"`
+	IsGateway bool   `json:"IsGateway"`
 
 	// AuthType string `json:"authType"`
 }
@@ -113,13 +115,32 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Operation("update-one").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("id", "thing id")).
-		Reads(thing.ThingUpdate{}).
+		Reads(thing.ThingPatch{}).
+		Returns(200, "OK", rest.RespOK("")))
+
+	ws.Route(ws.POST("/{id}/bind/{gatewayThingId}").
+		To(BindToGateway(ctx, svc)).
+		Operation("bind-to-gw").
+		Doc("bind thing to another thing which is gateway").
+		Notes("One thing can only be bound to one gateway").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("id", "thing id")).
+		Param(ws.PathParameter("gatewayThingId", "gateway thing id")).
+		Reads(struct{}{}). // no body need, just for swagger docs
+		Returns(200, "OK", rest.RespOK("")))
+
+	ws.Route(ws.DELETE("/{id}/bind").
+		To(UnbindFromGateway(ctx, svc)).
+		Doc("unbind the thing from gateway").
+		Operation("unbind-to-gw").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("id", "thing id to unbind")).
 		Returns(200, "OK", rest.RespOK("")))
 
 	return ws
 }
 
-func ServiceForEmqxIntegration() *restful.WebService {
+func ServiceForEmqxIntegration(aclFn auth.AclFn) *restful.WebService {
 	ws := new(restful.WebService)
 	ws.
 		Path("/private/api/things").
@@ -144,7 +165,7 @@ func ServiceForEmqxIntegration() *restful.WebService {
 				_ = w.WriteHeaderAndJson(400, "", "'")
 				return
 			}
-			res := thing.TopicAcl(nil, thingId, topic, action == "subscribe")
+			res := aclFn(thingId, topic, action == "subscribe")
 			resTxt := "deny"
 			if res {
 				resTxt = "allow"
@@ -176,6 +197,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 			Enabled:   true,
 			AuthType:  thing.AuthTypePassword,
 			AuthValue: cReq.Password,
+			IsGateway: cReq.IsGateway,
 		}
 		rTh, err := svc.Create(ctx, th)
 		if err != nil {
@@ -192,7 +214,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 func UpdateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		id := r.PathParameter("id")
-		var req thing.ThingUpdate
+		var req thing.ThingPatch
 		err := r.ReadEntity(&req)
 		if err != nil {
 			log.Infof("Error decoding body for update thing: %v", err)
@@ -319,6 +341,35 @@ func DeleteHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		} else {
 			log.Infof("Deleted thing %q", id)
 			rest.SendResp(w, 200, rest.RespOK(""))
+		}
+	}
+}
+
+func BindToGateway(ctx context.Context, svc thing.Service) restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		id := r.PathParameter("id")
+		gwId := r.PathParameter("gatewayThingId")
+		if err := svc.BindToGateway(ctx, id, gwId); err != nil {
+			sent := checkHttpErrAndSend(err, w)
+			if !sent {
+				_ = w.WriteHeaderAndEntity(500, rest.Resp[string]{Code: 500, Message: err.Error()})
+			}
+		} else {
+			rest.SendRespOK(w, "")
+		}
+	}
+}
+
+func UnbindFromGateway(ctx context.Context, svc thing.Service) restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		id := r.PathParameter("id")
+		if err := svc.UnbindFromGateway(ctx, id); err != nil {
+			sent := checkHttpErrAndSend(err, w)
+			if !sent {
+				_ = w.WriteHeaderAndEntity(500, rest.Resp[string]{Code: 500, Message: err.Error()})
+			}
+		} else {
+			rest.SendRespOK(w, "")
 		}
 	}
 }

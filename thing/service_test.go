@@ -2,11 +2,9 @@ package thing_test
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"testing"
 
-	"ruff.io/tio/config"
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/shadow"
 
@@ -44,6 +42,34 @@ func TestThingSvc_Create(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, resTh.Id, "thing id is empty")
 		require.NotEmpty(t, resTh.AuthValue, "thing auth value is empty")
+
+		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		require.NoError(t, err)
+		require.Equal(t, resTh.Id, sd.ThingId)
+	})
+
+	t.Run("create thing with type isGateway=true and disabled", func(t *testing.T) {
+		th.Id = ""
+		th.IsGateway = true
+		th.Enabled = false
+		resTh, err := svc.Create(ctxTest, th)
+		require.NoError(t, err)
+		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
+		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
+
+		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		require.NoError(t, err)
+		require.Equal(t, resTh.Id, sd.ThingId)
+	})
+
+	t.Run("create thing with type isGateway=false and enabled", func(t *testing.T) {
+		th.Id = ""
+		th.IsGateway = false
+		th.Enabled = true
+		resTh, err := svc.Create(ctxTest, th)
+		require.NoError(t, err)
+		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
+		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
 
 		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
 		require.NoError(t, err)
@@ -92,7 +118,7 @@ func TestThingSvc_Update(t *testing.T) {
 	t.Run("Disable thing", func(t *testing.T) {
 		connDelCall := connector.On("Close", th.Id).Return(nil).Times(1)
 		defer connDelCall.Unset()
-		svc.Update(ctxTest, th.Id, thing.ThingUpdate{Enabled: model.Ref(false)})
+		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: model.Ref(false)})
 		connDelCall.Parent.AssertExpectations(t)
 		en, err := svc.Get(ctxTest, th.Id)
 		require.NoError(t, err)
@@ -101,7 +127,7 @@ func TestThingSvc_Update(t *testing.T) {
 	t.Run("Enable thing", func(t *testing.T) {
 		connDelCall := connector.On("Close", th.Id).Return(nil).Times(0)
 		defer connDelCall.Unset()
-		svc.Update(ctxTest, th.Id, thing.ThingUpdate{Enabled: model.Ref(true)})
+		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: model.Ref(true)})
 		connDelCall.Parent.AssertExpectations(t)
 		en, err := svc.Get(ctxTest, th.Id)
 		require.NoError(t, err)
@@ -165,41 +191,42 @@ func TestIdValid(t *testing.T) {
 	}
 }
 
-func TestTopicAcl(t *testing.T) {
-	cases := []struct {
-		supers []config.UserPassword
-		user   string
-		topic  string
-		result bool
-	}{
-		{
-			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
-			user:   "a",
-			topic:  shadow.TopicUpdateOf("c"),
-			result: true,
-		},
-		{
-			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
-			user:   "b",
-			topic:  shadow.TopicStateUpdatedOf("c"),
-			result: true,
-		},
-		{
-			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
-			user:   "d",
-			topic:  shadow.TopicStateUpdatedOf("c"),
-			result: false,
-		},
-		{
-			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
-			user:   "c",
-			topic:  shadow.TopicUpdateOf("c"),
-			result: true,
-		},
-	}
-	for _, c := range cases {
-		r := thing.TopicAcl(c.supers, c.user, c.topic, true)
-		require.Equal(t, c.result, r, fmt.Sprintf("user %s should access %s : %t", c.user, c.topic, c.result))
-	}
+func TestThingSvc_GatewayBind(t *testing.T) {
+	svc, _ := NewTestSvc()
+	gw, err := svc.Create(ctxTest, thing.Thing{Id: "gateway-1", IsGateway: true})
+	require.NoError(t, err)
 
+	th, err := svc.Create(ctxTest, thing.Thing{Id: "thing-1", IsGateway: false})
+	require.NoError(t, err)
+
+	t.Run("bind gateway", func(t *testing.T) {
+		err = svc.BindToGateway(ctxTest, th.Id, gw.Id)
+		require.NoError(t, err)
+
+		thRes, err := svc.Get(ctxTest, th.Id)
+		require.NoError(t, err)
+		require.Equal(t, gw.Id, thRes.GatewayThingId)
+
+		b, err := svc.IsBoundGateway(ctxTest, th.Id, gw.Id)
+		require.NoError(t, err)
+		require.Equal(t, true, b)
+	})
+
+	t.Run("unbind gateway", func(t *testing.T) {
+		err = svc.UnbindFromGateway(ctxTest, th.Id)
+		require.NoError(t, err)
+
+		thRes, err := svc.Get(ctxTest, th.Id)
+		require.NoError(t, err)
+		require.Equal(t, "", thRes.GatewayThingId)
+
+		b, err := svc.IsBoundGateway(ctxTest, th.Id, gw.Id)
+		require.NoError(t, err)
+		require.Equal(t, false, b)
+	})
+
+	t.Run("bind gateway not exist", func(t *testing.T) {
+		err = svc.BindToGateway(ctxTest, th.Id, "not-exist-gateway")
+		require.ErrorAs(t, err, &model.ErrNotFound, "should have not found error")
+	})
 }

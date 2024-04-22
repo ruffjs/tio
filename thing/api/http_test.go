@@ -161,7 +161,7 @@ func TestCreateBatchHandler(t *testing.T) {
 	svr := newServer()
 	defer svr.Close()
 
-	vaildThing := api.CreateReq{"some-id-xxx", "password"}
+	vaildThing := api.CreateReq{"some-id-xxx", "password", true}
 	noPasswordThing := api.CreateReq{ThingId: "noPasswordThing"}
 
 	doReq := func(r []api.CreateReq) (*http.Response, error) {
@@ -317,5 +317,59 @@ func TestDeleteHandler(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD2.Code)
+	})
+}
+
+func TestBindHandler(t *testing.T) {
+	t.Parallel()
+	svr := newServer()
+	defer svr.Close()
+
+	// create thing
+	gwId := "gw-1"
+	thId := "th-1"
+	th := api.CreateReq{
+		ThingId: thId,
+	}
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", svr.URL), toBuf(th))
+	req.Header.Set("Content-Type", "application/json")
+	client := svr.Client()
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	gw := api.CreateReq{
+		ThingId:   gwId,
+		IsGateway: true,
+	}
+	req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", svr.URL), toBuf(gw))
+	req.Header.Set("Content-Type", "application/json")
+	client = svr.Client()
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	t.Run("should bind ok", func(t *testing.T) {
+		req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/%s/bind/%s", svr.URL, th.ThingId, gw.ThingId), toBuf(nil))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = client.Do(req)
+		require.NoError(t, err)
+		var resD rest.Resp[any]
+		err = json.NewDecoder(resp.Body).Decode(&resD)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resD.Code)
+	})
+
+	t.Run("should unbind ok", func(t *testing.T) {
+		req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s/bind", svr.URL, th.ThingId), toBuf(nil))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = client.Do(req)
+		require.NoError(t, err)
+		var resD rest.Resp[any]
+		err = json.NewDecoder(resp.Body).Decode(&resD)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resD.Code)
 	})
 }
