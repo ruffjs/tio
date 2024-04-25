@@ -15,7 +15,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/panjf2000/ants/v2"
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
@@ -26,18 +25,6 @@ const (
 	MsgKeyTopic   = "topic"
 	MsgKeyPayload = "payload"
 )
-
-var gopool *ants.Pool
-
-func init() {
-	// goroutine pool may need 2KB*10000=20MB memory when pool is full
-	p, err := ants.NewPool(10000, ants.WithNonblocking(true))
-	gopool = p
-	if err != nil {
-		slog.Error("Failed to create pool for rule", "error", err)
-		os.Exit(1)
-	}
-}
 
 type Rule interface {
 	Name() string
@@ -73,32 +60,13 @@ func (r *ruleImpl) Name() string {
 
 func (r *ruleImpl) Start(ctx context.Context) error {
 	for _, src := range r.sources {
+		q := make(chan source.Msg, 10000)
 		src.OnMsg(func(msg source.Msg) {
-			// enable nonblocking with go pool
-			err := gopool.Submit(func() {
-				var out string
-				// process
-				if pout, ok := r.process(msg); ok && pout != nil {
-					out = *pout
-				} else {
-					return
-				}
-
-				// publish to sinks
-				for _, sk := range r.sinks {
-					sk.Publish(sink.Msg{
-						ThingId: msg.ThingId,
-						Topic:   msg.Topic,
-						Payload: string(out),
-					})
-				}
-			})
-
-			if err != nil {
-				slog.Error("Rule failed to submit task to go pool", "ruleName", r.name,
-					"msgThingId", msg.ThingId, "msgTopic", msg.Topic, "error", err)
-			}
+			q <- msg
 		})
+
+		go r.worker(q)
+
 		src.Start()
 	}
 	go func() {
@@ -106,6 +74,36 @@ func (r *ruleImpl) Start(ctx context.Context) error {
 		r.Stop()
 	}()
 	return nil
+}
+
+func (r *ruleImpl) worker(msgQ chan source.Msg) {
+	for {
+		msg := <-msgQ
+		var out string
+		// process
+		if pout, ok := r.process(msg); ok && pout != nil {
+			out = *pout
+		} else {
+			continue
+		}
+
+		// publish to sinks
+		for _, sk := range r.sinks {
+			func() {
+				msg := sink.Msg{
+					ThingId: msg.ThingId,
+					Topic:   msg.Topic,
+					Payload: string(out),
+				}
+				defer func() {
+					if err := recover(); err != nil {
+						slog.Error("Rule publish to sink", "sink", sk.Name(), "msg", msg, "error", err)
+					}
+				}()
+				sk.Publish(msg)
+			}()
+		}
+	}
 }
 
 func (r *ruleImpl) Stop() error {
@@ -116,6 +114,12 @@ func (r *ruleImpl) Stop() error {
 }
 
 func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Error("Rule process", "error", err, "msg", msg) // 打印错误信息
+		}
+	}()
+
 	output = &msg.Payload
 	next = false
 

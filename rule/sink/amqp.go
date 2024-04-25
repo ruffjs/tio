@@ -43,7 +43,8 @@ func NewAmqp(name string, cfg map[string]any, conn connector.Conn) Sink {
 		name:   name,
 		config: ac,
 		conn:   c,
-		ch:     make(chan *Msg, 10000),
+		// TODO: Through chan for now, optimized later
+		ch: make(chan *Msg, 100000),
 	}
 	a.setup()
 	go a.publishLoop()

@@ -56,6 +56,9 @@ func start(ctx context.Context) {
 	for _, r := range rules {
 		if err := r.Start(ctx); err != nil {
 			slog.Error("Rule start failed", "name", r.Name(), "error", err)
+			os.Exit(1)
+		} else {
+			slog.Info("Rule started", "name", r.Name())
 		}
 	}
 }
