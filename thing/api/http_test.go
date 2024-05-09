@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -225,27 +227,55 @@ func TestQueryHandler(t *testing.T) {
 	t.Parallel()
 	svr := newServer()
 	defer svr.Close()
-	t.Run("should query ok", func(t *testing.T) {
-		//create thing
-		th := createThReq
-		th.ThingId = id()
+
+	gwCount := rand.Intn(10)
+	normalCount := rand.Intn(10)
+
+	ths := []api.CreateReq{}
+	for i := 0; i < gwCount; i++ {
+		ths = append(ths, api.CreateReq{ThingId: id(), IsGateway: true})
+	}
+	for i := 0; i < normalCount; i++ {
+		ths = append(ths, api.CreateReq{ThingId: id(), IsGateway: false})
+	}
+
+	for _, th := range ths {
 		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", svr.URL), toBuf(th))
 		req.Header.Set("Content-Type", "application/json")
 		client := svr.Client()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	t.Run("should query ok", func(t *testing.T) {
+		client := svr.Client()
 
 		//query thing
-		req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v1/things?withAuthValue=true&pageIndex=1&pageSize=10", svr.URL), toBuf(nil))
+		req, _ := http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v1/things?withAuthValue=true&pageIndex=1&pageSize=20", svr.URL), toBuf(nil))
 		req.Header.Set("Content-Type", "application/json")
-		resp, err = client.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[model.PageData[thing.Thing]]
 		err = json.NewDecoder(resp.Body).Decode(&resD)
-		require.Equal(t, resD.Data.Total, int64(1))
+		require.Equal(t, resD.Data.Total, int64(gwCount+normalCount))
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		resD2 := rest.Resp[model.PageData[thing.Thing]]{}
+		req, _ = http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v1/things?withAuthValue=true&isGateway=true&pageIndex=1&pageSize=20", svr.URL), toBuf(nil))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = client.Do(req)
+		require.NoError(t, err)
+		err = json.NewDecoder(resp.Body).Decode(&resD2)
+		require.Equal(t, int64(gwCount), resD2.Data.Total)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Falsef(t, slices.ContainsFunc(resD2.Data.Content, func(th thing.Thing) bool {
+			return !th.IsGateway
+		}), "should all be gateway")
 	})
 }
 
@@ -350,7 +380,8 @@ func TestBindHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	t.Run("should bind ok", func(t *testing.T) {
-		req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/%s/bind/%s", svr.URL, th.ThingId, gw.ThingId), toBuf(nil))
+		body := thing.ThingBindReq{ThingIds: []string{th.ThingId}}
+		req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/%s/bind/", svr.URL, gw.ThingId), toBuf(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -362,7 +393,8 @@ func TestBindHandler(t *testing.T) {
 	})
 
 	t.Run("should unbind ok", func(t *testing.T) {
-		req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s/bind", svr.URL, th.ThingId), toBuf(nil))
+		body := thing.ThingBindReq{ThingIds: []string{th.ThingId}}
+		req, _ = http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/%s/unbind", svr.URL, gw.ThingId), toBuf(body))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err = client.Do(req)
 		require.NoError(t, err)

@@ -7,6 +7,9 @@ import (
 const (
 	AuthTypePassword string = "password"
 	AuthTypeCerts    string = "certs"
+
+	// MaxBindThings is the max number of things that can be bound to a gateway.
+	MaxBindThings = 100
 )
 
 type Thing struct {
@@ -32,4 +35,8 @@ type ThingWithStatus struct {
 	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
 	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
 	RemoteAddr     string     `json:"remoteAddr,omitempty"`
+}
+
+type ThingBindReq struct {
+	ThingIds []string `json:"thingIds"`
 }

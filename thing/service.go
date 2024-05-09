@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -28,17 +29,19 @@ type Service interface {
 	// to communicate with the tio on behalf of the device
 	// One thing can only be bound to one gateway
 	// One gateway can bind multiple things
-	BindToGateway(ctx context.Context, id, GatewayThingId string) error
-	UnbindFromGateway(ctx context.Context, id string) error
+	BindToGateway(ctx context.Context, thingIds []string, gatewayThingId string) error
+	UnbindFromGateway(ctx context.Context, thingIds []string, gatewayThingId string) error
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
 }
 
 type Page = model.PageData[ThingWithStatus]
 
 type PageQuery struct {
-	Enabled       *bool `json:"enabled"`
-	WithAuthValue bool  `json:"withAuthValue"`
-	WithStatus    bool  `json:"withStatus"`
+	Enabled        *bool   `json:"enabled"`
+	IsGateway      *bool   `json:"isGateway"`
+	GatewayThingId *string `json:"gatewayThingId"`
+	WithAuthValue  bool    `json:"withAuthValue"`
+	WithStatus     bool    `json:"withStatus"`
 	model.PageQuery
 }
 
@@ -173,71 +176,108 @@ func (t *thingSvc) Exist(ctx context.Context, id string) (bool, error) {
 	return e, err
 }
 
-func (t *thingSvc) BindToGateway(ctx context.Context, id string, gatewayThingId string) error {
-	if id == gatewayThingId {
+func (t *thingSvc) BindToGateway(ctx context.Context, thingIds []string, gatewayThingId string) error {
+	if len(thingIds) == 0 {
+		return fmt.Errorf("thingId cannot be empty")
+	}
+	if slices.Contains(thingIds, gatewayThingId) {
 		return fmt.Errorf("the binding gatewayThingId cannot be the current thingId")
 	}
-	if id == "" || gatewayThingId == "" {
+	if len(thingIds) == 0 || gatewayThingId == "" {
 		return fmt.Errorf("thingId or gatewayThingId cannot be empty")
-	}
-
-	th, err := t.repo.Get(ctx, id)
-	if err != nil {
-		return errors.Errorf("get thing %q", id)
-	}
-	if th == nil {
-		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
-	}
-	if th.IsGateway {
-		return errors.WithMessage(model.ErrInvalidParams, "gateway thing cannot bind to another gateway")
 	}
 
 	gw, err := t.repo.Get(ctx, gatewayThingId)
 	if err != nil {
-		return errors.Errorf("get thing %q", id)
+		return errors.Errorf("get thing %q", gatewayThingId)
 	}
 	if gw == nil {
-		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
+		return errors.WithMessagef(model.ErrNotFound, "thing %q", gatewayThingId)
 	}
 	if !gw.IsGateway {
 		return errors.WithMessage(model.ErrInvalidParams, "only gateway thing can be the target to bind")
 	}
 
-	err = t.repo.Update(ctx, id, thingPatch{GatewayThingId: &gatewayThingId})
-	t.delBoundCache(id)
+	if err := t.validBindThings(ctx, thingIds); err != nil {
+		return err
+	}
+
+	err = t.repo.UpdateBatch(ctx, thingIds, thingPatch{GatewayThingId: &gatewayThingId})
+	for _, id := range thingIds {
+		t.delBoundCache(id)
+	}
 	return err
 }
 
-func (t *thingSvc) UnbindFromGateway(ctx context.Context, id string) error {
-	if id == "" {
-		return fmt.Errorf("thingId cannot be empty")
+func (t *thingSvc) UnbindFromGateway(ctx context.Context, thingIds []string, gatewayThingId string) error {
+	if err := t.validBindThings(ctx, thingIds); err != nil {
+		return err
 	}
-
-	th, err := t.repo.Get(ctx, id)
-	if err != nil {
-		return errors.Errorf("get thing %q", id)
-	}
-	if th == nil {
-		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
-	}
-	if th.IsGateway {
-		return errors.WithMessage(model.ErrInvalidParams, "gateway thing cannot unbind")
+	ids := thingIds
+	// If gatewayThingId is empty, unbind all things
+	if len(thingIds) == 0 {
+		l, err := t.repo.Query(ctx, PageQuery{GatewayThingId: &gatewayThingId,
+			PageQuery: model.PageQuery{PageIndex: 1, PageSize: 100}})
+		if err != nil {
+			return errors.WithMessage(err, "query gateway bound things")
+		}
+		if len(l.Content) == 0 {
+			return nil
+		}
+		for _, th := range l.Content {
+			ids = append(ids, th.Id)
+		}
 	}
 
 	gw := ""
-	err = t.repo.Update(ctx, id, thingPatch{GatewayThingId: &gw})
-	t.delBoundCache(id)
+	err := t.repo.UpdateBatch(ctx, ids, thingPatch{GatewayThingId: &gw})
+	for _, id := range ids {
+		t.delBoundCache(id)
+	}
 	return err
 }
 
-var gatewayBindCache = cache.New(time.Minute*5, time.Minute*1)
+func (t *thingSvc) validBindThings(ctx context.Context, thingIds []string) error {
+	if len(thingIds) > MaxBindThings {
+		return fmt.Errorf("things count cannot exceed %d", MaxBindThings)
+	}
+	ths, err := t.repo.GetBatch(ctx, thingIds)
+	if err != nil {
+		return fmt.Errorf("get things %q", thingIds)
+	}
+	for _, th := range ths {
+		if th.IsGateway {
+			return fmt.Errorf("gateway thing cannot unbind from or bind to another gateway")
+		}
+	}
+	if len(ths) != len(thingIds) {
+		var notfound []string
+		for _, id := range thingIds {
+			found := false
+			for _, th := range ths {
+				if id == th.Id {
+					found = true
+					break
+				}
+			}
+			if !found {
+				notfound = append(notfound, id)
+			}
+		}
+		return errors.WithMessagef(model.ErrNotFound, "things %q", notfound)
+	}
 
-type gatewayBindCacheItem struct {
-	thingId        string
-	gatewayThingId string
+	return nil
 }
 
+// Memory cache for binding relation
+var gatewayBindCache = cache.New(time.Minute*5, time.Minute*1)
+
 func (t *thingSvc) IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error) {
+	if gw, ok := gatewayBindCache.Get(thingId); ok && gw == gatewayThingId {
+		return true, nil
+	}
+
 	th, err := t.Get(ctx, thingId)
 	if err != nil {
 		return false, errors.WithMessagef(err, "get thing %s", thingId)
@@ -253,7 +293,7 @@ func (t *thingSvc) IsBoundGateway(ctx context.Context, thingId, gatewayThingId s
 	} else {
 		res = false
 	}
-	gatewayBindCache.Set(thingId, gatewayBindCacheItem{thingId: thingId, gatewayThingId: bindedGw}, cache.DefaultExpiration)
+	gatewayBindCache.Set(thingId, bindedGw, cache.DefaultExpiration)
 
 	return res, nil
 }

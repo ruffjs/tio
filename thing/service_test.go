@@ -192,41 +192,105 @@ func TestIdValid(t *testing.T) {
 }
 
 func TestThingSvc_GatewayBind(t *testing.T) {
+	exceedIds := make([]string, 0, 101)
+	for i := 0; i < 101; i++ {
+		id, _ := uuid.New().ID()
+		exceedIds = append(exceedIds, id)
+	}
+
+	cases := []struct {
+		name      string
+		gwId      string
+		thIds     []string
+		unbindIds []string
+		remainIds []string
+		unbindAll bool
+	}{
+		{
+			name:  "bind 1 thing to gateway",
+			gwId:  "gateway-1",
+			thIds: []string{"subthing-1"},
+		},
+		{
+			name:  "bind multiple things to gateway",
+			gwId:  "gateway-2",
+			thIds: []string{"subthing-2", "subthing-3", "subthing-4"},
+		},
+		{
+			name:      "unbind multiple things from gateway",
+			gwId:      "gateway-3",
+			thIds:     []string{"subthing-5", "subthing-6", "subthing-7"},
+			unbindIds: []string{"subthing-7", "subthing-6"},
+			remainIds: []string{"subthing-5"},
+		},
+		{
+			name:      "unbind all things from gateway",
+			gwId:      "gateway-4",
+			thIds:     []string{"subthing-8", "subthing-9", "subthing-10"},
+			unbindAll: true,
+		},
+	}
+
 	svc, _ := NewTestSvc()
-	gw, err := svc.Create(ctxTest, thing.Thing{Id: "gateway-1", IsGateway: true})
-	require.NoError(t, err)
 
-	th, err := svc.Create(ctxTest, thing.Thing{Id: "thing-1", IsGateway: false})
-	require.NoError(t, err)
+	for _, cas := range cases {
+		t.Run(cas.name, func(t *testing.T) {
+			gw, err := svc.Create(ctxTest, thing.Thing{Id: cas.gwId, IsGateway: true})
+			require.NoError(t, err)
+			for _, thId := range cas.thIds {
+				_, err = svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false})
+				require.NoError(t, err, "create thing %q", thId)
+			}
+			err = svc.BindToGateway(ctxTest, cas.thIds, gw.Id)
+			require.NoError(t, err)
 
-	t.Run("bind gateway", func(t *testing.T) {
-		err = svc.BindToGateway(ctxTest, th.Id, gw.Id)
+			// checke bound
+			l, err := svc.Query(ctxTest, thing.PageQuery{
+				GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+			require.NoError(t, err)
+			require.Equal(t, len(cas.thIds), len(l.Content))
+			for _, th := range l.Content {
+				require.Contains(t, cas.thIds, th.Id)
+			}
+
+			if cas.unbindAll {
+				err = svc.UnbindFromGateway(ctxTest, []string{}, gw.Id)
+				require.NoError(t, err)
+				// check
+				l, err := svc.Query(ctxTest, thing.PageQuery{
+					GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+				require.NoError(t, err)
+				require.Equal(t, 0, len(l.Content))
+			} else if len(cas.unbindIds) > 0 {
+				err = svc.UnbindFromGateway(ctxTest, cas.unbindIds, gw.Id)
+				// check
+				require.NoError(t, err, "unbind things %v from gateway %s", cas.unbindIds, gw.Id)
+				l, err := svc.Query(ctxTest, thing.PageQuery{
+					GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+				require.NoError(t, err)
+				require.Equal(t, len(cas.remainIds), len(l.Content))
+				for _, thId := range l.Content {
+					require.Contains(t, cas.remainIds, thId.Id)
+				}
+			}
+		})
+	}
+
+	t.Run("bind exceed max things to gateway", func(t *testing.T) {
+		gw, err := svc.Create(ctxTest, thing.Thing{Id: "gateway-exceed", IsGateway: true})
 		require.NoError(t, err)
-
-		thRes, err := svc.Get(ctxTest, th.Id)
-		require.NoError(t, err)
-		require.Equal(t, gw.Id, thRes.GatewayThingId)
-
-		b, err := svc.IsBoundGateway(ctxTest, th.Id, gw.Id)
-		require.NoError(t, err)
-		require.Equal(t, true, b)
-	})
-
-	t.Run("unbind gateway", func(t *testing.T) {
-		err = svc.UnbindFromGateway(ctxTest, th.Id)
-		require.NoError(t, err)
-
-		thRes, err := svc.Get(ctxTest, th.Id)
-		require.NoError(t, err)
-		require.Equal(t, "", thRes.GatewayThingId)
-
-		b, err := svc.IsBoundGateway(ctxTest, th.Id, gw.Id)
-		require.NoError(t, err)
-		require.Equal(t, false, b)
+		for _, thId := range exceedIds {
+			_, err := svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false})
+			require.NoError(t, err, "create thing %q", thId)
+		}
+		err = svc.BindToGateway(ctxTest, exceedIds, gw.Id)
+		require.Error(t, err)
 	})
 
 	t.Run("bind gateway not exist", func(t *testing.T) {
-		err = svc.BindToGateway(ctxTest, th.Id, "not-exist-gateway")
-		require.ErrorAs(t, err, &model.ErrNotFound, "should have not found error")
+		th, err := svc.Create(ctxTest, thing.Thing{Id: "th-for-nogw-1", IsGateway: false})
+		require.NoError(t, err)
+		err = svc.BindToGateway(ctxTest, []string{th.Id}, "not-exist-gateway")
+		require.ErrorAs(t, err, &model.ErrNotFound, "should have found error")
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -74,6 +75,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Doc("get all things").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("enabled", "whether thing is enabled").DataType("boolean")).
+		Param(ws.QueryParameter("gatewayThingId", "gateway thingId").DataType("string")).
 		Param(ws.QueryParameter("withAuthValue", "whether return authValue field").DataType("boolean")).
 		Param(ws.QueryParameter("withStatus", "whether return fields of status").DataType("boolean")).
 		Param(ws.QueryParameter("pageIndex", "page index, from 1").DataType("integer").DefaultValue("1")).
@@ -118,23 +120,24 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Reads(thing.ThingPatch{}).
 		Returns(200, "OK", rest.RespOK("")))
 
-	ws.Route(ws.POST("/{id}/bind/{gatewayThingId}").
+	ws.Route(ws.POST("/{id}/bind").
 		To(BindToGateway(ctx, svc)).
 		Operation("bind-to-gw").
-		Doc("bind thing to another thing which is gateway").
+		Doc("bind things to the thing which is gateway").
 		Notes("One thing can only be bound to one gateway").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("id", "thing id")).
-		Param(ws.PathParameter("gatewayThingId", "gateway thing id")).
-		Reads(struct{}{}). // no body need, just for swagger docs
+		Param(ws.PathParameter("id", "gateway thingId")).
+		Reads(thing.ThingBindReq{}).
 		Returns(200, "OK", rest.RespOK("")))
 
-	ws.Route(ws.DELETE("/{id}/bind").
+	ws.Route(ws.POST("/{id}/unbind").
 		To(UnbindFromGateway(ctx, svc)).
-		Doc("unbind the thing from gateway").
-		Operation("unbind-to-gw").
+		Doc("unbind the things from thing which is gateway").
+		Notes("Unbind things in array `thingIds`, if `thingIds` is empty array, unbind all things from the gateway").
+		Operation("unbind-from-gw").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("id", "thing id to unbind")).
+		Param(ws.PathParameter("id", "gateway thingId")).
+		Reads(thing.ThingBindReq{}).
 		Returns(200, "OK", rest.RespOK("")))
 
 	return ws
@@ -300,15 +303,21 @@ func getPgQry(r *restful.Request) thing.PageQuery {
 	if e, err := strconv.ParseBool(r.QueryParameter("enabled")); err == nil {
 		q.Enabled = &e
 	}
+	if e, err := strconv.ParseBool(r.QueryParameter("isGateway")); err == nil {
+		q.IsGateway = &e
+	}
+	gwId := r.QueryParameter("gatewayThingId")
+	if gwId != "" {
+		q.GatewayThingId = &gwId
+	}
+
 	q.PageQuery.PageIndex, err = strconv.Atoi(r.QueryParameter("pageIndex"))
 	if err != nil {
 		q.PageIndex = 1
-		log.Infof("No valid query param withAuthValue use default value %d", q.PageIndex)
 	}
 	q.PageQuery.PageSize, err = strconv.Atoi(r.QueryParameter("pageSize"))
 	if err != nil {
 		q.PageSize = 10
-		log.Infof("No valid query param withAuthValue use default value %d", q.PageSize)
 	}
 	return q
 }
@@ -348,8 +357,13 @@ func DeleteHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 func BindToGateway(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		id := r.PathParameter("id")
-		gwId := r.PathParameter("gatewayThingId")
-		if err := svc.BindToGateway(ctx, id, gwId); err != nil {
+		var req thing.ThingBindReq
+		if err := r.ReadEntity(&req); err != nil {
+			slog.Error("Failed to decode body for bind to gateway", "thingId", id, "error", err)
+			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
+			return
+		}
+		if err := svc.BindToGateway(ctx, req.ThingIds, id); err != nil {
 			sent := checkHttpErrAndSend(err, w)
 			if !sent {
 				_ = w.WriteHeaderAndEntity(500, rest.Resp[string]{Code: 500, Message: err.Error()})
@@ -363,7 +377,13 @@ func BindToGateway(ctx context.Context, svc thing.Service) restful.RouteFunction
 func UnbindFromGateway(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		id := r.PathParameter("id")
-		if err := svc.UnbindFromGateway(ctx, id); err != nil {
+		var req thing.ThingBindReq
+		if err := r.ReadEntity(&req); err != nil {
+			slog.Error("Failed to decode body for unbind from gateway", "thingId", id, "error", err)
+			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
+			return
+		}
+		if err := svc.UnbindFromGateway(ctx, req.ThingIds, id); err != nil {
 			sent := checkHttpErrAndSend(err, w)
 			if !sent {
 				_ = w.WriteHeaderAndEntity(500, rest.Resp[string]{Code: 500, Message: err.Error()})

@@ -12,9 +12,11 @@ import (
 type Repo interface {
 	Create(ctx context.Context, th Thing) (Thing, error)
 	Update(ctx context.Context, id string, tu thingPatch) error
+	UpdateBatch(ctx context.Context, ids []string, tu thingPatch) error
 	Delete(ctx context.Context, id string) error
 	Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error)
 	Get(ctx context.Context, id string) (*Thing, error)
+	GetBatch(ctx context.Context, ids []string) ([]Thing, error)
 	Exist(ctx context.Context, id string) (bool, error)
 }
 
@@ -65,6 +67,10 @@ func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 }
 
 func (t *thingRepo) Update(ctx context.Context, id string, tu thingPatch) error {
+	return t.UpdateBatch(ctx, []string{id}, tu)
+}
+
+func (t *thingRepo) UpdateBatch(ctx context.Context, ids []string, tu thingPatch) error {
 	var u map[string]any = make(map[string]any)
 	if tu.Enabled != nil {
 		u["enabled"] = *tu.Enabled
@@ -76,7 +82,7 @@ func (t *thingRepo) Update(ctx context.Context, id string, tu thingPatch) error 
 		return nil
 	}
 
-	res := t.db.Model(&Entity{}).Where("id = ?", id).Updates(u)
+	res := t.db.Model(&Entity{}).Where("id IN ?", ids).Updates(u)
 	return res.Error
 }
 
@@ -104,12 +110,7 @@ func (t *thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thi
 	limit := pq.Limit()
 	var page model.PageData[Thing]
 	var total int64
-	t.db.WithContext(ctx).Model(&Entity{}).Count(&total)
-	if total == 0 {
-		page.Content = []Thing{}
-		return page, nil
-	}
-	page.Total = total
+
 	q := t.db.WithContext(ctx).Model(&Entity{}).
 		Order("created_at ASC").
 		Offset(offset).
@@ -117,6 +118,19 @@ func (t *thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thi
 	if pq.Enabled != nil {
 		q.Where("enabled = ?", *pq.Enabled)
 	}
+	if pq.GatewayThingId != nil {
+		q.Where("gateway_thing_id = ?", *pq.GatewayThingId)
+	}
+	if pq.IsGateway != nil {
+		q.Where("is_gateway = ?", *pq.IsGateway)
+	}
+
+	q.Count(&total)
+	if total == 0 {
+		page.Content = []Thing{}
+		return page, nil
+	}
+	page.Total = total
 
 	q.Find(&page.Content)
 	if !pq.WithAuthValue {
@@ -136,6 +150,19 @@ func (t *thingRepo) Get(ctx context.Context, id string) (*Thing, error) {
 	}
 	th := ToThing(en)
 	return &th, err
+}
+
+func (t *thingRepo) GetBatch(ctx context.Context, ids []string) ([]Thing, error) {
+	var ens []Entity
+	res := t.db.WithContext(ctx).Model(&Entity{}).Where("id IN ?", ids).Find(&ens)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	ths := make([]Thing, 0, len(ens))
+	for _, e := range ens {
+		ths = append(ths, ToThing(e))
+	}
+	return ths, nil
 }
 
 func (t *thingRepo) Exist(ctx context.Context, id string) (bool, error) {
