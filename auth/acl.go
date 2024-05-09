@@ -16,6 +16,7 @@ type BindingGetter interface {
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
 }
 
+// TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
 func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
 	return func(username string, topic string, write bool) bool {
 		for _, u := range superUsers {
@@ -26,18 +27,18 @@ func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
 		thingTopicPrefix := shadow.TopicThingsPrefix + username + "/"
 		userThingTopicPrefix := shadow.TopicUserThingsPrefix + username + "/"
 
-		// For reserved topics
+		// For thing's self reserved topics
+		if strings.HasPrefix(topic, thingTopicPrefix) || strings.HasPrefix(topic, userThingTopicPrefix) {
+			return true
+		}
+		// For other reserved topics
 		if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
-			if strings.HasPrefix(topic, thingTopicPrefix) || strings.HasPrefix(topic, userThingTopicPrefix) {
-				return true
-			}
-			// Check whether the current thing is bound to the gateway
 			tingId, err := model.GetThingIdFromTopic(topic)
 			if err != nil {
 				slog.Error("Mqtt acl get thingId error", "thingId", username, "topic", topic, "error", err)
 				return false
 			}
-
+			// Check whether the current thing is bound to the gateway
 			if bound, err := bg.IsBoundGateway(context.Background(), tingId, username); err == nil && bound {
 				return true
 			}

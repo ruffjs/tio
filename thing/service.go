@@ -274,26 +274,33 @@ func (t *thingSvc) validBindThings(ctx context.Context, thingIds []string) error
 var gatewayBindCache = cache.New(time.Minute*5, time.Minute*1)
 
 func (t *thingSvc) IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error) {
-	if gw, ok := gatewayBindCache.Get(thingId); ok && gw == gatewayThingId {
-		return true, nil
+	if gw, ok := gatewayBindCache.Get(thingId); ok {
+		if gw == gatewayThingId {
+			return true, nil
+		}
+		return false, nil
 	}
 
 	th, err := t.Get(ctx, thingId)
+	boundGw := ""
 	if err != nil {
-		return false, errors.WithMessagef(err, "get thing %s", thingId)
+		if !errors.Is(err, model.ErrNotFound) {
+			return false, errors.WithMessagef(err, "get thing %s", thingId)
+		}
+	} else if th != nil {
+		boundGw = th.GatewayThingId
 	}
 	res := false
 
-	bound := th.GatewayThingId == gatewayThingId
+	bound := boundGw == gatewayThingId
 
-	bindedGw := ""
 	if bound {
-		bindedGw = gatewayThingId
+		boundGw = gatewayThingId
 		res = true
 	} else {
 		res = false
 	}
-	gatewayBindCache.Set(thingId, bindedGw, cache.DefaultExpiration)
+	gatewayBindCache.Set(thingId, boundGw, cache.DefaultExpiration)
 
 	return res, nil
 }
