@@ -2,11 +2,9 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"ruff.io/tio/auth"
@@ -17,6 +15,8 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"github.com/gorilla/schema"
+	"github.com/pkg/errors"
 )
 
 type CreateReq struct {
@@ -60,6 +60,8 @@ func (req CreateReq) batchValidate() error {
 	return req.validate()
 }
 
+var decoder = schema.NewDecoder()
+
 func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 	ws := new(restful.WebService)
 	ws.
@@ -75,6 +77,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Doc("get all things").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("enabled", "whether thing is enabled").DataType("boolean")).
+		Param(ws.QueryParameter("isGateway", "").DataType("string")).
 		Param(ws.QueryParameter("gatewayThingId", "gateway thingId").DataType("string")).
 		Param(ws.QueryParameter("withAuthValue", "whether return authValue field").DataType("boolean")).
 		Param(ws.QueryParameter("withStatus", "whether return fields of status").DataType("boolean")).
@@ -281,45 +284,31 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 
 func QueryHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
-		rPg, err := svc.Query(ctx, getPgQry(r))
-		if err != nil {
-			sent := checkHttpErrAndSend(err, w)
-			if !sent {
-				rest.SendResp(w, 500, rest.Resp[string]{Code: 500, Message: err.Error()})
+		var err error
+		q, er := getPgQry(r)
+		err = er
+		if err == nil {
+			if rPg, er := svc.Query(ctx, q); er == nil {
+				_ = w.WriteEntity(rest.RespOK(rPg))
+				return
+			} else {
+				err = er
 			}
-		} else {
-
-			_ = w.WriteEntity(rest.RespOK(rPg))
-			// rest.SendResp(w, 200, rest.RespOK(rPg))
+		}
+		if !checkHttpErrAndSend(err, w) {
+			rest.SendResp(w, 500, rest.Resp[string]{Code: 500, Message: err.Error()})
 		}
 	}
 }
 
-func getPgQry(r *restful.Request) thing.PageQuery {
-	var err error
+func getPgQry(r *restful.Request) (thing.PageQuery, error) {
 	q := thing.PageQuery{}
-	q.WithAuthValue, _ = strconv.ParseBool(r.QueryParameter("withAuthValue"))
-	q.WithStatus, _ = strconv.ParseBool(r.QueryParameter("withStatus"))
-	if e, err := strconv.ParseBool(r.QueryParameter("enabled")); err == nil {
-		q.Enabled = &e
-	}
-	if e, err := strconv.ParseBool(r.QueryParameter("isGateway")); err == nil {
-		q.IsGateway = &e
-	}
-	gwId := r.QueryParameter("gatewayThingId")
-	if gwId != "" {
-		q.GatewayThingId = &gwId
-	}
 
-	q.PageQuery.PageIndex, err = strconv.Atoi(r.QueryParameter("pageIndex"))
-	if err != nil {
-		q.PageIndex = 1
+	r.Request.ParseForm()
+	if err := decoder.Decode(&q, r.Request.Form); err != nil {
+		return q, errors.WithMessage(model.ErrInvalidParams, err.Error())
 	}
-	q.PageQuery.PageSize, err = strconv.Atoi(r.QueryParameter("pageSize"))
-	if err != nil {
-		q.PageSize = 10
-	}
-	return q
+	return q, nil
 }
 
 func GetHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
