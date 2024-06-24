@@ -185,6 +185,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	svr := mqtt.New(&mqtt.Options{
 		InlineClient:           true,
 		SysTopicResendInterval: 5,
+		Logger:                 slog.Default(),
 	})
 
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
