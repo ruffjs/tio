@@ -1,7 +1,7 @@
 // Package rule implements data integration rule.
 // A rule is a process of data processing:
 //
-//	Sources --> Process(TODO: filter and transform) --> Sinks
+//	Sources --> Process(filter and transform) --> Sinks
 //
 // Sources an Sinks may use data Connector to get data or send data.
 // Rules are assembled by Connectors, Sources and Sinks.
