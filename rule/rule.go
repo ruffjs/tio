@@ -18,12 +18,14 @@ import (
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
+	"ruff.io/tio/shadow"
 )
 
 const (
 	MsgKeyThingId = "thingId"
 	MsgKeyTopic   = "topic"
 	MsgKeyPayload = "payload"
+	MsgKeyShadow  = "shadow"
 )
 
 type Rule interface {
@@ -36,22 +38,26 @@ func NewRule(name string,
 	sources []source.Source,
 	processors []process.Process,
 	sinks []sink.Sink,
+	shadowGetter shadow.CacheGetter,
 ) Rule {
 	r := &ruleImpl{
-		name:       name,
-		sources:    sources,
-		processors: processors,
-		sinks:      sinks,
+		name:         name,
+		sources:      sources,
+		processors:   processors,
+		sinks:        sinks,
+		shadowGetter: shadowGetter,
 	}
 
 	return r
 }
 
 type ruleImpl struct {
-	name       string
-	sources    []source.Source
-	processors []process.Process
-	sinks      []sink.Sink
+	ctx          context.Context
+	name         string
+	shadowGetter shadow.CacheGetter
+	sources      []source.Source
+	processors   []process.Process
+	sinks        []sink.Sink
 }
 
 func (r *ruleImpl) Name() string {
@@ -59,6 +65,7 @@ func (r *ruleImpl) Name() string {
 }
 
 func (r *ruleImpl) Start(ctx context.Context) error {
+	r.ctx = ctx
 	for _, src := range r.sources {
 		q := make(chan source.Msg, 10000)
 		src.OnMsg(func(msg source.Msg) {
@@ -128,7 +135,12 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 		return
 	}
 
-	input, err := msgToProcessInput(msg)
+	sd, ok := r.shadowGetter.GetFromCache(msg.ThingId)
+	if !ok {
+		slog.Error("Rule failed to get shadow", "thingId", msg.ThingId)
+	}
+
+	input, err := msgToProcessInput(msg, sd)
 	if err != nil {
 		slog.Error("Rule failed to parse msg", "msg", msg, "error", err)
 		return
@@ -210,9 +222,19 @@ func marshal(input any) (output *string, err error) {
 	return
 }
 
-func msgToProcessInput(msg source.Msg) (any, error) {
+func msgToProcessInput(msg source.Msg, sd shadow.ShadowWithStatus) (any, error) {
 	var payload any
 	err := json.Unmarshal([]byte(msg.Payload), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := json.Marshal(sd)
+	if err != nil {
+		return nil, err
+	}
+	var shadowVal any
+	err = json.Unmarshal(b, &shadowVal)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +242,7 @@ func msgToProcessInput(msg source.Msg) (any, error) {
 		MsgKeyThingId: msg.ThingId,
 		MsgKeyTopic:   msg.Topic,
 		MsgKeyPayload: payload,
+		MsgKeyShadow:  shadowVal,
 	}
 	return input, nil
 }

@@ -12,11 +12,13 @@ import (
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
+	"ruff.io/tio/shadow"
 )
 
 func Test_RuleBasic(t *testing.T) {
 	src := innerMock.NewSource("mock-source")
 	sk := innerMock.NewSink("mock-sink")
+	shadowGetter := innerMock.NewShadowGetter()
 
 	pfilter := innerMock.NewProcess(process.Config{
 		Name: "mock-process-filter",
@@ -74,17 +76,28 @@ func Test_RuleBasic(t *testing.T) {
 				ptRunCall.Times(0)
 			}
 
+			shadowGetCall := shadowGetter.On("GetFromCache", mock.Anything).
+				Return(shadow.ShadowWithStatus{Shadow: shadow.Shadow{Tags: shadow.TagsValue{"deviceId": 789}}}, true).Once()
+
 			ctx, cancel := context.WithCancel(context.Background())
-			r := rule.NewRule("mock-rule", []source.Source{src}, []process.Process{pfilter, ptrans}, []sink.Sink{sk})
+			r := rule.NewRule(
+				"mock-rule",
+				[]source.Source{src},
+				[]process.Process{pfilter, ptrans},
+				[]sink.Sink{sk},
+				shadowGetter,
+			)
 			r.Start(ctx)
 			src.MockMsg(srcMsg)
 
 			// Wait process
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond * 5)
 
 			// Process filter and transform should have run
 			pfilter.AssertExpectations(t)
 			ptrans.AssertExpectations(t)
+
+			shadowGetter.AssertExpectations(t)
 
 			if c.filterPass {
 				// Should Publish message to sink
@@ -101,6 +114,7 @@ func Test_RuleBasic(t *testing.T) {
 			pfRunCall.Unset()
 			srcStopCall.Unset()
 			srcStartCall.Unset()
+			shadowGetCall.Unset()
 		})
 	}
 
@@ -113,6 +127,7 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 	src2 := innerMock.NewSource("mock-source-2")
 	sk1 := innerMock.NewSink("mock-sink-1")
 	sk2 := innerMock.NewSink("mock-sink-2")
+	shadowGetter := innerMock.NewShadowGetter()
 
 	ptrans := innerMock.NewProcess(process.Config{
 		Name: "mock-process-trans",
@@ -137,8 +152,17 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 	pubCall2 := sk2.On("Publish", mock.Anything).Once()
 	ptRunCall := ptrans.On("Run", mock.Anything).Return(sinkMsg.Payload, nil).Once()
 
+	shadowGetCall := shadowGetter.On("GetFromCache", mock.Anything).
+		Return(shadow.ShadowWithStatus{}, true).Once()
+
 	ctx, cancel := context.WithCancel(context.Background())
-	r := rule.NewRule("mock-rule", []source.Source{src1, src2}, []process.Process{ptrans}, []sink.Sink{sk1, sk2})
+	r := rule.NewRule(
+		"mock-rule",
+		[]source.Source{src1, src2},
+		[]process.Process{ptrans},
+		[]sink.Sink{sk1, sk2},
+		shadowGetter,
+	)
 	r.Start(ctx)
 
 	src1.MockMsg(srcMsg)
@@ -167,6 +191,7 @@ func Test_RuleMultipleSrcMultipleSinks(t *testing.T) {
 	srcStartCall2.Unset()
 	srcStopCall1.Unset()
 	srcStopCall2.Unset()
+	shadowGetCall.Unset()
 }
 
 func Test_RuleProcessMarshal(t *testing.T) {

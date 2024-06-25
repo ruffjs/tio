@@ -106,7 +106,7 @@ func main() {
 	shadowSvc.Init(ctx)
 
 	// boot data integration rule
-	rule.Boot(ctx)
+	rule.Boot(ctx, shadowSvc)
 
 	// init
 	if err := connector.Start(ctx); err != nil {

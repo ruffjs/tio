@@ -10,6 +10,7 @@ import (
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
+	"ruff.io/tio/shadow"
 )
 
 var (
@@ -22,7 +23,7 @@ var (
 // Read rule config, assemble rules and then boot them
 //
 // If config file is not exist, give up
-func Boot(ctx context.Context) {
+func Boot(ctx context.Context, shadowGetter shadow.CacheService) {
 	cfg, err := ReadConfig()
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -46,7 +47,7 @@ func Boot(ctx context.Context) {
 
 	// Crete rules
 	for _, rc := range cfg.Rules {
-		initRule(rc)
+		initRule(rc, shadowGetter)
 	}
 
 	start(ctx)
@@ -63,7 +64,7 @@ func start(ctx context.Context) {
 	}
 }
 
-func initRule(rc RuleConfig) {
+func initRule(rc RuleConfig, shadowGetter shadow.CacheService) {
 	sks := make([]sink.Sink, 0)
 	srcs := make([]source.Source, 0)
 	for _, sn := range rc.Sinks {
@@ -95,7 +96,7 @@ func initRule(rc RuleConfig) {
 		}
 		plist = append(plist, p)
 	}
-	r := NewRule(rc.Name, srcs, plist, sks)
+	r := NewRule(rc.Name, srcs, plist, sks, shadowGetter)
 	if _, ok := rules[rc.Name]; ok {
 		slog.Error("Rule name duplicated", "name", rc.Name)
 		os.Exit(1)
