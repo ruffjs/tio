@@ -230,6 +230,17 @@ func (s *shadowSvc) Query(ctx context.Context, pq model.PageQuery, query string)
 		return Page{}, err
 	}
 
+	// no need to transform
+	if len(parsedQ.OriginSelectAlias) == 0 {
+		l := make([]any, len(p.Content))
+		for i, r := range p.Content {
+			l[i] = r
+		}
+		return Page{Total: p.Total, Content: l}, nil
+	}
+
+	// transform based on select
+
 	mList, err := entityToMap(p.Content)
 	if err != nil {
 		return Page{}, err
