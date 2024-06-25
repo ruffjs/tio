@@ -96,11 +96,14 @@ func main() {
 	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
 
 	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers)
+
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
 		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc)
 		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
 	}
+
+	shadowSvc.Init(ctx)
 
 	// boot data integration rule
 	rule.Boot(ctx)
@@ -108,9 +111,6 @@ func main() {
 	// init
 	if err := connector.Start(ctx); err != nil {
 		log.Fatalf("Mqtt connector start error: %v", err)
-	}
-	if err := shadowSvc.SyncConnStatus(ctx); err != nil {
-		log.Fatalf("Sync Conn Status error: %v", err)
 	}
 	if err := methodHandler.InitMethodHandler(ctx); err != nil {
 		log.Fatalf("Init method handler error: %v", err)

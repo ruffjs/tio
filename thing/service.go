@@ -3,6 +3,7 @@ package thing
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"ruff.io/tio"
 	"ruff.io/tio/pkg/cache"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 )
@@ -92,8 +92,9 @@ func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
 	if err != nil {
 		return Thing{}, err
 	}
-
-	return res, err
+	// notify shadow service
+	t.shadowSvc.NotifyCreated(th.Id, shadow.ShadowWithEnable{Shadow: shadow.DefaultShadow(th.Id), Enabled: true})
+	return res, nil
 }
 
 func (t *thingSvc) Update(ctx context.Context, id string, tu ThingPatch) error {
@@ -119,8 +120,10 @@ func (t *thingSvc) Delete(ctx context.Context, id string) error {
 	}
 	err = t.connector.Remove(id)
 	if err != nil {
-		log.Errorf("Failed to close thing connector client, thingId=%q : %v", id, err)
+		slog.Error("Failed to close thing connector client", id, "error", err)
 	}
+	// notify shadow service
+	t.shadowSvc.NotifyDeleted(id)
 	return nil
 }
 

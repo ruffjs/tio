@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -18,12 +20,16 @@ import (
 const (
 	StateTypeDesired  = "desired"
 	StateTypeReported = "reported"
+
+	MaxShadowCount = 100_000
 )
 
 type Service interface {
+	Init(ctx context.Context)
 	StateService
 	CrudService
 	TagsService
+	CacheService
 }
 
 type StateUpdateSubscribe func(thingId string, state StateUpdatedNotice)
@@ -38,7 +44,6 @@ type StateService interface {
 	SubscribeDelta(StateDeltaSubscribe)
 	SubAccepted(StateAcceptedSubscribe)
 	SubRejected(StateRejectedSubscribe)
-	SyncConnStatus(ctx context.Context) error
 }
 
 type StateDesiredSetter interface {
@@ -51,9 +56,23 @@ type CrudService interface {
 	Query(ctx context.Context, page model.PageQuery, query string) (Page, error)
 	Get(ctx context.Context, thingId string, opt GetOption) (ShadowWithStatus, error)
 }
+type CacheGetter interface {
+	GetFromCache(thingId string) (ShadowWithStatus, bool)
+}
 
 type TagsService interface {
 	SetTag(ctx context.Context, thingId string, tag TagsReq) error
+}
+
+type CacheService interface {
+	CacheGetter
+
+	// NotifyCreated notify shadow created for cache update
+	NotifyCreated(thingId string, s ShadowWithEnable)
+	// NotifyDeleted notify shadow deleted for cache update
+	NotifyDeleted(thingId string)
+	// NotifyUpdate notify shadow updated for cache update
+	NotifyUpdate(thingId string, enable bool)
 }
 
 type GetOption struct {
@@ -83,6 +102,7 @@ var _ Service = (*shadowSvc)(nil)
 
 type shadowSvc struct {
 	repo                Repo
+	cache               Cache
 	connectorChecker    connector.ConnectChecker
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
@@ -101,6 +121,7 @@ func NewSvc(r Repo, a connector.ConnectChecker) Service {
 		rjt := make([]StateRejectedSubscribe, 0)
 		svcSingleton = &shadowSvc{
 			repo:                r,
+			cache:               newCache(),
 			connectorChecker:    a,
 			updateSubscribers:   u,
 			deltaSubscribers:    d,
@@ -109,6 +130,26 @@ func NewSvc(r Repo, a connector.ConnectChecker) Service {
 		}
 	})
 	return svcSingleton
+}
+
+func (s *shadowSvc) Init(ctx context.Context) {
+	svcSingleton.syncConnStatus(ctx)
+	svcSingleton.initCache()
+}
+
+func (s *shadowSvc) initCache() {
+	p, err := s.repo.Query(context.Background(), model.PageQuery{PageIndex: 1, PageSize: MaxShadowCount}, ParsedQuerySql{})
+	if err != nil {
+		slog.Error("Init shadow cache, load shadows", "error", err)
+		os.Exit(1)
+	}
+	if p.Total != int64(len(p.Content)) {
+		slog.Error("Init shadow cache, load shadows", "error", "total not equal to content")
+		os.Exit(1)
+	}
+	for _, v := range p.Content {
+		s.cache.Set(v.ThingId, v)
+	}
 }
 
 func (s *shadowSvc) SubscribeUpdate(subscribe StateUpdateSubscribe) {
@@ -149,11 +190,13 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 	return ss, err
 }
 
-func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
+func (s *shadowSvc) syncConnStatus(ctx context.Context) error {
+	connEventCh := s.connectorChecker.OnConnect()
+
 	if err := s.doFirstSyncStatus(ctx); err != nil {
 		return err
 	}
-	connEventCh := s.connectorChecker.OnConnect()
+
 	go func() {
 		for {
 			select {
@@ -165,6 +208,7 @@ func (s *shadowSvc) SyncConnStatus(ctx context.Context) error {
 				if err != nil {
 					log.Errorf("update conn for %s error: %v", c.ClientId, err)
 				} else {
+					s.cache.UpdateConnStatus(c.ClientId, c)
 					log.Debugf("updated conn status %#v", c)
 				}
 			}
@@ -201,17 +245,13 @@ func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
 }
 
 func (s *shadowSvc) Create(ctx context.Context, thingId string) (Shadow, error) {
-	ss := Shadow{
-		ThingId:  thingId,
-		State:    NewStateDR(),
-		Metadata: Metadata{},
-		Version:  1,
-	}
+	ss := DefaultShadow(thingId)
 	re, err := s.repo.Create(ctx, thingId, ss)
 	if err != nil {
 		return Shadow{}, err
 	}
-	log.Infof("Successfully created shadow %s", thingId)
+	slog.Info("Successfully created shadow", "thingId", thingId)
+	s.NotifyCreated(thingId, ShadowWithEnable{Shadow: *re, Enabled: true})
 	return *re, nil
 }
 
@@ -292,7 +332,11 @@ func (s *shadowSvc) Get(ctx context.Context, thingId string, opt GetOption) (Sha
 }
 
 func (s *shadowSvc) Delete(ctx context.Context, thingId string) error {
-	return s.repo.Delete(ctx, thingId)
+	err := s.repo.Delete(ctx, thingId)
+	if err == nil {
+		s.NotifyDeleted(thingId)
+	}
+	return err
 }
 
 func (s *shadowSvc) setState(
@@ -354,6 +398,9 @@ func (s *shadowSvc) setState(
 		if err != nil {
 			return err
 		}
+
+		// update cache
+		s.cache.SetShadow(thingId, *reS)
 
 		resCh <- struct {
 			pre Shadow
@@ -455,18 +502,37 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 				fmt.Sprintf("expect version %d but got %d", cur.Version, t.Version))
 		}
 
-		mergerShadow := MergeTags(cur.Tags, t.Tags)
+		mergedTags := MergeTags(cur.Tags, t.Tags)
 		cur.Version++
-		cur.Tags = mergerShadow
+		cur.Tags = mergedTags
 		_, err = txtRepo.Update(ctx, thingId, t.Version, cur.Shadow)
 		return err
 	})
 	if err != nil {
 		return err
 	}
+	// update cache
+	s.cache.UpdateTags(thingId, t.Tags)
 
 	return nil
 }
+
+// ========= CacheService interface =========
+
+func (s *shadowSvc) GetFromCache(thingId string) (ShadowWithStatus, bool) {
+	return s.cache.Get(thingId)
+}
+func (s *shadowSvc) NotifyCreated(thingId string, sd ShadowWithEnable) {
+	s.cache.Set(thingId, ShadowWithStatus{Shadow: sd.Shadow, Enabled: sd.Enabled})
+}
+func (s *shadowSvc) NotifyDeleted(thingId string) {
+	s.cache.Del(thingId)
+}
+func (s *shadowSvc) NotifyUpdate(thingId string, enable bool) {
+	s.cache.updateThing(thingId, enable)
+}
+
+// ========= CacheService interface end =========
 
 func cloneStateValue(src StateValue) StateValue {
 	tgt := DeepCopyMap(src)

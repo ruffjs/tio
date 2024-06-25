@@ -7,6 +7,10 @@ import (
 	"ruff.io/tio/pkg/log"
 )
 
+const (
+	MaxSizeForSubscribeChannel = 10000
+)
+
 type EventBus[T any] struct {
 	subscribers map[string][]chan T
 	mutex       sync.RWMutex
@@ -22,7 +26,7 @@ func (eb *EventBus[T]) Subscribe(event string) <-chan T {
 	eb.mutex.Lock()
 	defer eb.mutex.Unlock()
 
-	ch := make(chan T)
+	ch := make(chan T, MaxSizeForSubscribeChannel)
 	eb.subscribers[event] = append(eb.subscribers[event], ch)
 
 	return ch

@@ -34,22 +34,20 @@ type mockShadowSvc struct {
 	shadow.Service
 }
 
-func (m *mockShadowSvc) Create(ctx context.Context, thingId string) (shadow.Shadow, error) {
-	args := m.Called(ctx, thingId)
-	return args.Get(0).(shadow.Shadow), args.Error(1)
+func (m *mockShadowSvc) NotifyCreated(thingId string, s shadow.ShadowWithEnable) {
+	m.Called(thingId, s)
 }
 
-func (m *mockShadowSvc) Delete(ctx context.Context, thingId string) error {
-	args := m.Called(ctx, thingId)
-	return args.Error(0)
+func (m *mockShadowSvc) NotifyDeleted(thingId string) {
+	m.Called(thingId)
 }
 
 var connector = shadowMock.NewConnectivity()
 
 func newServer() *httptest.Server {
 	mkSs := new(mockShadowSvc)
-	mkSs.On("Create", tmock.Anything, tmock.Anything).Return(shadow.Shadow{}, nil)
-	mkSs.On("Delete", tmock.Anything, tmock.Anything).Return(nil)
+	mkSs.On("NotifyCreated", tmock.Anything, tmock.Anything)
+	mkSs.On("NotifyDeleted", tmock.Anything)
 
 	conn := mock.NewSqliteConnTest()
 	_ = conn.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})

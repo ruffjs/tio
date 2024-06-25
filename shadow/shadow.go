@@ -3,6 +3,7 @@ package shadow
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
@@ -196,4 +197,21 @@ func (h *shadowHandler) StateUpdatedNotify(ctx context.Context, msg StateUpdated
 	}
 	err = h.client.Publish(topic, DefaultQos, false, j)
 	return err
+}
+
+// DefaultShadow shadow value for new
+func DefaultShadow(thingId string) Shadow {
+	return Shadow{
+		ThingId: thingId,
+		Version: 1,
+		Tags:    TagsValue{},
+		State: StateDR{
+			Desired:  StateValue{},
+			Reported: StateValue{},
+		},
+		Metadata: Metadata{},
+
+		UpdatedAt: time.Now(),
+		CreatedAt: time.Now(),
+	}
 }
