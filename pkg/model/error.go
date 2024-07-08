@@ -2,6 +2,7 @@ package model
 
 const (
 	ErrCodeThingOffline = 601
+	ErrCodeDuplicated   = 602
 )
 
 type HttpErr struct {
@@ -23,7 +24,7 @@ var (
 	ErrAuthorization          = MkHttpErr("authorization failed", 403, 403)
 	ErrInvalidParams          = MkHttpErr("invalid parameters", 400, 400)
 	ErrNotFound               = MkHttpErr("entity not found", 404, 404)
-	ErrDuplicated             = MkHttpErr("entity already exists", 400, 400)
+	ErrDuplicated             = MkHttpErr("entity already exists", 400, ErrCodeDuplicated)
 	ErrVersionConflict        = MkHttpErr("version conflict", 409, 409)
 	ErrInvalidStateTransition = MkHttpErr("an invalid state transition was attempted", 409, 409)
 	ErrPayloadTooLarge        = MkHttpErr("payload too large", 413, 413)

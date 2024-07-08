@@ -75,6 +75,13 @@ export const recreateClient = (baseURL) => {
           throw resp;
         } else if (resp?.status === 404) {
           throw err;
+        } else if (resp?.data?.message){
+          ElNotification({
+            title: "Request error",
+            message: "" + resp.data.message,
+            type: "error",
+            zIndex: 10000,
+          });
         }
         throw resp.data;
       } else {
