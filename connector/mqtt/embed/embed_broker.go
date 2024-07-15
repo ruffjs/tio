@@ -33,7 +33,7 @@ const presenceEventName = "presence"
 
 type ConnectParams packets.ConnectParams
 type AuthzFn func(connParam ConnectParams) bool
-type AclFn func(user string, topic string, write bool) bool
+type AclFn func(clientId, user string, topic string, write bool) bool
 type MochiConfig struct {
 	TcpPort    int
 	TcpSslPort int

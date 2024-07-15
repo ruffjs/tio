@@ -29,5 +29,5 @@ func (a *authHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) boo
 }
 
 func (a *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
-	return a.aclFn(string(cl.Properties.Username), topic, write)
+	return a.aclFn(cl.ID, string(cl.Properties.Username), topic, write)
 }

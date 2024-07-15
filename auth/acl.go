@@ -10,7 +10,7 @@ import (
 	"ruff.io/tio/shadow"
 )
 
-type AclFn = func(username string, topic string, write bool) bool
+type AclFn = func(clientId, username string, topic string, write bool) bool
 
 type BindingGetter interface {
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
@@ -18,7 +18,12 @@ type BindingGetter interface {
 
 // TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
 func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
-	return func(username string, topic string, write bool) bool {
+	return func(clientId, username string, topic string, write bool) bool {
+		// Embeded MQTT inline client username is empty
+		if username == "" {
+			slog.Warn("Unexpected username is empty", "clientId", clientId, "topic", topic, "write", write)
+			return true
+		}
 		for _, u := range superUsers {
 			if u.Name == username {
 				return true
