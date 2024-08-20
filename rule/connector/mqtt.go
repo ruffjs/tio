@@ -78,3 +78,9 @@ func (c *Mqtt) Subscribe(ctx context.Context, topic string, qos byte, callback m
 func (c *Mqtt) UnSubscribe(ctx context.Context, topic string) error {
 	return c.client.Unsubscribe(ctx, topic)
 }
+
+func (c *Mqtt) Publish(topic string, qos byte, retained bool, payload interface{}) error {
+	tk := c.client.Publish(topic, qos, retained, payload)
+	tk.Wait()
+	return tk.Error()
+}

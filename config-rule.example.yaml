@@ -6,6 +6,15 @@ connectors:
     type: amqp
     options:
       url: amqp://guest:guest@localhost:5672/
+  - name: mqtt
+    type: mqtt
+    options:
+      clientId: $rule
+      host: localhost
+      port: 1883
+      user: $tio
+      password: public
+      cleanSession: false
 
 # data sources
 sources:
@@ -19,6 +28,12 @@ sources:
     options:
       topic: $iothub/user/things/+/property
       qos: 1
+  - name: src-mqtt
+    type: mqtt
+    connector: mqtt
+    options:
+      topic: $iothub/user/things/+/test
+      qos: 1
 # data sinks
 sinks:
   - name: sink1
@@ -27,6 +42,11 @@ sinks:
     options:
       exchange: exch1
       routingKey: 
+  - name: mqtt
+    type: mqtt
+    connector: mqtt
+    options:
+      topic: $iothub/user/things/${thingId}/publish
 
 # Sources --> Process(filter and transform chain) --> Sinks
 # Only json messages are supported
@@ -46,12 +66,22 @@ rules:
     sources:
       - src1
       - src2
+      - src-mqtt
     process:
       - type: filter
         name: keep-bigger-than-10
+        # runner: jq  # can be omitted when the js field is empty
         jq: ".payload.data.a > 10"  # should return true of false result
+      - type: filter
+        name: keep-less-than-100
+        # runner: js # can be omitted when the jq field is empty
+        js: "function run(d) { return d.payload.data.a > 10 }"
       - type: transform
         name: to-field-x
         jq: "{ X: .payload.data.a }" # result like: {"X": 11}
+      - type: transform
+        name: to-field-y
+        js: "function run(d) { return { Y: d.payload.data.a } }" # result like: {"Y": 11}
     sinks:
       - sink1
+      - mqtt

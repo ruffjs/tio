@@ -89,6 +89,7 @@ func initRule(rc RuleConfig, shadowGetter shadow.CacheService) {
 			Name: cfg.Name,
 			Type: cfg.Type,
 			Jq:   cfg.Jq,
+			Js:   cfg.Js,
 		})
 		if err != nil {
 			slog.Error("Rule init process failed", "rule", rc.Name, "process", cfg.Name, "error", err)

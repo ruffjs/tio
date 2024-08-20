@@ -25,6 +25,7 @@ type Process struct {
 	Name string
 	Type string
 	Jq   string
+	Js   string
 }
 
 type AmqpSinkOption struct {
