@@ -120,7 +120,7 @@ func (t *thingSvc) Delete(ctx context.Context, id string) error {
 	}
 	err = t.connector.Remove(id)
 	if err != nil {
-		slog.Error("Failed to close thing connector client", id, "error", err)
+		slog.Error("Failed to close thing connector client", "id", id, "error", err)
 	}
 	// notify shadow service
 	t.shadowSvc.NotifyDeleted(id)

@@ -73,7 +73,7 @@ func TestTopicAcl(t *testing.T) {
 			}
 
 			aclFn := auth.TopicAcl(mBg, c.supers)
-			r := aclFn(c.user, c.topic, true)
+			r := aclFn(c.user, c.user, c.topic, true)
 			require.Equal(t, c.result, r, fmt.Sprintf("user %s should access %s : %t", c.user, c.topic, c.result))
 
 			call.Unset()

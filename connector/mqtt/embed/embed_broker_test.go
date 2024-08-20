@@ -29,7 +29,7 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 		AuthzFn: func(embed.ConnectParams) bool {
 			return true
 		},
-		AclFn: func(user string, topic string, write bool) bool {
+		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true
 		},
 	})

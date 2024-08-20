@@ -139,7 +139,7 @@ func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, thingSvc t
 	embed.InitBroker(embed.MochiConfig{
 		TcpPort: cfg.TcpPort,
 		AuthzFn: password.AuthzMqttClient(ctx, cfg.SuperUsers, thingSvc),
-		AclFn: func(user string, topic string, write bool) bool {
+		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true
 		},
 	})
