@@ -36,6 +36,7 @@ import (
 
 	jobApi "ruff.io/tio/job/api"
 	jobWire "ruff.io/tio/job/wire"
+	ruleApi "ruff.io/tio/rule/api"
 	shadowApi "ruff.io/tio/shadow/api"
 	"ruff.io/tio/thing"
 	thingApi "ruff.io/tio/thing/api"
@@ -145,10 +146,14 @@ func main() {
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
 	cfgWs := config.Service(ctx, cfg)
 
+	ruleWs := ruleApi.Service(ctx).
+		Filter(api.LoggingMiddleware).Filter(azf)
+
 	restful.DefaultContainer.Add(thingWs)
 	restful.DefaultContainer.Add(mqWs)
 	restful.DefaultContainer.Add(jobWs)
 	restful.DefaultContainer.Add(cfgWs)
+	restful.DefaultContainer.Add(ruleWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration(aclFn))
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {

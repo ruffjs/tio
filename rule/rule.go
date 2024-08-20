@@ -140,7 +140,7 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 		slog.Error("Rule failed to get shadow", "thingId", msg.ThingId)
 	}
 
-	input, err := msgToProcessInput(msg, sd)
+	input, err := MsgToProcessInput(msg, sd)
 	if err != nil {
 		slog.Error("Rule failed to parse msg", "msg", msg, "error", err)
 		return
@@ -222,7 +222,7 @@ func marshal(input any) (output *string, err error) {
 	return
 }
 
-func msgToProcessInput(msg source.Msg, sd shadow.ShadowWithStatus) (any, error) {
+func MsgToProcessInput(msg source.Msg, sd shadow.ShadowWithStatus) (any, error) {
 	var payload any
 	err := json.Unmarshal([]byte(msg.Payload), &payload)
 	if err != nil {

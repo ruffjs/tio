@@ -50,10 +50,12 @@ func NewProcess(cfg Config) (Process, error) {
 }
 
 func BuildConfig(cfg *Config) {
-	if cfg.Jq == "" && cfg.Js != "" {
-		cfg.Runner = RunnerJs
-	}
-	if cfg.Jq != "" && cfg.Js == "" {
-		cfg.Runner = RunnerJq
+	if cfg.Runner == "" {
+		if cfg.Jq == "" && cfg.Js != "" {
+			cfg.Runner = RunnerJs
+		}
+		if cfg.Jq != "" && cfg.Js == "" {
+			cfg.Runner = RunnerJq
+		}
 	}
 }
