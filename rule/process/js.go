@@ -3,18 +3,18 @@ package process
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/dop251/goja"
 	"github.com/pkg/errors"
 )
-
-// TODO:  goroutine-safe https://github.com/dop251/goja?tab=readme-ov-file#is-it-goroutine-safe
 
 type TransformFunc func(payload any) any
 
 type jsRunner struct {
 	runtime  *goja.Runtime
 	function TransformFunc
+	mu       sync.Mutex
 }
 
 func NewJsRunner(script string) (runner *jsRunner, err error) {
@@ -52,6 +52,11 @@ func (q *jsRunner) Run(ctx context.Context, input any) (output any, err error) {
 			}
 		}
 	}()
+	// st := time.Now()
+	// for goroutine-safe https://github.com/dop251/goja?tab=readme-ov-file#is-it-goroutine-safe
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	res := q.function(input)
+	// slog.Debug("Js runner elapsed", "microsecond", time.Since(st).Microseconds())
 	return res, nil
 }
