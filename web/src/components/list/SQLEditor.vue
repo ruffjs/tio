@@ -18,7 +18,7 @@ import "codemirror/addon/hint/sql-hint";
 
 const editRef = ref();
 const editor = shallowRef();
-const emit = defineEmits(["update:modelValue", "update:focused", "update:blured"]);
+const emit = defineEmits(["update:modelValue", "update:focused", "update:blured", "submit"]);
 const props = defineProps({
   focused: Boolean,
   modelValue: {
@@ -46,7 +46,7 @@ const createEditor = async () => {
     mode: mime,
     indentWithTabs: true,
     smartIndent: true,
-    lineNumbers: true,
+    lineNumbers: false,
     hintOptions: {
       completeSingle: false,
     },
@@ -65,6 +65,12 @@ const createEditor = async () => {
   });
   editor.value.on("blur", () => {});
   editor.value.setValue(props.modelValue.trim());
+  editor.value.on('keydown', (cm, event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      console.log('Shift + Enter pressed');
+      emit('submit');
+    }
+  })
 };
 
 defineExpose({
@@ -87,6 +93,7 @@ onMounted(async () => {
   await nextTick();
   if (!editor.value) createEditor();
 });
+
 </script>
 
 <style scoped lang="scss">

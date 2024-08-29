@@ -1,6 +1,8 @@
 package rule
 
 import (
+	"log/slog"
+
 	"github.com/spf13/viper"
 	"ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/sink"
@@ -8,24 +10,25 @@ import (
 )
 
 type Config struct {
-	Connectors []connector.Config
-	Sinks      []sink.Config
-	Sources    []source.Config
-	Rules      []RuleConfig
+	Connectors []connector.Config `json:"connectors"`
+	Sinks      []sink.Config      `json:"sinks"`
+	Sources    []source.Config    `json:"sources"`
+	Rules      []RuleConfig       `json:"rules"`
 }
 
 type RuleConfig struct {
-	Name    string
-	Sources []string
-	Process []Process
-	Sinks   []string
+	Name    string    `json:"name"`
+	Note    string    `json:"note"`
+	Sources []string  `json:"sources"`
+	Process []Process `json:"process"`
+	Sinks   []string  `json:"sinks"`
 }
 
 type Process struct {
-	Name string
-	Type string
-	Jq   string
-	Js   string
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Jq   string `json:"jq"`
+	Js   string `json:"js"`
 }
 
 type AmqpSinkOption struct {
@@ -34,9 +37,11 @@ type AmqpSinkOption struct {
 }
 
 type MqttSourceOption struct {
-	Topic string
-	Qos   byte
+	Topic string `json:"topic"`
+	Qos   byte   `json:"qos"`
 }
+
+var configContent Config
 
 func ReadConfig() (Config, error) {
 	v := viper.New()
@@ -57,5 +62,34 @@ func ReadConfig() (Config, error) {
 		return Config{}, err
 	}
 
+	configContent = cfg
 	return cfg, nil
+}
+
+func GetConfig() Config {
+	return configContent
+}
+
+func SetConfig(cfg Config) error {
+	slog.Info("Rule config set", "content", cfg)
+
+	v := viper.New()
+	v.SetConfigName("config-rule")
+	v.SetConfigType("yaml")
+	v.AddConfigPath("/etc/tio/")
+	v.AddConfigPath("$HOME/.tio")
+	v.AddConfigPath(".")
+
+	v.Set("connectors", cfg.Connectors)
+	v.Set("sinks", cfg.Sinks)
+	v.Set("sources", cfg.Sources)
+	v.Set("rules", cfg.Rules)
+
+	err := v.WriteConfig()
+	if err != nil {
+		return err
+	}
+
+	configContent = cfg
+	return nil
 }

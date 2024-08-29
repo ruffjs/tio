@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 
 	"ruff.io/tio"
 	"ruff.io/tio/pkg/log"
@@ -132,3 +133,5 @@ type EmqxAdapterConfig struct {
 	ApiUser     string `json:"apiUser"`
 	ApiPassword string `json:"-"`
 }
+
+var GlobalCtxCancel context.CancelFunc

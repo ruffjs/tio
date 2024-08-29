@@ -6,6 +6,7 @@ import List from "@/components/views/List.vue";
 import Login from "@/components/views/Login.vue";
 import NotFound from "@/components/views/NotFound.vue";
 import Thing from "@/components/views/Thing.vue";
+import Rule from "@/components/views/Rule.vue";
 
 const routes = [
   {
@@ -13,6 +14,12 @@ const routes = [
     name: Login.name,
     meta: Login.customOptions,
     component: Login,
+  },
+  {
+    path: "/rules",
+    name: Rule.name,
+    meta: Rule.customOptions,
+    component: Rule,
   },
   {
     path: "/things/:thingId",

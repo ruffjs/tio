@@ -12,7 +12,7 @@ export default {
     if (activeToolConf) {
       bottomGap = activeToolConf.height!;
     }
-    root.style.setProperty("--layout-top-gap", "50px");
+    root.style.setProperty("--layout-top-gap", "0px");
     root.style.setProperty("--layout-bottom-gap", `${bottomGap}px`);
     return {
       activeToolKey,

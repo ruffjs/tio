@@ -58,7 +58,7 @@ export const recreateClient = (baseURL) => {
     },
     (err) => {
       const { response: resp, code, message, stack } = err;
-      // console.log(err);
+      console.error("http api", err);
       if (resp) {
         log(resp, { code, message });
         if (resp?.status === 401) {

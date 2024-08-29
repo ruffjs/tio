@@ -18,8 +18,8 @@ func init() {
 }
 
 type RedisConfig struct {
-	Url        string `json:"url"`
-	MaxRetries int    `json:"maxRetries"`
+	// redis://user:password@localhost:6789/3?dial_timeout=3&db=1&read_timeout=6s&max_retries=2
+	Url string `json:"url"`
 }
 
 type Redis struct {
@@ -48,7 +48,6 @@ func newRedis(name string, cfg map[string]any) (Conn, error) {
 		os.Exit(1)
 	}
 
-	opt.MaxRetries = ac.MaxRetries
 	c := &Redis{
 		name:   name,
 		config: ac,

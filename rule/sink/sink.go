@@ -20,10 +20,10 @@ type Sink interface {
 }
 
 type Config struct {
-	Name      string
-	Type      string
-	Connector string
-	Options   map[string]any
+	Name      string         `json:"name"`
+	Type      string         `json:"type"`
+	Connector string         `json:"connector"`
+	Options   map[string]any `json:"options"`
 }
 
 type CreateFunc func(name string, cfg map[string]any, conn connector.Conn) Sink

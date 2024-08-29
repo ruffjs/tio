@@ -1,17 +1,5 @@
 <template>
   <div class="nav-container">
-    <div class="nav-logo">
-      <div class="nav-logo-tio">
-        <el-icon><ArrowLeftBold /></el-icon>
-        <span>T</span>
-        <span>I</span>
-        <span>O</span>
-        <el-icon><ArrowRightBold /></el-icon>
-      </div>
-      <div class="nav-logo-sub">
-        <span v-for="l in 'playground'.split('')">{{ l }}</span>
-      </div>
-    </div>
     <div v-if="isThing" class="nav-thing-id">
       <span>{{ thingId }}</span>
     </div>
@@ -106,44 +94,17 @@ const handleLogOut = () => {
 .nav-container {
   display: flex;
   justify-content: space-between;
-  background-color: #f2f2f2;
-  box-shadow: 0 1px 2px rgba($color: #000000, $alpha: 0.1);
+  background-color: #071927;
+  color: #fff;
+  // box-shadow: 0 1px 2px rgba($color: #000000, $alpha: 0.1);
   user-select: none;
-  .nav-logo {
-    width: 100px;
-    height: 34px;
-    margin: 8px 0px 8px 20px;
-    text-align: center;
-    background-color: var(--el-text-color-primary);
-    color: #f2f2f2;
-    cursor: default;
-
-    .nav-logo-tio {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      text-transform: uppercase;
-      line-height: 24px;
-      font-size: 24px;
-      font-weight: 700;
-    }
-    .nav-logo-sub {
-      display: flex;
-      justify-content: space-between;
-      text-transform: uppercase;
-      line-height: 10px;
-      font-size: 12px;
-      font-weight: 900;
-    }
-  }
 
   .nav-thing-id {
     height: 34px;
     margin: 8px 0 8px 3px;
     padding: 4px;
-    border: solid 3px var(--el-text-color-primary);
+    border: solid 1 px #fff;
     border-left-width: 3px;
-    color: var(--el-text-color-primary);
     line-height: 18px;
     font-size: 24px;
     font-weight: 400;

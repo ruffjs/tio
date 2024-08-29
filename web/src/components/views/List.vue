@@ -3,11 +3,11 @@
     <div class="thing-detail" :style="{ height: route.params.thingId ? '100%' : '0%' }">
       <router-view></router-view>
     </div>
-    <div class="thing-list" :class="{ active }" v-loading="querying">
+    <div v-show="showList" class="thing-list" :class="{ active }" v-loading="querying">
       <div class="list-view-search">
         <div class="list-view-search-left">
           <div class="list-view-query-editor">
-            <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" />
+            <SQLEditor v-model="query" v-model:focused="focused" ref="sqlEditor" @submit="handleSearch"/>
             <div class="list-view-query-link">
               <el-button icon="Link" size="small" circle @click="handleOpenDoc" />
             </div>
@@ -15,7 +15,7 @@
         </div>
         <div class="list-view-search-right">
           <el-button v-if="active" @click="handleClear">RESET</el-button>
-          <el-button v-if="active" @click="handleSearch">QUERY</el-button>
+          <el-button v-if="active" @click="handleSearch" title="Ctrl/Cmd/Win + Enter">QUERY</el-button>
           <el-button v-else icon="Search" @click="handleSearch" />
         </div>
       </div>
@@ -105,6 +105,9 @@ const blured = ref(false);
 const empty = ref(false);
 const error = ref("");
 const active = computed(() => focused.value || total.value > 0);
+
+const router = useRoute();
+const showList = computed(() => !router.path.includes('/things/'));
 
 const params = reactive({
   pageIndex: 1,
@@ -224,7 +227,6 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
     justify-content: center;
     align-items: center;
 
-    width: 100%;
     height: 100%;
     min-height: 268px;
 
@@ -400,7 +402,6 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
   .thing-list {
     .list-view-search {
       .CodeMirror {
-        width: 100%;
         height: 92px;
         line-height: 22px;
         color: black;

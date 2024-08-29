@@ -32,8 +32,8 @@ func init() {
 }
 
 type MqttConfig struct {
-	Topic string
-	Qos   byte
+	Topic string `json:"topic"`
+	Qos   byte   `json:"qos"`
 }
 
 func NewMqtt(name string, cfg MqttConfig, conn *connector.Mqtt) Source {

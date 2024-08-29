@@ -22,9 +22,9 @@ type Conn interface {
 }
 
 type Config struct {
-	Name    string
-	Type    string
-	Options map[string]any
+	Name    string                 `json:"name"`
+	Type    string                 `json:"type"`
+	Options map[string]interface{} `json:"options"`
 }
 
 type CreateFunc func(name string, cfg map[string]any) (Conn, error)

@@ -67,6 +67,7 @@ func main() {
 	log.Infof("Config: %s", cfgJ)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	config.GlobalCtxCancel = cancel
 	go func() {
 		if sig := signalHandler(ctx); sig != nil {
 			cancel()

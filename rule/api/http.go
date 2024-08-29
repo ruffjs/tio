@@ -2,9 +2,13 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/rule"
 	"ruff.io/tio/rule/process"
@@ -42,7 +46,63 @@ func Service(
 		Reads(TestRuleReq{}).
 		Returns(200, "OK", rest.RespOK(TestRuleResp{})))
 
+	ws.Route(ws.GET("/config").
+		To(GetConfigHandler()).
+		Operation("get-ruel-config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "OK", rest.RespOK(rule.Config{})))
+
+	ws.Route(ws.PUT("/config").
+		To(SaveConfigHandler()).
+		Operation("save-ruel-config").
+		Reads(rule.Config{}).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "OK", rest.RespOK(rule.Config{})))
+
 	return ws
+}
+
+func GetConfigHandler() restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		rest.SendRespOK(w, rule.GetConfig())
+	}
+}
+
+func SaveConfigHandler() restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		var cfg rule.Config
+
+		// Bug found by code below: int value in connector options (map[string]any) is be converted to string
+		// if err := r.ReadEntity(&cfg); err != nil {
+		// 	rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
+		// 	return
+		// }
+
+		if err := json.NewDecoder(r.Request.Body).Decode(&cfg); err != nil {
+			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
+			return
+		}
+
+		if err := rule.SetConfig(cfg); err != nil {
+			checkErrAndSend(err, w)
+		} else {
+			rest.SendRespOK(w, rule.GetConfig())
+
+			// TODO optimize this by hot reload rule
+			// go func() {
+			// 	config.GlobalCtxCancel()
+			// }()
+		}
+	}
+}
+
+func checkErrAndSend(err error, w http.ResponseWriter) {
+	var he model.HttpErr
+	if ok := errors.As(err, &he); ok {
+		rest.SendResp(w, he.HttpCode, rest.Resp[string]{Code: he.Code, Message: err.Error()})
+	} else {
+		rest.SendResp(w, 500, rest.Resp[string]{Code: 500, Message: err.Error()})
+	}
 }
 
 func TestHandler(ctx context.Context) restful.RouteFunction {

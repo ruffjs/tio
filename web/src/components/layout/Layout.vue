@@ -1,19 +1,62 @@
 <template>
-  <div class="layout">
-    <div class="playground" :style="{ zIndex }"><router-view></router-view></div>
-    <div class="background">
-      <nav class="top-nav-bar">
-        <TopNavBar />
-      </nav>
-      <div class="tool-area">
-        <ToolArea />
+  <el-container>
+    <el-aside class="left">
+      <div class="logo-con">
+        <div class="nav-logo">
+          <div class="nav-logo-tio">
+            <el-icon>
+              <ArrowLeftBold />
+            </el-icon>
+            <span>T</span>
+            <span>I</span>
+            <span>O</span>
+            <el-icon>
+              <ArrowRightBold />
+            </el-icon>
+          </div>
+          <div class="nav-logo-sub">
+            <span v-for="l in 'playground'.split('')">{{ l }}</span>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+
+      <el-menu :default-active="route.path" :router="true" class="menu" background-color="#071927" text-color="#fff">
+        <el-menu-item index="/" route="/">
+          <el-icon>
+            <Grid />
+          </el-icon>
+          <span>Things</span>
+        </el-menu-item>
+        <el-menu-item index="/rules" route="/rules">
+          <el-icon>
+            <Operation />
+          </el-icon>
+          <span>Rules</span>
+        </el-menu-item>
+      </el-menu>
+
+    </el-aside>
+    <el-container class="right">
+      <el-header class="top-nav-bar">
+        <nav>
+          <TopNavBar />
+        </nav>
+      </el-header>
+      <el-main>
+        <div class="playground" :style="{ zIndex }">
+          <router-view></router-view>
+        </div>
+
+        <div class="tool-area">
+          <ToolArea />
+        </div>
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 
 import TopNavBar from "@/components/layout/TopNavBar.vue";
@@ -25,7 +68,6 @@ const zIndex = ref(0);
 watch(
   route,
   () => {
-    console.log("route:", route.name, route.meta);
     zIndex.value = route.meta.zIndex;
     if (typeof route.meta.title === "function") {
       document.title = route.meta.title(route);
@@ -38,49 +80,74 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.layout {
-  width: 100vw;
+.left {
+  position: fixed;
+  z-index: 10;
   height: 100vh;
-  min-width: 1080px;
-  min-height: 568px;
-  background-color: #e0e0e0;
-  .playground {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    min-width: 1080px;
-    min-height: 320px;
-  }
-  .background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 0;
-    min-width: 1080px;
-    background-color: transparent;
-    z-index: 10;
-    overflow: visible;
+  width: 180px;
 
-    .top-nav-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 50px;
-      min-width: 1080px;
-      overflow: visible;
+  .menu {
+    height: calc(100vh - 50px);
+  }
+
+  .logo-con {
+    display: block;
+    height: 58px;
+    margin-top: -8px;
+    padding-top: 8px;
+    background-color: #071927;
+  }
+
+  .nav-logo {
+    width: 100px;
+    height: 34px;
+    margin: 8px 0px 8px 20px;
+    text-align: center;
+    color: #fff;
+    cursor: default;
+
+    .nav-logo-tio {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      line-height: 24px;
+      font-size: 24px;
+      font-weight: 700;
     }
-    .tool-area {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100vw;
-      height: auto;
-      min-width: 1080px;
+
+    .nav-logo-sub {
+      display: flex;
+      justify-content: space-between;
+      text-transform: uppercase;
+      line-height: 10px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #a0cfff;
     }
+  }
+}
+
+.right {
+  margin-left: 160px;
+
+  .top-nav-bar {
+    position: fixed;
+    z-index: 10;
+    width: calc(100% - 140px);
+  }
+
+  .playground {
+    margin-top: 40px;
+  }
+
+  .tool-area {
+    z-index: 10;
+    position: fixed;
+    bottom: 0;
+    width: calc(100% - 180px);
+    height: auto;
+    min-width: 1080px;
   }
 }
 </style>

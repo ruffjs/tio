@@ -62,8 +62,7 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
   .tool-tabs {
     position: fixed;
     bottom: 0;
-    left: 0;
-    width: 100vw;
+    width: 100%;
     height: 30px;
     min-width: 1080px;
     border-top: solid 1px rgba($color: #000000, $alpha: 0.1);
@@ -104,8 +103,6 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
       width: 100%;
       height: 100%;
       top: 200%;
-      left: 0;
-      // transition: top ease-in-out 0.1s;
     }
   }
 }
