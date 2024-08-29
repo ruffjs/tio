@@ -8,6 +8,7 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/rule"
@@ -89,9 +90,9 @@ func SaveConfigHandler() restful.RouteFunction {
 			rest.SendRespOK(w, rule.GetConfig())
 
 			// TODO optimize this by hot reload rule
-			// go func() {
-			// 	config.GlobalCtxCancel()
-			// }()
+			go func() {
+				config.GlobalCtxCancel()
+			}()
 		}
 	}
 }
