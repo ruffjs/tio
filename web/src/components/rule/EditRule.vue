@@ -184,7 +184,7 @@ import { tryMerge } from './rule.ts';
 
 const props = defineProps({
   config: Object,
-  rule: String,
+  rule: Object,
   isNew: Boolean,
 })
 
@@ -209,7 +209,7 @@ const form = reactive({
   testData: {
     thingId: "",
     topic: "",
-    payload: "{}"
+    payload: '{"msg": "hello"}'
   }
 })
 const testResult = ref({})
@@ -234,7 +234,13 @@ onMounted(async () => {
 
 const initRule = () => {
   const config = JSON.parse(JSON.stringify(props.config))
-  let rule = config.rules.find(r => r.name == props.rule)
+  
+  let rule = props.rule
+  const theRuleName = props.rule?.name
+
+  if (theRuleName) {
+    rule = config.rules.find(r => r.name == props.rule?.name)
+  }
 
   if (rule) {
     rule = JSON.parse(JSON.stringify(rule))
@@ -356,36 +362,8 @@ const save = async () => {
   height: 100%;
 }
 
-.script-editor {
-  margin-bottom: 10px;
-  margin-top: 10px;
-
-  min-height: 200px;
-  max-height: 400px;
-  /* we dont use `language-` classes anymore so thats why we need to add background and text color manually */
-  background: #2d2d2d;
-  color: #ccc;
-
-  /* you must provide font-family font-size line-height. Example: */
-  font-family: Fira code, Fira Mono, Consolas, Menlo, Courier, monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  padding: 5px;
-
-  /* optional class for removing the outline */
-  .prism-editor__textarea:focus {
-    outline: none;
-  }
-}
-
-.CodeMirror {
-  height: 300px;
-}
-
 .js-editor {
   margin-top: 10px;
-  border: 1px #eaeaea solid;
-  border-radius: 3px;
 }
 
 .json-editor {

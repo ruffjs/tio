@@ -2,7 +2,7 @@
 
   <div class="con">
 
-    <EditRule v-if="showEditRule" :rule="currentRule?.name" :config="data" :isNew="isNewRule" @cancel="afterRuleEdit" />
+    <EditRule v-if="showEditRule" :rule="currentRule" :config="data" :isNew="isNewRule" @cancel="afterRuleEdit" />
     <div v-show="!showEditRule">
       <el-card>
         <div>
@@ -57,6 +57,9 @@
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
                 Edit
+              </el-button>
+              <el-button link type="primary" @click.prevent="duplicateRule(scope.row)">
+                Duplicate
               </el-button>
               <DeleteButton title="Confimr delete?" @confirm="delRule(scope.row)" />
             </template>
@@ -214,15 +217,22 @@ const loadRuleConfig = async () => {
 
 // ----------- rule -----------
 const showAddRule = () => {
-  showEditRule.value = true
   currentRule.value = {}
   isNewRule.value = true
+  showEditRule.value = true
 }
 
 const editRule = (rule) => {
-  showEditRule.value = true
   currentRule.value = rule
   isNewRule.value = false
+  showEditRule.value = true
+}
+const duplicateRule = (rule) => {
+  const dup = deepCopy(rule)
+  dup.name = ''
+  currentRule.value = dup
+  isNewRule.value = true
+  showEditRule.value = true
 }
 const delRule = (rule) => {
   const { rules } = data.value
@@ -411,7 +421,7 @@ const delSink = async row => {
 
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 .con {
   margin: 0 10px;
 

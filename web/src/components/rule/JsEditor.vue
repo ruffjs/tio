@@ -2,6 +2,12 @@
   <div class="edit-container">
     <textarea ref="editRef" v-model="model"></textarea>
   </div>
+
+  <el-row>
+    <el-tooltip content="Auto height for code editor for see all code" placement="top">
+      <el-checkbox link type="primary" @change="onAutoHeightCheck">auto height</el-checkbox>
+    </el-tooltip>
+  </el-row>
 </template>
 
 <script setup>
@@ -72,9 +78,17 @@ onMounted(async () => {
   if (!editor.value) createEditor();
 });
 
+const onAutoHeightCheck = (b) => {
+  if (b) {
+    editor.value.setSize('100%', 'auto')
+  } else {
+    editor.value.setSize('100%', '300px')
+  }
+}
+
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 .edit-container {
   width: 100%;
   height: 100%;
@@ -85,5 +99,11 @@ onMounted(async () => {
     width: 100%;
     height: 100%;
   }
+}
+</style>
+<style lang="scss">
+.CodeMirror {
+  border: 1px #eaeaea solid;
+  border-radius: 3px;
 }
 </style>
