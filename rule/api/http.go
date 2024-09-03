@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -91,6 +92,7 @@ func SaveConfigHandler() restful.RouteFunction {
 
 			// TODO optimize this by hot reload rule
 			go func() {
+				time.Sleep(time.Second)
 				config.GlobalCtxCancel()
 			}()
 		}

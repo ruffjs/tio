@@ -86,7 +86,6 @@ export function validateRule(config: RuleConfig, rule: RuleEditData, isNew: bool
     throw new Error("Rule name is required");
   }
   if (rule.sources.length == 0 || rule.sinks.length == 0 || rule.process.length == 0) {
-    debugger
     throw new Error("Rule sources, sinks and process are required");
   }
 

@@ -213,11 +213,16 @@ const loadRuleConfig = async () => {
   if (r.code == 200 && !r.data) {
     data.value = emptyRuleConfig
   }
+  const rule = data.value
+  if (!rule.connector) rule.connectors = []
+  if (!rule.sources) rule.sources = []
+  if (!rule.sinks) rule.sinks = []
+  if (!rule.rules) rule.rules = []
 }
 
 // ----------- rule -----------
 const showAddRule = () => {
-  currentRule.value = {}
+  currentRule.value = null
   isNewRule.value = true
   showEditRule.value = true
 }

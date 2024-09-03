@@ -131,7 +131,7 @@
           <el-row>
             <div v-if="ioAdd.source.show" class="io-sel">
               <el-select v-model="ioAdd.source.selected">
-                <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s" />
+                <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('source')">Confirm</el-button>
               <el-button @click="ioAdd.source.show = false">Cancel</el-button>
@@ -157,7 +157,7 @@
           <el-row>
             <div v-if="ioAdd.sink.show" class="io-sel">
               <el-select v-model="ioAdd.sink.selected" v-for="s in ioAdd.sink.availabe">
-                <el-option :label="s.name" :value="s" />
+                <el-option :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('sink')">Confirm</el-button>
               <el-button @click="ioAdd.sink.show = false">Cancel</el-button>
@@ -234,7 +234,7 @@ onMounted(async () => {
 
 const initRule = () => {
   const config = JSON.parse(JSON.stringify(props.config))
-  
+
   let rule = props.rule
   const theRuleName = props.rule?.name
 
@@ -247,6 +247,7 @@ const initRule = () => {
     form.name = rule.name
     form.note = rule.note
     form.process = rule.process
+
     form.process.forEach(p => {
       if (p.runner == undefined) {
         p.runner = !!p.jq ? "jq" : "js"
@@ -283,8 +284,14 @@ const addIo = (type) => {
     ElNotification({ message: 'Select ' + type, type: 'error' })
     return
   }
-  form[type + 's'].push(d.selected)
+  const s = d.availabe.find(a=>a.name == d.selected)
+  if (!s) {
+    ElNotification({ message: 'Select another ' + type, type: 'error' })
+    return 
+  }
+  form[type + 's'].push(s)
   d.show = false
+  d.selected = null
 }
 const delIo = (type, name) => {
   const sl = form[type + 's']
