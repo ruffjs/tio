@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
 var (
@@ -24,7 +25,17 @@ func RouteSwagger() {
 
 func RouteWeb() {
 	d, _ := fs.Sub(webFS, "web/dist")
-	http.Handle("/web/", http.StripPrefix("/web/", http.FileServer(http.FS(d))))
+	// http.Handle("/web/", http.StripPrefix("/web/", http.FileServer(http.FS(d))))
+
+	h := http.StripPrefix("/web/", http.FileServer(http.FS(d)))
+	http.HandleFunc("/web/", func(w http.ResponseWriter, r *http.Request) {
+		// set cache header
+		if strings.HasSuffix(r.URL.Path, ".js") || strings.HasSuffix(r.URL.Path, ".css") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+		}
+		h.ServeHTTP(w, r)
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/web", http.StatusFound)
 	})
