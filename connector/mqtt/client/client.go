@@ -46,11 +46,12 @@ var _ Client = (*mqttClient)(nil)
 
 func NewClient(cfg config.MqttClientConfig) Client {
 	log.Infof("Init mqtt client %#v", cfg)
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port))
-	opts.SetClientID(cfg.ClientId)
-	opts.SetUsername(cfg.User)
-	opts.SetPassword(cfg.Password)
+	opts := mqtt.NewClientOptions().
+		AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port)).
+		SetClientID(cfg.ClientId).
+		SetUsername(cfg.User).
+		SetPassword(cfg.Password).
+		SetAutoReconnect(true)
 	cleanSession := true
 	if cfg.CleanSession != nil {
 		cleanSession = *cfg.CleanSession
@@ -89,6 +90,9 @@ func NewClient(cfg config.MqttClientConfig) Client {
 }
 
 func (c *mqttClient) Connect(ctx context.Context) error {
+	if c.conn.IsConnected() {
+		return nil
+	}
 	log.Infof("Mqtt client connecting ...")
 	if token := c.conn.Connect(); token.Wait() && token.Error() != nil {
 		return token.Error()

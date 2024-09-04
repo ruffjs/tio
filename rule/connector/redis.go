@@ -2,11 +2,13 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
+	"ruff.io/tio/rule/model"
 )
 
 // Redis connector
@@ -23,47 +25,45 @@ type RedisConfig struct {
 }
 
 type Redis struct {
-	name   string
-	config RedisConfig
-	client *redis.Client
+	ctx     context.Context
+	name    string
+	config  RedisConfig
+	client  *redis.Client
+	started bool
 }
 
-func (c *Redis) Close() error {
-	return c.client.Close()
-}
-
-func newRedis(name string, cfg map[string]any) (Conn, error) {
+func newRedis(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
 	var ac RedisConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("Rule connector redis failed to decode config", "error", err)
-		os.Exit(1)
+		return nil, errors.WithMessage(err, "failed to decode config")
 	}
 	if ac.Url == "" {
-		slog.Error("Rule connector redis config uri is empty")
-		os.Exit(1)
+		return nil, fmt.Errorf("config uri is empty")
 	}
 	opt, err := redis.ParseURL(ac.Url)
 	if err != nil {
-		slog.Error("Rule connector redis failed to parse config uri", "uri", ac.Url)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to parse config uri: %w", err)
 	}
 
 	c := &Redis{
+		ctx:    ctx,
 		name:   name,
 		config: ac,
 		client: redis.NewClient(opt),
 	}
-	c.Connect()
 	slog.Info("Rule connector Redis inited")
 	return c, nil
 }
 
-func (c *Redis) Status() Status {
+func (c *Redis) Status() model.StatusInfo {
+	if !c.started {
+		return model.StatusNotStarted()
+	}
 	r := c.client.Ping(context.Background())
 	if r.Err() != nil {
-		return StatusDisconnected
+		return model.StatusDisconnected(r.Err().Error(), r.Err())
 	}
-	return StatusConnected
+	return model.StatusConnected()
 }
 
 func (c *Redis) Name() string {
@@ -74,7 +74,15 @@ func (*Redis) Type() string {
 	return TypeRedis
 }
 
-func (c *Redis) Connect() error {
+func (c *Redis) Start() error {
+	c.started = true
+	return c.Status().Error
+}
+
+func (c *Redis) Stop() error {
+	c.started = true
+	// TODO Figure out if should close the connecton and if it can be reponded
+	// return c.client.Close()
 	return nil
 }
 

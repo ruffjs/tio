@@ -1,23 +1,26 @@
 package connector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+	"ruff.io/tio/rule/model"
 )
 
 const TypeInfluxDB = "influxdb"
 
 func init() {
-	Register(TypeInfluxDB, func(name string, cfg map[string]any) (Conn, error) {
+	Register(TypeInfluxDB, func(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
 		var ac InfluxDBConfig
 		if err := mapstructure.Decode(cfg, &ac); err != nil {
 			return nil, errors.WithMessage(err, "decode config")
 		}
 		c := &InfluxDB{
+			ctx:    ctx,
 			name:   name,
 			config: ac,
 		}
@@ -36,24 +39,29 @@ type InfluxDBConfig struct {
 }
 
 type InfluxDB struct {
+	ctx    context.Context
 	name   string
 	config InfluxDBConfig
 	client *resty.Client
 }
 
-func (c *InfluxDB) Close() error {
+func (c *InfluxDB) Start() error {
+	return c.Status().Error
+}
+
+func (c *InfluxDB) Stop() error {
 	c.client.GetClient().CloseIdleConnections()
 	// TODO finish send msg in buffer
 	return nil
 }
 
-func (c *InfluxDB) Status() Status {
+func (c *InfluxDB) Status() model.StatusInfo {
 	err := testConnectByUrl(c.config.Url)
 	if err != nil {
 		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
-		return StatusDisconnected
+		return model.StatusDisconnected(err.Error(), err)
 	} else {
-		return StatusConnected
+		return model.StatusConnected()
 	}
 }
 

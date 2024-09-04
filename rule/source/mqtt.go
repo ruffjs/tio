@@ -3,32 +3,20 @@ package source
 import (
 	"context"
 	"log/slog"
-	"os"
+	"sync"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/rule/connector"
+	rmodel "ruff.io/tio/rule/model"
 )
 
 const TypeMqtt = "mqtt"
 
 func init() {
-	Register(TypeMqtt, func(name string, cfg map[string]any, conn connector.Conn) Source {
-		var ac MqttConfig
-		if err := mapstructure.Decode(cfg, &ac); err != nil {
-			slog.Error("decode source embed-mqtt config", "name", name, "error", err)
-			os.Exit(1)
-		}
-		var mqttConn *connector.Mqtt
-		if c, ok := conn.(*connector.Mqtt); !ok {
-			slog.Error(("Rule source mqtt failed to cast connector to Mqtt"), "name", name)
-			os.Exit(1)
-		} else {
-			mqttConn = c
-		}
-		return NewMqtt(name, ac, mqttConn)
-	})
+	Register(TypeMqtt, newMqtt)
 }
 
 type MqttConfig struct {
@@ -36,31 +24,68 @@ type MqttConfig struct {
 	Qos   byte   `json:"qos"`
 }
 
-func NewMqtt(name string, cfg MqttConfig, conn *connector.Mqtt) Source {
-	m := &mqttImpl{
-		name:   name,
-		config: cfg,
-		conn:   conn,
-	}
-	return m
-}
-
 type mqttImpl struct {
+	ctx      context.Context
 	name     string
 	config   MqttConfig
 	conn     *connector.Mqtt
-	handlers []MsgHander
+	handlers sync.Map // like: map[string]MsgHander
+
+	started bool
+	status  rmodel.StatusInfo
 }
 
-func (m *mqttImpl) Start() {
-	m.subscribe()
+func newMqtt(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Source, error) {
+	var ac MqttConfig
+	if err := mapstructure.Decode(cfg, &ac); err != nil {
+		return nil, errors.WithMessage(err, "decode config")
+	}
+	var mqttConn *connector.Mqtt
+	if c, ok := conn.(*connector.Mqtt); !ok {
+		return nil, errors.New("wrong connector type for mqtt source")
+	} else {
+		mqttConn = c
+	}
+	m := &mqttImpl{
+		ctx:    ctx,
+		name:   name,
+		config: ac,
+		conn:   mqttConn,
+		status: rmodel.StatusNotStarted(),
+	}
+	return m, nil
+}
+
+func (m *mqttImpl) Start() error {
+	if m.started {
+		return nil
+	}
+	m.started = true
+	if err := m.subscribe(); err != nil {
+		m.status = rmodel.StatusDisconnected("failed to subscribe: "+err.Error(), err)
+		return errors.WithMessagef(err, "failed to subscribe topic %q", m.config.Topic)
+	}
+	return nil
 }
 
 func (m *mqttImpl) Stop() {
-	err := m.conn.UnSubscribe(context.TODO(), m.config.Topic)
+	m.started = false
+	m.status = rmodel.StatusNotStarted()
+	err := m.conn.UnSubscribe(m.ctx, m.config.Topic)
 	if err != nil {
 		slog.Error("Rule source mqtt stop, failed to unsubscribe", "name", m.name, "error", err)
 	}
+}
+
+func (m *mqttImpl) Status() rmodel.StatusInfo {
+	if !m.started {
+		return rmodel.StatusNotStarted()
+	}
+	connSt := m.conn.Status()
+	if connSt.Status == rmodel.Disconnected {
+		return rmodel.StatusDisconnected("connector "+m.conn.Name()+" is disconnected: "+connSt.Reason, connSt.Error)
+	}
+	return m.status
 }
 
 func (m *mqttImpl) Name() string {
@@ -71,12 +96,19 @@ func (*mqttImpl) Type() string {
 	return TypeMqtt
 }
 
-func (m *mqttImpl) OnMsg(h MsgHander) {
-	m.handlers = append(m.handlers, h)
+// OnMsg register MsgHandler which can't be blocked when it is called
+func (m *mqttImpl) OnMsg(ruleName string, h MsgHander) {
+	m.handlers.Store(ruleName, h)
+	if h == nil {
+		m.handlers.Delete(ruleName)
+	}
 }
 
-func (m *mqttImpl) subscribe() {
-	err := m.conn.Subscribe(context.TODO(), m.config.Topic, m.config.Qos, func(cl mqtt.Client, msg mqtt.Message) {
+func (m *mqttImpl) subscribe() error {
+	return m.conn.Subscribe(m.ctx, m.config.Topic, m.config.Qos, func(cl mqtt.Client, msg mqtt.Message) {
+		if !m.started {
+			return
+		}
 		thId, err := model.GetThingIdFromTopic(msg.Topic())
 		if err != nil {
 			slog.Error("Can't get thing id from topic in embed mqtt broker subscription", "error", err)
@@ -86,12 +118,10 @@ func (m *mqttImpl) subscribe() {
 			Topic:   msg.Topic(),
 			Payload: string(msg.Payload()),
 		}
-		for _, h := range m.handlers {
-			h(mm)
-		}
+		m.handlers.Range(func(key, value any) bool {
+			value.(MsgHander)(mm)
+			return true
+		})
+
 	})
-	if err != nil {
-		slog.Error("Rule source mqtt subscribe failed", "name", m.name, "topic", m.config.Topic)
-		os.Exit(1)
-	}
 }

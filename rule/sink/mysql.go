@@ -1,12 +1,14 @@
 package sink
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
-	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // MySQL sink, use raw SQL
@@ -38,33 +40,52 @@ func init() {
 type MySqlConfig struct {
 }
 
-func NewMySQL(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewMySQL(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac MySqlConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("decode sink mysql config", "name", name, "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("decode config")
 	}
 	c, ok := conn.(*connector.MySQL)
 	if !ok {
-		slog.Error("wrong connector type for mysql sink")
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for mysql sink")
 	}
 
 	a := &mysqlImpl{
+		ctx:  ctx,
 		name: name,
 		cfg:  ac,
 		conn: c,
 		ch:   make(chan *Msg, 10000),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type mysqlImpl struct {
+	ctx  context.Context
 	name string
 	cfg  MySqlConfig
 	conn *connector.MySQL
 	ch   chan *Msg
+
+	started bool
+}
+
+func (s *mysqlImpl) Start() error {
+	s.started = true
+	return s.Status().Error
+}
+
+func (s *mysqlImpl) Status() model.StatusInfo {
+	if !s.started {
+		return model.StatusNotStarted()
+	}
+	return withConnStatus(s.conn.Name(), s.conn.Status())
+}
+
+func (s *mysqlImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *mysqlImpl) Name() string {
@@ -76,14 +97,16 @@ func (*mysqlImpl) Type() string {
 }
 
 func (s *mysqlImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *mysqlImpl) publishLoop() {
 	for {
 		msg := <-s.ch
 		sql := string(msg.Payload)
-		if res := s.conn.DB().Exec(sql); res.Error != nil {
+		if res := s.conn.DB().WithContext(s.ctx).Exec(sql); res.Error != nil {
 			slog.Error("MySQL sink exec failed", "error", res.Error, "sql", sql)
 		} else {
 			slog.Debug("MySQL sink exec succeeded", "payload", sql)

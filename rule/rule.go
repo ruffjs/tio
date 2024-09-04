@@ -12,9 +12,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
+	"runtime"
 	"strings"
 
+	"ruff.io/tio/rule/model"
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
@@ -30,8 +31,14 @@ const (
 
 type Rule interface {
 	Name() string
-	Start(ctx context.Context) error
-	Stop() error
+	Start(ctx context.Context)
+	Stop()
+}
+
+type StatusGetter interface {
+	Name() string
+	Type() string
+	Status() model.StatusInfo
 }
 
 func NewRule(name string,
@@ -48,44 +55,56 @@ func NewRule(name string,
 		shadowGetter: shadowGetter,
 	}
 
+	runtime.SetFinalizer(r, func(obj Rule) {
+		slog.Debug("Rule is being garbage collected", "type", "rule", "name", obj.Name())
+	})
 	return r
 }
 
 type ruleImpl struct {
-	ctx          context.Context
+	ctx       context.Context
+	ctxCancel context.CancelFunc
+
 	name         string
 	shadowGetter shadow.CacheGetter
 	sources      []source.Source
 	processors   []process.Process
 	sinks        []sink.Sink
+
+	started bool
 }
 
 func (r *ruleImpl) Name() string {
 	return r.name
 }
 
-func (r *ruleImpl) Start(ctx context.Context) error {
-	r.ctx = ctx
+func (r *ruleImpl) Start(ctx context.Context) {
+	if r.started {
+		return
+	}
+	r.started = true
+
+	r.ctx, r.ctxCancel = context.WithCancel(ctx)
+
 	for _, src := range r.sources {
 		q := make(chan source.Msg, 10000)
-		src.OnMsg(func(msg source.Msg) {
+		src.OnMsg(r.name, func(msg source.Msg) {
 			q <- msg
 		})
 
 		go r.worker(q)
-
-		src.Start()
 	}
-	go func() {
-		<-ctx.Done()
-		r.Stop()
-	}()
-	return nil
 }
 
 func (r *ruleImpl) worker(msgQ chan source.Msg) {
 	for {
-		msg := <-msgQ
+		var msg source.Msg
+		select {
+		case <-r.ctx.Done():
+			slog.Debug("Rule worker exit cause context done", "rule", r.name)
+			return
+		case msg = <-msgQ:
+		}
 		var out string
 		// process
 		if pout, ok := r.process(msg); ok && pout != nil {
@@ -113,11 +132,9 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 	}
 }
 
-func (r *ruleImpl) Stop() error {
-	for _, src := range r.sources {
-		src.Stop()
-	}
-	return nil
+func (r *ruleImpl) Stop() {
+	r.started = false
+	r.ctxCancel()
 }
 
 func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
@@ -170,7 +187,6 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 			hasTrans = true
 		default:
 			slog.Error("Rule failed to process msg cause unknown process type", "process", p.Name(), "type", p.Type())
-			os.Exit(1)
 		}
 	}
 

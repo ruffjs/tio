@@ -108,7 +108,8 @@ func main() {
 	shadowSvc.Init(ctx)
 
 	// boot data integration rule
-	rule.Boot(ctx, shadowSvc)
+	ruleMgr := rule.NewRuleMgr()
+	ruleMgr.Boot(ctx, shadowSvc)
 
 	// init
 	if err := connector.Start(ctx); err != nil {
@@ -147,7 +148,7 @@ func main() {
 	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
 	cfgWs := config.Service(ctx, cfg)
 
-	ruleWs := ruleApi.Service(ctx).
+	ruleWs := ruleApi.Service(ctx, ruleMgr).
 		Filter(api.LoggingMiddleware).Filter(azf)
 
 	restful.DefaultContainer.Add(thingWs)

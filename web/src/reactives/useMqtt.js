@@ -113,7 +113,7 @@ export default () => {
     const delegate = getDelegateById(config.id, config);
     if (delegate) {
       delegate.pub(
-        topic,
+        topic?.trim(),
         { payload, paytype },
         { qos, retain, properties },
         (err) => {

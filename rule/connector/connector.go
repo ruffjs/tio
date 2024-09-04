@@ -1,49 +1,45 @@
 package connector
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"os"
-)
 
-type Status string
-
-const (
-	StatusConnected    Status = "connected"
-	StatusDisconnected Status = "disconnected"
+	"ruff.io/tio/rule/model"
 )
 
 type Conn interface {
 	Name() string
 	Type() string
-	Connect() error
-	Close() error
-	Status() Status
+	Start() error
+	Stop() error
+	Status() model.StatusInfo
 }
 
 type Config struct {
 	Name    string                 `json:"name"`
 	Type    string                 `json:"type"`
+	Enabled bool                   `json:"enabled"`
 	Options map[string]interface{} `json:"options"`
 }
 
-type CreateFunc func(name string, cfg map[string]any) (Conn, error)
+type CreateFunc func(ctx context.Context, name string, cfg map[string]any) (Conn, error)
 
 var registry map[string]CreateFunc = make(map[string]CreateFunc)
 
 func Register(typ string, f CreateFunc) {
 	if _, ok := registry[typ]; ok {
 		slog.Error("Duplicate register connector", "type", typ)
-		os.Exit(1)
+		return
 	}
 	registry[typ] = f
 	slog.Info("Rule connector registered", "type", typ)
 }
 
-func New(cfg Config) (Conn, error) {
+func New(ctx context.Context, cfg Config) (Conn, error) {
 	f, ok := registry[cfg.Type]
 	if !ok {
 		return nil, fmt.Errorf("connector not found")
 	}
-	return f(cfg.Name, cfg.Options)
+	return f(ctx, cfg.Name, cfg.Options)
 }

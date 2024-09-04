@@ -1,11 +1,13 @@
 package sink
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // InfluxDB sink, use influxdb line protocol
@@ -25,33 +27,52 @@ func init() {
 type InfluxDBConfig struct {
 }
 
-func NewInfluxDB(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewInfluxDB(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac InfluxDBConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("decode sink InfluxDB config", "name", name, "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("decode config")
 	}
 	c, ok := conn.(*connector.InfluxDB)
 	if !ok {
-		slog.Error("wrong connector type for InfluxDB sink")
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for InfluxDB sink")
 	}
 
 	a := &InfluxDBImpl{
+		ctx:  ctx,
 		name: name,
 		cfg:  ac,
 		conn: c,
 		ch:   make(chan *Msg, 10000),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type InfluxDBImpl struct {
+	ctx  context.Context
 	name string
 	cfg  InfluxDBConfig
 	conn *connector.InfluxDB
 	ch   chan *Msg
+
+	started bool
+}
+
+func (s *InfluxDBImpl) Start() error {
+	s.started = true
+	return s.Status().Error
+}
+
+func (s *InfluxDBImpl) Status() model.StatusInfo {
+	if !s.started {
+		return model.StatusNotStarted()
+	}
+	return withConnStatus(s.conn.Name(), s.conn.Status())
+}
+
+func (s *InfluxDBImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *InfluxDBImpl) Name() string {
@@ -63,13 +84,21 @@ func (*InfluxDBImpl) Type() string {
 }
 
 func (s *InfluxDBImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *InfluxDBImpl) publishLoop() {
 	for {
-		msg := <-s.ch
+		var msg *Msg
+		select {
+		case <-s.ctx.Done():
+			return
+		case msg = <-s.ch:
+		}
 		r, err := s.conn.Client().R().
+			SetContext(s.ctx).
 			SetBody(msg.Payload).
 			Post("")
 		if err != nil {

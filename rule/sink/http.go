@@ -1,12 +1,14 @@
 package sink
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // Http sink
@@ -23,35 +25,55 @@ type HttpConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func NewHttp(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewHttp(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac HttpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		slog.Error("decode sink Http config", "name", name, "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("decode config: %w", err)
 	}
 	ac.Method = strings.ToUpper(ac.Method)
 
 	c, ok := conn.(*connector.Http)
 	if !ok {
-		slog.Error("wrong connector type for Http sink")
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for Http sink")
 	}
 
 	a := &HttpImpl{
+		ctx:  ctx,
 		name: name,
 		cfg:  ac,
 		conn: c,
 		ch:   make(chan *Msg, 10000),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type HttpImpl struct {
+	ctx  context.Context
 	name string
 	cfg  HttpConfig
 	conn *connector.Http
 	ch   chan *Msg
+
+	started bool
+}
+
+func (s *HttpImpl) Start() error {
+	s.started = true
+	return s.Status().Error
+}
+
+func (s *HttpImpl) Status() model.StatusInfo {
+	if !s.started {
+		return model.StatusNotStarted()
+	}
+	return withConnStatus(s.conn.Name(), s.conn.Status())
+}
+
+func (s *HttpImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *HttpImpl) Name() string {
@@ -63,18 +85,21 @@ func (*HttpImpl) Type() string {
 }
 
 func (s *HttpImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *HttpImpl) publishLoop() {
 	for {
 		msg := <-s.ch
 		r := s.conn.Client().R().
+			SetContext(s.ctx).
 			SetHeaders(s.cfg.Headers)
 		if s.cfg.Method != "GET" && s.cfg.Method != "DELETE" {
 			r.SetBody(msg)
 		}
-		resp, err := r.Execute(s.cfg.Method, s.cfg.Path)
+		resp, err := r.SetContext(s.ctx).Execute(s.cfg.Method, s.cfg.Path)
 
 		if err != nil {
 			slog.Error("Rule sinke Http send data", "error", err, "resposeBody", resp.Body())

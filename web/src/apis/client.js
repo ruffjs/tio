@@ -75,10 +75,11 @@ export const recreateClient = (baseURL) => {
           throw resp;
         } else if (resp?.status === 404) {
           throw err;
-        } else if (resp?.data?.message){
+        } else {
+          const msg = resp.data?.message || resp.statusText || "unknown error";
           ElNotification({
             title: "Request error",
-            message: "" + resp.data.message,
+            message: "" + msg,
             type: "error",
             zIndex: 10000,
           });

@@ -123,7 +123,31 @@
         <br />
         <div class="io">
           <div v-for="s in form.sources" class="io-item">
-            <div><el-tag>{{ s.type }}</el-tag> {{ s.name }} </div>
+            <el-popover placement="top-start" title="Detail" :width="400" trigger="hover">
+              <template #default>
+                name: {{ s.name }}
+                <br />
+                type: {{ s.type }}
+
+                <span v-if="s.options && Object.keys(s.options).length > 0">
+                  <br />
+                  <br />
+                  Options:
+                </span>
+                <template v-if="s.options" v-for="(v, k) in s.options">
+                  <br />
+                  &nbsp; {{ k }} : {{ v }}
+                </template>
+              </template>
+              <template #reference>
+                <div>
+
+                  <el-tag>{{ s.type }}</el-tag>
+                  {{ s.name }}
+                </div>
+
+              </template>
+            </el-popover>
             <div class="io-btn">
               <el-button icon="Delete" circle link type="danger" @click="delIo('source', s.name)"></el-button>
             </div>
@@ -131,7 +155,7 @@
           <el-row>
             <div v-if="ioAdd.source.show" class="io-sel">
               <el-select v-model="ioAdd.source.selected">
-                <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s" />
+                <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('source')">Confirm</el-button>
               <el-button @click="ioAdd.source.show = false">Cancel</el-button>
@@ -148,7 +172,31 @@
 
         <div class="io">
           <div v-for="s in form.sinks" class="io-item">
-            <div><el-tag>{{ s.type }}</el-tag> {{ s.name }} </div>
+            <el-popover placement="top-start" title="Detail" :width="400" trigger="hover">
+              <template #default>
+                name: {{ s.name }}
+                <br />
+                type: {{ s.type }}
+
+                <span v-if="s.options && Object.keys(s.options).length > 0">
+                  <br />
+                  <br />
+                  Options:
+                </span>
+                <template v-if="s.options" v-for="(v, k) in s.options">
+                  <br />
+                  &nbsp; {{ k }} : {{ v }}
+                </template>
+              </template>
+              <template #reference>
+                <div>
+
+                  <el-tag>{{ s.type }}</el-tag>
+                  {{ s.name }}
+                </div>
+
+              </template>
+            </el-popover>
             <div class="io-btn">
               <el-button icon="Edit" circle link type="primary" size="large"></el-button>
               <el-button icon="Delete" circle link type="danger" size="large"></el-button>
@@ -156,8 +204,8 @@
           </div>
           <el-row>
             <div v-if="ioAdd.sink.show" class="io-sel">
-              <el-select v-model="ioAdd.sink.selected" v-for="s in ioAdd.sink.availabe">
-                <el-option :label="s.name" :value="s" />
+              <el-select v-model="ioAdd.sink.selected">
+                <el-option v-for="s in ioAdd.sink.availabe" :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('sink')">Confirm</el-button>
               <el-button @click="ioAdd.sink.show = false">Cancel</el-button>
@@ -195,13 +243,18 @@ const form = reactive({
   // rule
   name: '',
   note: '',
+  enabled: true,
   sources: [],
   sinks: [],
   process: [{
     type: "transform",
     name: "",
     runner: "js",
-    js: "const run = data=> { \n\n}",
+    js: `const run = data=> {
+  // data format:
+  // {"thingId": "string", "topic": "string", "payload": {}, "shadow": {} }
+  return data.payload.msg;
+}`,
     jq: "",
   }],
 
@@ -234,7 +287,7 @@ onMounted(async () => {
 
 const initRule = () => {
   const config = JSON.parse(JSON.stringify(props.config))
-  
+
   let rule = props.rule
   const theRuleName = props.rule?.name
 
@@ -283,8 +336,14 @@ const addIo = (type) => {
     ElNotification({ message: 'Select ' + type, type: 'error' })
     return
   }
-  form[type + 's'].push(d.selected)
+  const s = d.availabe.find(a => a.name == d.selected)
+  if (!s) {
+    ElNotification({ message: 'Select another ' + type, type: 'error' })
+    return
+  }
+  form[type + 's'].push(s)
   d.show = false
+  d.selected = null
 }
 const delIo = (type, name) => {
   const sl = form[type + 's']
@@ -306,9 +365,10 @@ const test = async () => {
     return
   }
   testResult.value = r.data
-  if (r.data.output && typeof r.data.output == 'object') {
+  if (typeof r.data.output == 'object') {
     testResult.value.output = JSON.stringify(r.data.output, null, 2)
   }
+  ElNotification({ message: 'Test returned', type: 'info' })
 }
 
 const save = async () => {

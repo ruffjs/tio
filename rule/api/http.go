@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/rule"
@@ -16,6 +16,15 @@ import (
 	"ruff.io/tio/rule/source"
 	"ruff.io/tio/shadow"
 )
+
+type RuleConfigWithStatus struct {
+	Config rule.Config         `json:"config"`
+	Status rule.RuleStatusInfo `json:"status,omitempty"`
+}
+
+type ToggleRule struct {
+	Enable bool `json:"enable"`
+}
 
 type TestRuleReq struct {
 	ThingId        string           `json:"thingId"`
@@ -32,6 +41,7 @@ type TestRuleResp struct {
 
 func Service(
 	ctx context.Context,
+	ruleMgr *rule.RuleMgr,
 ) *restful.WebService {
 	ws := new(restful.WebService).
 		Path("/api/v1/rules").
@@ -48,28 +58,43 @@ func Service(
 		Returns(200, "OK", rest.RespOK(TestRuleResp{})))
 
 	ws.Route(ws.GET("/config").
-		To(GetConfigHandler()).
+		To(GetConfigHandler(ruleMgr)).
 		Operation("get-ruel-config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", rest.RespOK(rule.Config{})))
 
 	ws.Route(ws.PUT("/config").
-		To(SaveConfigHandler()).
+		To(SaveConfigHandler(ruleMgr)).
 		Operation("save-ruel-config").
 		Reads(rule.Config{}).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", rest.RespOK(rule.Config{})))
 
+	ws.Route(ws.PUT("/{type}/{name}").
+		To(ToggleHandler(ruleMgr)).
+		Operation("toggle-ruel").
+		Param(restful.PathParameter("type", "connector | source | sink | rule").DataType("string")).
+		Param(restful.PathParameter("name", "").DataType("string")).
+		Reads(ToggleRule{}).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "OK", rest.RespOK[any](nil)))
+
 	return ws
 }
 
-func GetConfigHandler() restful.RouteFunction {
+func GetConfigHandler(ruleMgr *rule.RuleMgr) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
-		rest.SendRespOK(w, rule.GetConfig())
+		s := r.QueryParameter("withStatus")
+		if s != "" {
+			rest.SendRespOK(w, RuleConfigWithStatus{ruleMgr.GetConfig(), ruleMgr.GetStatus()})
+			return
+		} else {
+			rest.SendRespOK(w, RuleConfigWithStatus{Config: ruleMgr.GetConfig()})
+		}
 	}
 }
 
-func SaveConfigHandler() restful.RouteFunction {
+func SaveConfigHandler(ruleMgr *rule.RuleMgr) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		var cfg rule.Config
 
@@ -84,15 +109,29 @@ func SaveConfigHandler() restful.RouteFunction {
 			return
 		}
 
-		if err := rule.SetConfig(cfg); err != nil {
+		if err := ruleMgr.ApplyConfig(cfg); err != nil {
 			checkErrAndSend(err, w)
 		} else {
-			rest.SendRespOK(w, rule.GetConfig())
+			rest.SendRespOK(w, ruleMgr.GetStatus())
+		}
+	}
+}
 
-			// TODO optimize this by hot reload rule
-			go func() {
-				config.GlobalCtxCancel()
-			}()
+func ToggleHandler(ruleMgr *rule.RuleMgr) restful.RouteFunction {
+	return func(r *restful.Request, w *restful.Response) {
+		typ := r.PathParameter("type")
+		name := r.PathParameter("name")
+		var tg ToggleRule
+		if err := r.ReadEntity(&tg); err != nil {
+			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
+		}
+		err := ruleMgr.Enable(typ, name, tg.Enable)
+		if err != nil {
+			checkErrAndSend(err, w)
+			slog.Error("Rule toogle enable component failed", "type", typ, "name", name, "enable", tg.Enable, "error", err)
+		} else {
+			rest.SendRespOK[any](w, nil)
+			slog.Info("Rule component enabled", "type", typ, "name", name, "enable", tg.Enable)
 		}
 	}
 }
