@@ -140,7 +140,9 @@ func (a *Amqp) connect() error {
 
 // reconnect Keep retrying until success
 func (a *Amqp) reconnect() {
-	a.conn.Close()
+	if a.conn != nil {
+		a.conn.Close()
+	}
 	tryCount := 0
 	maxSleepTime := time.Second * 20
 	for {
