@@ -203,7 +203,7 @@
 </template>
 
 <script setup>
-import { h, onMounted, reactive, ref } from 'vue';
+import { h, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { ElMessageBox, ElTag, ElTooltip } from 'element-plus';
 import * as api from '@/apis';
 import { getDependent } from '@/components/rule/rule'
@@ -242,8 +242,13 @@ drawerEdit.schema.forEach(c => {
   }
 })
 
+let refreshInterval = null
 onMounted(async () => {
   await loadRuleConfig()
+  refreshInterval = setInterval(loadRuleConfig, 10 * 1000)
+})
+onUnmounted(() => {
+  clearInterval(refreshInterval)
 })
 
 const loadRuleConfig = async () => {
