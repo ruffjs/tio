@@ -112,7 +112,7 @@ func (a *amqpImpl) Publish(msg Msg) {
 }
 
 func (a *amqpImpl) initChannel() error {
-	ch, err := a.conn.GetChannel("sink:"+a.name, func(ch *amqp.Channel) {
+	ch, err := a.conn.GetChannel(a.channelName(), func(ch *amqp.Channel) {
 		slog.Info("Rule sink AMQP channel updated", "name", a.name, "connectorName", a.conn.Name())
 		a.status = model.StatusConnected()
 		a.channel = ch
@@ -178,5 +178,5 @@ LOOP:
 }
 
 func (a *amqpImpl) channelName() string {
-	return a.channelName()
+	return "sink:" + a.name
 }

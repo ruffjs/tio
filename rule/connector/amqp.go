@@ -68,6 +68,7 @@ func (a *Amqp) GetChannel(name string, receiveUpdate func(ch *amqp.Channel)) (*a
 }
 
 func (a *Amqp) RemoveChannel(name string) {
+	a.channlesNotify.Delete(name)
 	if c, ok := a.channels.Load(name); ok {
 		c.(*amqp.Channel).Close()
 		a.channels.Delete(name)
@@ -88,7 +89,10 @@ func (a *Amqp) Stop() error {
 
 	a.started = false
 	a.status = model.StatusNotStarted()
-	return a.conn.Close()
+	if a.conn != nil {
+		a.conn.Close()
+	}
+	return nil
 }
 
 func (a *Amqp) Status() model.StatusInfo {
@@ -103,6 +107,7 @@ func (a *Amqp) Start() error {
 		return nil
 	}
 	a.started = true
+	a.status = model.StatusConnecting()
 	go a.reconnect()
 	return nil
 }
@@ -159,20 +164,14 @@ func (a *Amqp) reconnect() {
 			time.Sleep(t)
 		} else {
 			// update channles
-			a.channels.Range(func(chName, _ any) bool {
+			a.channlesNotify.Range(func(chName, notify any) bool {
 				a.channels.Delete(chName)
 				if newCh, err := a.conn.Channel(); err != nil {
 					slog.Error("Rule Amqp open channel failed", "name", a.name, "channelName", chName, "error", err)
 				} else {
 					a.channels.Store(chName, newCh)
-					a.channlesNotify.Range(func(name, value any) bool {
-						v := value.(func(ch *amqp.Channel))
-						if chName == name {
-							v(newCh)
-							return false
-						}
-						return true
-					})
+					v := notify.(func(ch *amqp.Channel))
+					v(newCh)
 				}
 				return true
 			})
