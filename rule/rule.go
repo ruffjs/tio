@@ -134,7 +134,9 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 
 func (r *ruleImpl) Stop() {
 	r.started = false
-	r.ctxCancel()
+	if r.ctxCancel != nil {
+		r.ctxCancel()
+	}
 }
 
 func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {

@@ -26,6 +26,13 @@ func StatusConnected() StatusInfo {
 	}
 }
 
+func StatusConnecting() StatusInfo {
+	return StatusInfo{
+		Status: Disconnected,
+		Reason: "connecting",
+	}
+}
+
 func StatusDisconnected(reason string, err error) StatusInfo {
 	return StatusInfo{
 		Status: Disconnected,

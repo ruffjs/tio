@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/mitchellh/mapstructure"
@@ -25,11 +26,13 @@ type RedisConfig struct {
 }
 
 type Redis struct {
-	ctx     context.Context
-	name    string
-	config  RedisConfig
-	client  *redis.Client
+	ctx    context.Context
+	name   string
+	config RedisConfig
+	client *redis.Client
+
 	started bool
+	mu      sync.RWMutex
 }
 
 func newRedis(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
@@ -75,11 +78,15 @@ func (*Redis) Type() string {
 }
 
 func (c *Redis) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.started = true
 	return c.Status().Error
 }
 
 func (c *Redis) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.started = true
 	// TODO Figure out if should close the connecton and if it can be reponded
 	// return c.client.Close()

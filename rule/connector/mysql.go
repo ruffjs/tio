@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mitchellh/mapstructure"
@@ -37,25 +38,37 @@ type MySQL struct {
 
 	started bool
 	status  model.StatusInfo
+	mu      sync.RWMutex
 }
 
 func (c *MySQL) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.started {
 		return nil
 	}
 	c.started = true
+	c.status = model.StatusConnecting()
 
-	db, err := mysql.Connect(c.config)
-	if err != nil {
-		slog.Error("MySQL connect db", "error", err)
-		c.status = model.StatusDisconnected("connect: "+err.Error(), err)
-		return err
-	}
-	c.db = db
+	go func() {
+		db, err := mysql.Connect(c.config)
+		if err != nil {
+			slog.Error("MySQL connect db", "error", err)
+			c.status = model.StatusDisconnected("connect: "+err.Error(), err)
+		}
+		c.db = db
+	}()
 	return nil
 }
 
 func (c *MySQL) Stop() error {
+	c.mu.Lock()
+	defer func() {
+		c.db = nil
+		c.mu.Unlock()
+	}()
+
 	c.started = false
 	if c.db == nil {
 		return nil

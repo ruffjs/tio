@@ -64,13 +64,15 @@ func (c *Mqtt) Start() error {
 		return nil
 	}
 	c.started = true
-	if err := c.client.Connect(c.ctx); err != nil {
-		c.status = model.StatusDisconnected(err.Error(), err)
-		return err
-	} else {
-		c.status = model.StatusConnected()
-		return nil
-	}
+	c.status = model.StatusConnecting()
+	go func() {
+		if err := c.client.Connect(c.ctx); err != nil {
+			c.status = model.StatusDisconnected(err.Error(), err)
+		} else {
+			c.status = model.StatusConnected()
+		}
+	}()
+	return nil
 }
 
 func (c *Mqtt) Stop() error {
