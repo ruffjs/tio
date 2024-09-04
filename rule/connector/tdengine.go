@@ -1,13 +1,15 @@
 package connector
 
 import (
+	"context"
 	"encoding/base64"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
+	"ruff.io/tio/rule/model"
 )
 
 const TypeTdengine = "tdengine"
@@ -26,18 +28,20 @@ type TdengineConfig struct {
 }
 
 type Tdengine struct {
-	name   string
-	config TdengineConfig
-	client *resty.Client
+	ctx     context.Context
+	name    string
+	config  TdengineConfig
+	client  *resty.Client
+	started bool
 }
 
-func newTdengine(name string, cfg map[string]any) (Conn, error) {
+func newTdengine(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
 	var ac TdengineConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("Failed to decode config", "error", err)
-		os.Exit(1)
+		return nil, errors.WithMessage(err, "failed to decode config")
 	}
 	c := &Tdengine{
+		ctx:    ctx,
 		name:   name,
 		config: ac,
 	}
@@ -45,19 +49,29 @@ func newTdengine(name string, cfg map[string]any) (Conn, error) {
 	return c, nil
 }
 
-func (c *Tdengine) Close() error {
+func (c *Tdengine) Start() error {
+	c.started = true
+	return c.Status().Error
+}
+
+func (c *Tdengine) Stop() error {
+	c.started = false
 	c.client.GetClient().CloseIdleConnections()
 	// TODO finish send msg in buffer
 	return nil
 }
 
-func (c *Tdengine) Status() Status {
+func (c *Tdengine) Status() model.StatusInfo {
+	if !c.started {
+		return model.StatusNotStarted()
+	}
+
 	err := testConnectByUrl(c.config.Url)
 	if err != nil {
 		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
-		return StatusDisconnected
+		return model.StatusDisconnected(err.Error(), err)
 	} else {
-		return StatusConnected
+		return model.StatusConnected()
 	}
 }
 
@@ -67,10 +81,6 @@ func (c *Tdengine) Name() string {
 
 func (*Tdengine) Type() string {
 	return TypeTdengine
-}
-
-func (c *Tdengine) Connect() error {
-	return nil
 }
 
 func (c *Tdengine) Client() *resty.Client {

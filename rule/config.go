@@ -19,6 +19,7 @@ type Config struct {
 type RuleConfig struct {
 	Name    string    `json:"name"`
 	Note    string    `json:"note"`
+	Enabled bool      `json:"enabled"`
 	Sources []string  `json:"sources"`
 	Process []Process `json:"process"`
 	Sinks   []string  `json:"sinks"`
@@ -41,8 +42,6 @@ type MqttSourceOption struct {
 	Qos   byte   `json:"qos"`
 }
 
-var configContent Config
-
 func ReadConfig() (Config, error) {
 	v := viper.New()
 	v.SetConfigName("config-rule")
@@ -62,12 +61,7 @@ func ReadConfig() (Config, error) {
 		return Config{}, err
 	}
 
-	configContent = cfg
 	return cfg, nil
-}
-
-func GetConfig() Config {
-	return configContent
 }
 
 func SetConfig(cfg Config) error {
@@ -90,6 +84,5 @@ func SetConfig(cfg Config) error {
 		return err
 	}
 
-	configContent = cfg
 	return nil
 }

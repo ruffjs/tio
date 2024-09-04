@@ -4,10 +4,12 @@
 connectors:
   - name: conn1
     type: amqp
+    enabled: true
     options:
       url: amqp://guest:guest@localhost:5672/
   - name: mqtt
     type: mqtt
+    enabled: false
     options:
       clientId: $rule
       host: localhost
@@ -20,11 +22,13 @@ connectors:
 sources:
   - name: src1
     type: embed-mqtt
+    enabled: true
     options:
       topic: $iothub/things/+/presence
       qos: 1
   - name: src2
     type: embed-mqtt
+    enabled: false
     options:
       topic: $iothub/user/things/+/property
       qos: 1
@@ -39,12 +43,14 @@ sinks:
   - name: sink1
     type: amqp
     connector: conn1
+    enabled: true
     options:
       exchange: exch1
       routingKey: 
   - name: mqtt
     type: mqtt
     connector: mqtt
+    enabled: false
     options:
       topic: $iothub/user/things/${thingId}/publish
 
@@ -63,6 +69,8 @@ sinks:
 # }
 rules:
   - name: test-rule
+    note: test
+    enabled: true
     sources:
       - src1
       - src2

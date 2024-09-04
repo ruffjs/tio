@@ -80,7 +80,6 @@ const fillOptions = () => {
       const connOpt = props.config.connectors.filter(c => c.type == model.value.type)
         .map(c => ({ value: c.name, label: c.name }))
       tmpConnSchema['options'] = connOpt
-
     }
     props.schema['connector'] = tmpConnSchema
   }

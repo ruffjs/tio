@@ -113,3 +113,39 @@ export function validateRule(config: RuleConfig, rule: RuleEditData, isNew: bool
     }
   }
 }
+
+// get components depend on the component which is specified by type and nam
+export function getDependent(
+  type: string,
+  name: string,
+  config: RuleConfig
+): Array<{ type: string; names: Array<string> }> {
+  const res = new Array<{ type: string; names: Array<string> }>();
+  switch (type) {
+    case "rule":
+      break;
+    case "connector":
+      const srcNames = config.sources.filter((s) => s.connector == name).map((s) => s.name);
+      const sinkNames = config.sinks.filter((s) => s.connector == name).map((s) => s.name);
+      if (srcNames.length > 0) {
+        res.push({ type: "source", names: srcNames });
+      }
+      if (sinkNames.length > 0) {
+        res.push({ type: "sink", names: sinkNames });
+      }
+      break;
+    case "source":
+      const ruleNames = config.rules.filter((r) => r.sources.includes(name)).map((r) => r.name);
+      if (ruleNames.length > 0) {
+        res.push({ type: "rule", names: ruleNames });
+      }
+      break;
+    case "sink":
+      const names = config.rules.filter((r) => r.sinks.includes(name)).map((r) => r.name);
+      if (names.length > 0) {
+        res.push({ type: "rule", names });
+      }
+      break;
+  }
+  return res;
+}

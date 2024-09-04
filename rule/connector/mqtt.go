@@ -3,12 +3,14 @@ package connector
 import (
 	"context"
 	"log/slog"
-	"os"
+	"sync"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector/mqtt/client"
+	"ruff.io/tio/rule/model"
 )
 
 // Mqtt connector
@@ -20,39 +22,30 @@ func init() {
 }
 
 type Mqtt struct {
-	name   string
-	config config.MqttClientConfig
-	client client.Client
+	ctx     context.Context
+	name    string
+	config  config.MqttClientConfig
+	client  client.Client
+	status  model.StatusInfo
+	started bool
+
+	mu sync.RWMutex
 }
 
-func newMqtt(name string, cfg map[string]any) (Conn, error) {
+func newMqtt(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
 	var ac config.MqttClientConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("Rule connector mqtt failed to decode config", "error", err)
-		os.Exit(1)
+		return nil, errors.WithMessage(err, "failed to decode config")
 	}
 	c := &Mqtt{
+		ctx:    ctx,
 		name:   name,
 		config: ac,
 		client: client.NewClient(ac),
-	}
-	err := c.client.Connect(context.TODO())
-	if err != nil {
-		slog.Error("Rule connector mqtt connect failed", "error", err)
-		os.Exit(1)
+		status: model.StatusNotStarted(),
 	}
 	slog.Info("Rule connector Mqtt inited")
 	return c, nil
-}
-
-func (c *Mqtt) Close() error {
-	c.client.Disconnect()
-	return nil
-}
-
-func (c *Mqtt) Status() Status {
-	// TODO
-	return StatusConnected
 }
 
 func (c *Mqtt) Name() string {
@@ -63,8 +56,34 @@ func (*Mqtt) Type() string {
 	return TypeMqtt
 }
 
-func (c *Mqtt) Connect() error {
-	return c.client.Connect(context.TODO())
+func (c *Mqtt) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.started {
+		return nil
+	}
+	c.started = true
+	if err := c.client.Connect(c.ctx); err != nil {
+		c.status = model.StatusDisconnected(err.Error(), err)
+		return err
+	} else {
+		c.status = model.StatusConnected()
+		return nil
+	}
+}
+
+func (c *Mqtt) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.client.Disconnect()
+	c.status = model.StatusNotStarted()
+	return nil
+}
+
+func (c *Mqtt) Status() model.StatusInfo {
+	return c.status
 }
 
 func (c *Mqtt) Conn() client.Client {
@@ -79,8 +98,16 @@ func (c *Mqtt) UnSubscribe(ctx context.Context, topic string) error {
 	return c.client.Unsubscribe(ctx, topic)
 }
 
-func (c *Mqtt) Publish(topic string, qos byte, retained bool, payload interface{}) error {
+func (c *Mqtt) Publish(topic string, qos byte, retained bool, payload interface{}) (accept bool, err error) {
+	if !c.started {
+		return false, nil
+	}
+
 	tk := c.client.Publish(topic, qos, retained, payload)
-	tk.Wait()
-	return tk.Error()
+	select {
+	case <-tk.Done():
+	case <-c.ctx.Done():
+		return true, errors.WithMessage(c.ctx.Err(), "interrupt publish cause context done")
+	}
+	return true, tk.Error()
 }

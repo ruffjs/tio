@@ -1,6 +1,7 @@
 package sink_test
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -24,10 +25,10 @@ func TestAmqp(t *testing.T) {
 	connCfg := map[string]any{
 		"url": "amqp://guest:guest@localhost:5672/",
 	}
-	conn, _ := connector.NewAmqp("test", connCfg)
+	conn, _ := connector.NewAmqp(context.Background(), "test", connCfg)
 	con, ok := conn.(*connector.Amqp)
 	require.True(t, ok)
-	c := sink.NewAmqp("test", cfg, con)
+	c, _ := sink.NewAmqp(context.Background(), "test", cfg, con)
 	c.Publish(sink.Msg{
 		ThingId: "thing",
 		Payload: `{"a": 1}`,

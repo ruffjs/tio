@@ -1,11 +1,12 @@
 package sink
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 type Msg struct {
@@ -16,6 +17,9 @@ type Msg struct {
 type Sink interface {
 	Type() string
 	Name() string
+	Start() error
+	Stop() error
+	Status() model.StatusInfo
 	Publish(msg Msg)
 }
 
@@ -23,26 +27,37 @@ type Config struct {
 	Name      string         `json:"name"`
 	Type      string         `json:"type"`
 	Connector string         `json:"connector"`
+	Enabled   bool           `json:"enabled"`
 	Options   map[string]any `json:"options"`
 }
 
-type CreateFunc func(name string, cfg map[string]any, conn connector.Conn) Sink
+type CreateFunc func(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error)
 
 var registry map[string]CreateFunc = make(map[string]CreateFunc)
 
 func Register(typ string, f CreateFunc) {
 	if _, ok := registry[typ]; ok {
 		slog.Error("Duplicate register sink", "type", typ)
-		os.Exit(1)
+		return
 	}
 	registry[typ] = f
 	slog.Info("Rule sink registered", "type", typ)
 }
 
-func New(cfg Config, conn connector.Conn) (Sink, error) {
+func New(ctx context.Context, cfg Config, conn connector.Conn) (Sink, error) {
 	f, ok := registry[cfg.Type]
 	if !ok {
 		return nil, fmt.Errorf("sink not found")
 	}
-	return f(cfg.Name, cfg.Options, conn), nil
+	return f(ctx, cfg.Name, cfg.Options, conn)
+}
+
+func withConnStatus(connName string, connStatus model.StatusInfo) model.StatusInfo {
+	if connStatus.Status != model.Connected {
+		st := model.StatusDisconnected(
+			fmt.Sprintf("connector %q is not connected: %s", connName, connStatus.Reason),
+			connStatus.Error)
+		return st
+	}
+	return connStatus
 }

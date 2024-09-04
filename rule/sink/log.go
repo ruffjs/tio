@@ -1,11 +1,13 @@
 package sink
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // Log sink, for debug
@@ -16,18 +18,33 @@ func init() {
 	Register(TypeLog, NewLog)
 }
 
-func NewLog(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewLog(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	a := &logImpl{
 		name: name,
 		ch:   make(chan *Msg, 100),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type logImpl struct {
-	name string
-	ch   chan *Msg
+	name    string
+	ch      chan *Msg
+	started bool
+}
+
+func (s *logImpl) Start() error {
+	s.started = true
+	return nil
+}
+
+func (s *logImpl) Status() model.StatusInfo {
+	return model.StatusConnected()
+}
+
+func (s *logImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *logImpl) Name() string {
@@ -39,7 +56,9 @@ func (*logImpl) Type() string {
 }
 
 func (s *logImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *logImpl) publishLoop() {

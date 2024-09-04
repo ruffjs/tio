@@ -1,15 +1,16 @@
 package sink
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio"
 	"ruff.io/tio/pkg/uuid"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // Tdengine sink, use SQL
@@ -29,19 +30,20 @@ func init() {
 type TdengineConfig struct {
 }
 
-func NewTdengine(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewTdengine(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac TdengineConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		slog.Error("decode sink Tdengine config", "name", name, "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("decode config: %w", err)
 	}
 	c, ok := conn.(*connector.Tdengine)
 	if !ok {
 		slog.Error("wrong connector type for Tdengine sink")
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for Tdengine sink")
 	}
 
 	a := &TdengineImpl{
+		ctx:      ctx,
 		name:     name,
 		cfg:      ac,
 		conn:     c,
@@ -49,15 +51,35 @@ func NewTdengine(name string, cfg map[string]any, conn connector.Conn) Sink {
 		uuidProd: uuid.New(),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type TdengineImpl struct {
+	ctx      context.Context
 	name     string
 	cfg      TdengineConfig
 	conn     *connector.Tdengine
 	ch       chan *Msg
 	uuidProd tio.IdProvider
+
+	started bool
+}
+
+func (s *TdengineImpl) Start() error {
+	s.started = true
+	return s.Status().Error
+}
+
+func (s *TdengineImpl) Status() model.StatusInfo {
+	if !s.started {
+		return model.StatusNotStarted()
+	}
+	return withConnStatus(s.conn.Name(), s.conn.Status())
+}
+
+func (s *TdengineImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *TdengineImpl) Name() string {
@@ -69,7 +91,9 @@ func (*TdengineImpl) Type() string {
 }
 
 func (s *TdengineImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *TdengineImpl) publishLoop() {
@@ -77,6 +101,7 @@ func (s *TdengineImpl) publishLoop() {
 		msg := <-s.ch
 		reqId := fmt.Sprintf("%d", time.Now().UnixNano())
 		r, err := s.conn.Client().R().
+			SetContext(s.ctx).
 			SetQueryParam("req_id", reqId).
 			SetBody(msg.Payload).
 			Post("")

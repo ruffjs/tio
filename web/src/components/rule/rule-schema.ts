@@ -165,6 +165,7 @@ export const sink = {
       { label: "TDengine", value: "tdengine" },
       { label: "MySQL", value: "mysql" },
       { label: "Redis", value: "redis" },
+      // TODO add Log sink
     ],
     rules: [{ required: true }],
   },
@@ -261,6 +262,7 @@ export const sinkOptions = {
   mysql: {},
   redis: {},
   tdengine: {},
+  log: {},
 };
 
 export const defaultSink = {

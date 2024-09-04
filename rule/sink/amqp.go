@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
+	"sync"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // AMQP sink for message forward
@@ -27,36 +28,73 @@ type AmqpConfig struct {
 	// WaitAckTimeout time.Duration `json:"waitAckTimeout"`
 }
 
-func NewAmqp(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewAmqp(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac AmqpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		slog.Error("Rule sink AMQP decode config", "name", name, "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("decode config %v", err)
 	}
 	c, ok := conn.(*connector.Amqp)
 	if !ok {
-		slog.Error("Rule sink AMQP wrong connector")
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for AMQP sink")
 	}
 
 	a := &amqpImpl{
+		ctx:    ctx,
 		name:   name,
 		config: ac,
 		conn:   c,
 		// TODO: Through chan for now, optimized later
-		ch: make(chan *Msg, 100000),
+		ch:     make(chan *Msg, 100000),
+		status: model.StatusNotStarted(),
 	}
-	a.setup()
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type amqpImpl struct {
+	ctx     context.Context
 	name    string
 	config  AmqpConfig
 	ch      chan *Msg
 	conn    *connector.Amqp
 	channel *amqp.Channel
+
+	started bool
+	status  model.StatusInfo
+	mu      sync.Mutex
+}
+
+func (a *amqpImpl) Start() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.started {
+		return nil
+	}
+	a.started = true
+	return a.initChannel()
+}
+
+func (a *amqpImpl) Stop() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.started = false
+	a.status = model.StatusNotStarted()
+	if len(a.ch) == 0 {
+		a.conn.RemoveChannel(a.channelName())
+	} else {
+		go func() {
+			time.Sleep(time.Second)
+			a.conn.RemoveChannel(a.channelName())
+		}()
+	}
+	return nil
+}
+
+func (a *amqpImpl) Status() model.StatusInfo {
+	if !a.started {
+		return a.status
+	}
+	return withConnStatus(a.conn.Name(), a.conn.Status())
 }
 
 func (a *amqpImpl) Name() string {
@@ -68,24 +106,54 @@ func (*amqpImpl) Type() string {
 }
 
 func (a *amqpImpl) Publish(msg Msg) {
-	a.ch <- &msg
+	if a.started {
+		a.ch <- &msg
+	}
+}
+
+func (a *amqpImpl) initChannel() error {
+	ch, err := a.conn.GetChannel("sink:"+a.name, func(ch *amqp.Channel) {
+		slog.Info("Rule sink AMQP channel updated", "name", a.name, "connectorName", a.conn.Name())
+		a.status = model.StatusConnected()
+		a.channel = ch
+	})
+	a.channel = ch
+	if err != nil {
+		slog.Error("Rule sink AMQP get channel", "name", a.name, "error", err)
+	} else {
+
+	}
+	return err
 }
 
 func (a *amqpImpl) publishLoop() {
+LOOP:
 	for {
-		// wait connect
-		for {
-			if a.channel == nil || a.channel.IsClosed() {
-				a.setup()
-			} else {
-				break
-			}
-			time.Sleep(time.Second)
+		var msg *Msg
+		select {
+		case <-a.ctx.Done():
+			slog.Debug("Rule sink AMQP publish loop exit cause context done", "name", a.name)
+			return
+		case msg = <-a.ch:
 		}
 
-		msg := <-a.ch
+		// wait connect
+		for {
+			channelOk := a.channel != nil && !a.channel.IsClosed()
+			if channelOk {
+				break
+			} else {
+				qRatio := float64(len(a.ch)) / float64(cap(a.ch))
+				if qRatio > 0.5 {
+					slog.Error("Rule sink AMQP discard message for channel disconnected", "name", a.name, "message", msg)
+					// discard the message for now
+					goto LOOP
+				}
+				time.Sleep(time.Second)
+			}
+		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
 		defer cancel()
 		err := a.channel.PublishWithContext(ctx,
 			a.config.Exchange,
@@ -109,20 +177,6 @@ func (a *amqpImpl) publishLoop() {
 	}
 }
 
-func (a *amqpImpl) setup() error {
-	if a.conn.Conn() == nil {
-		return fmt.Errorf("sink AMQP connection not established")
-	}
-	if a.conn.Conn().IsClosed() {
-		if err := a.conn.Connect(); err != nil {
-			return err
-		}
-	}
-	ch, err := a.conn.Conn().Channel()
-	if err != nil {
-		return err
-	}
-	a.channel = ch
-	slog.Info("Rule sink AMQP  channel inited")
-	return nil
+func (a *amqpImpl) channelName() string {
+	return a.channelName()
 }

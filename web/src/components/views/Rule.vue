@@ -2,16 +2,19 @@
 
   <div class="con">
 
-    <EditRule v-if="showEditRule" :rule="currentRule" :config="data" :isNew="isNewRule" @cancel="afterRuleEdit" />
+    <EditRule v-if="showEditRule" :rule="currentRule" :config="data.config" :isNew="isNewRule"
+      @cancel="afterRuleEdit" />
     <div v-show="!showEditRule">
       <el-card>
         <div>
           <label class="segment-title">Rules
-            <el-popover placement="top-start" title="Help" :width="450" trigger="hover">
+            <el-popover placement="top-start" title="Help" :width="550" trigger="hover">
               <template #default>
-                Rules are used to control the flow of data.
+                Rules are used to control the flow of data for integration.
                 <br />
-                A rule : Sources --> Process(filter/transform chain) --> Sinks .
+                <br />
+                A rule consists of : Sources --> Process(filter/transform chain) --> Sinks .
+                <br />
                 <br />
                 Connectors are used by sources or sinks.
                 <br />
@@ -26,7 +29,7 @@
           </label>
           <el-button type="primary" icon="Plus" size="small" @click="showAddRule">Add</el-button>
         </div>
-        <el-table :data="data.rules" height="100%">
+        <el-table :data="data.config.rules" height="100%">
           <el-table-column prop="name" label="Name">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
@@ -52,7 +55,12 @@
           </el-table-column>
           <el-table-column prop="note" label="Note">
           </el-table-column>
-
+          <el-table-column prop="eanbled" label="Enable">
+            <template #default="scope">
+              <el-switch v-model="scope.row.enabled" size="small"
+                @change="v => toggleEnable('rule', scope.row, v)">Enabled</el-switch>
+            </template>
+          </el-table-column>
           <el-table-column label="Operations">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
@@ -75,7 +83,7 @@
           <el-button type="primary" icon="Plus" size="small" @click="showAddConnector">Add</el-button>
         </div>
 
-        <el-table :data="data.connectors" height="100%">
+        <el-table :data="data.config.connectors" height="100%">
           <el-table-column prop="name" label="name">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editConn(scope.row)">
@@ -84,6 +92,17 @@
             </template>
           </el-table-column>
           <el-table-column prop="type" label="type">
+          </el-table-column>
+          <el-table-column label="status">
+            <template #default="scope">
+              <component :is="getStatus('connector', scope.row.name)" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="eanbled" label="Enable">
+            <template #default="scope">
+              <el-switch v-model="scope.row.enabled" size="small"
+                @change="v => toggleEnable('connector', scope.row, v)">Enabled</el-switch>
+            </template>
           </el-table-column>
           <el-table-column label="Operations">
             <template #default="scope">
@@ -92,7 +111,6 @@
               </el-button>
               <DeleteButton title="Confimr delete?" @confirm="delConn(scope.row)" />
             </template>
-
           </el-table-column>
         </el-table>
         <br />
@@ -101,7 +119,7 @@
           <label class="segment-title">Sources</label>
           <el-button type="primary" icon="Plus" size="small" @click="showAddSrc">Add</el-button>
         </div>
-        <el-table :data="data.sources" height="100%">
+        <el-table :data="data.config.sources" height="100%">
           <el-table-column prop="name" label="name">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSrc(scope.row)">
@@ -110,6 +128,17 @@
             </template>
           </el-table-column>
           <el-table-column prop="type" label="type">
+          </el-table-column>
+          <el-table-column label="status">
+            <template #default="scope">
+              <component :is="getStatus('source', scope.row.name)" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="eanbled" label="Enable">
+            <template #default="scope">
+              <el-switch v-model="scope.row.enabled" size="small"
+                @change="v => toggleEnable('source', scope.row, v)">Enabled</el-switch>
+            </template>
           </el-table-column>
           <el-table-column label="Operations">
             <template #default="scope">
@@ -118,7 +147,6 @@
               </el-button>
               <DeleteButton title="Confimr delete?" @confirm="delSrc(scope.row)" />
             </template>
-
           </el-table-column>
         </el-table>
         <br />
@@ -127,7 +155,7 @@
           <label class="segment-title">Sinks</label>
           <el-button type="primary" icon="Plus" size="small" @click="showAddSink">Add</el-button>
         </div>
-        <el-table :data="data.sinks" height="100%">
+        <el-table :data="data.config.sinks" height="100%">
           <el-table-column prop="name" label="name">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSink(scope.row)">
@@ -137,6 +165,17 @@
           </el-table-column>
           <el-table-column prop="type" label="type">
           </el-table-column>
+          <el-table-column label="status">
+            <template #default="scope">
+              <component :is="getStatus('sink', scope.row.name)" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="eanbled" label="Enable">
+            <template #default="scope">
+              <el-switch v-model="scope.row.enabled" size="small"
+                @change="v => toggleEnable('sink', scope.row, v)">Enabled</el-switch>
+            </template>
+          </el-table-column>
           <el-table-column label="Operations">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSink(scope.row)">
@@ -144,7 +183,6 @@
               </el-button>
               <DeleteButton title="Confimr delete?" @confirm="delSink(scope.row)" />
             </template>
-
           </el-table-column>
         </el-table>
       </el-card>
@@ -154,7 +192,7 @@
   <el-drawer size="700" destroy-on-close v-model="drawerEdit.show" v-if="drawerEdit.show" :title="drawerEdit.title"
     append-to-body>
     <EditOpt ref="editOpt" v-model="drawerEdit.data" :schema="drawerEdit.schema"
-      :optionsSchema="drawerEdit.optionsSchema" :config="data" :isNew="drawerEdit.new" />
+      :optionsSchema="drawerEdit.optionsSchema" :config="data.config" :isNew="drawerEdit.new" />
     <template #footer>
       <div style="flex: auto">
         <el-button type="primary" @click="confirmEdit">Confirm</el-button>
@@ -165,8 +203,10 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { h, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { ElMessageBox, ElTag, ElTooltip } from 'element-plus';
 import * as api from '@/apis';
+import { getDependent } from '@/components/rule/rule'
 import EditRule from '@/components/rule/EditRule.vue';
 import EditOpt from '@/components/rule/EditOpt.vue';
 import * as ruleSchema from '@/components/rule/rule-schema'
@@ -174,17 +214,16 @@ import { deepCopy } from '@/utils/common'
 import { ElNotification } from 'element-plus';
 import DeleteButton from '@/components/list/DeleteButton.vue'
 
-const data = ref({})
-
-const showEditRule = ref(false)
-const currentRule = ref(null)
-const isNewRule = ref(false)
 const emptyRuleConfig = {
   connectors: [],
   sources: [],
   sinks: [],
   rules: [],
 }
+const data = reactive({ config: emptyRuleConfig, status: {} })
+const showEditRule = ref(false)
+const currentRule = ref(null)
+const isNewRule = ref(false)
 
 const editOpt = ref()
 const defaultEditData = {
@@ -203,15 +242,64 @@ drawerEdit.schema.forEach(c => {
   }
 })
 
+let refreshInterval = null
 onMounted(async () => {
   await loadRuleConfig()
+  refreshInterval = setInterval(loadRuleConfig, 10 * 1000)
+})
+onUnmounted(() => {
+  clearInterval(refreshInterval)
 })
 
 const loadRuleConfig = async () => {
-  const r = await api.getRulesConfig()
-  data.value = r.data
-  if (r.code == 200 && !r.data) {
-    data.value = emptyRuleConfig
+  const r = await api.getRulesConfig({ withStatus: true })
+  if (r.code != 200) {
+    ElNotification({ message: 'Get rule config failed', type: 'error' })
+    return
+  }
+  if (r.data?.config) {
+    Object.assign(data, r.data)
+  } else {
+    ElNotification({ message: 'Rule is not configured', type: 'info' })
+  }
+}
+
+const toggleEnable = async (type, row, enable) => {
+  const name = row.name
+  const dp = getDependent(type, name, data.config)
+  if (dp.length > 0) {
+    const msg = (enable ? 'Enable' : 'Disable') + ` ${type} ${name} will affect `
+      + dp.map(d => `${d.type}( ${d.names.join(", ")} )`).join(' and ')
+    try {
+      await ElMessageBox.confirm(msg, 'Confirm',
+        {
+          confirmButtonText: 'OK',
+          cancelButtonText: 'Cancel',
+          type: 'info',
+        })
+    } catch (e) {
+      row.enabled = !enable
+      return
+    }
+  }
+
+  const r = await api.toggleRuleComponet(type, row.name, enable);
+  if (r.code == 200) {
+    ElNotification({ message: 'Success', type: 'success' })
+  } else {
+    ElNotification({ message: r.message || 'Failed', type: 'error' })
+  }
+  await loadRuleConfig()
+}
+
+const getStatus = (type, name) => {
+  const status = data.status[type].find(c => c.name == name)?.status || {}
+  const tagType = status.status == 'connected' ? 'success' : 'danger'
+  const tag = h(ElTag, { type: tagType }, { default: () => status.status })
+  if (status.status == 'connected') {
+    return tag
+  } else {
+    return h(ElTooltip, { effect: 'light', content: status.reason }, { default: () => tag })
   }
   const rule = data.value
   if (!rule.connector) rule.connectors = []
@@ -240,19 +328,19 @@ const duplicateRule = (rule) => {
   showEditRule.value = true
 }
 const delRule = (rule) => {
-  const { rules } = data.value
+  const { rules } = data.config
   rules.splice(rules.findIndex(r => r.name == rule.name))
 }
 
 const getSrcDesp = (name) => {
-  const s = data.value.sources.find(s => s.name == name)
+  const s = data.config.sources.find(s => s.name == name)
   if (!s) {
     return `error(${name} not found)`
   }
   return `${s.type}:${s.name}`
 }
 const getSinkDesp = (name) => {
-  const s = data.value.sinks.find(s => s.name == name)
+  const s = data.config.sinks.find(s => s.name == name)
   if (!s) {
     return `error(${name} not found)`
   }
@@ -265,11 +353,11 @@ const afterRuleEdit = async () => {
 
 const saveRule = async () => {
   try {
-    await api.saveRulesConfig(data.value)
+    await api.saveRulesConfig(data.config)
     ElNotification({ type: 'success', message: 'Saved successfully' })
   } catch (e) {
     ElNotification({ type: 'error', message: 'Failed to save: ' + (e.messge || e + '') })
-    console.error('failed to save rule', deepCopy(data.value))
+    console.error('failed to save rule', deepCopy(data.config))
   }
 }
 
@@ -279,20 +367,20 @@ const saveRule = async () => {
 
 const confirmEdit = async () => {
   const d = deepCopy(drawerEdit.data)
-  console.log(d)
   const v = await editOpt.value.validate()
   if (!v.valid) return
-  if (!data.value.connectors) {
-    data.value.connectors = []
+  if (!data.config.connectors) {
+    data.config.connectors = []
   }
 
-  const list = data.value[drawerEdit.type + 's']
+  const list = data.config[drawerEdit.type + 's']
   const exist = list.find(c => c.name == d.name)
   if (exist && drawerEdit.new) {
     ElNotification({ type: 'error', message: 'Name already exists!' })
     return
   }
   if (drawerEdit.new) {
+    d.enabled = true
     list.push(d)
   } else {
     for (let i = 0; i < list.length; i++) {
@@ -306,6 +394,7 @@ const confirmEdit = async () => {
 
   Object.assign(drawerEdit, defaultEditData)
   await saveRule()
+  await loadRuleConfig()
 }
 const cancelEdit = () => {
   Object.assign(drawerEdit, defaultEditData)
@@ -335,7 +424,7 @@ const editConn = row => {
   d.show = true
 }
 const delConn = async row => {
-  const { sources, sinks, connectors } = data.value
+  const { sources, sinks, connectors } = data.config
   const usedBySrc = sources.filter(s => s.connector == row.name).map(s => s.name)
   const usedBySink = sinks.filter(s => s.connector == row.name).map(s => s.name)
   let msg = ''
@@ -377,7 +466,7 @@ const editSrc = row => {
   d.show = true
 }
 const delSrc = async row => {
-  const { sources, rules } = data.value
+  const { sources, rules } = data.config
   const usedByRule = rules.filter(r => r.sources.includes(row.name)).map(r => r.name)
   let msg = usedByRule.join(',')
   if (msg) {
@@ -412,7 +501,7 @@ const editSink = row => {
   d.show = true
 }
 const delSink = async row => {
-  const { sinks, rules } = data.value
+  const { sinks, rules } = data.config
   const usedByRule = rules.filter(r => r.sinks.includes(row.name)).map(r => r.name)
   let msg = usedByRule.join(',')
   if (msg) {

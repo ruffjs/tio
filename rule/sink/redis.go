@@ -2,11 +2,12 @@ package sink
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"os"
 
 	"ruff.io/tio/pkg/redissplit"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/model"
 )
 
 // Redis sink, use raw redis command, like "SET k hi"
@@ -36,26 +37,46 @@ func init() {
 	Register(TypeRedis, NewRedis)
 }
 
-func NewRedis(name string, cfg map[string]any, conn connector.Conn) Sink {
+func NewRedis(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	c, ok := conn.(*connector.Redis)
 	if !ok {
-		slog.Error("Rule sink Redis wrong connector type", "sinkName", name)
-		os.Exit(1)
+		return nil, fmt.Errorf("wrong connector type for Redis sink")
 	}
 
 	a := &redisImpl{
+		ctx:  ctx,
 		name: name,
 		conn: c,
 		ch:   make(chan *Msg, 10000),
 	}
 	go a.publishLoop()
-	return a
+	return a, nil
 }
 
 type redisImpl struct {
+	ctx  context.Context
 	name string
 	conn *connector.Redis
 	ch   chan *Msg
+
+	started bool
+}
+
+func (s *redisImpl) Start() error {
+	s.started = true
+	return s.Status().Error
+}
+
+func (s *redisImpl) Status() model.StatusInfo {
+	if !s.started {
+		return model.StatusNotStarted()
+	}
+	return withConnStatus(s.conn.Name(), s.conn.Status())
+}
+
+func (s *redisImpl) Stop() error {
+	s.started = false
+	return nil
 }
 
 func (s *redisImpl) Name() string {
@@ -67,7 +88,9 @@ func (*redisImpl) Type() string {
 }
 
 func (s *redisImpl) Publish(msg Msg) {
-	s.ch <- &msg
+	if s.started {
+		s.ch <- &msg
+	}
 }
 
 func (s *redisImpl) publishLoop() {
@@ -84,7 +107,7 @@ func (s *redisImpl) publishLoop() {
 			args[i] = v
 		}
 
-		re := s.conn.Conn().Do(context.Background(), args...)
+		re := s.conn.Conn().Do(s.ctx, args...)
 		if re.Err() != nil {
 			slog.Error("Redis sink process failed", "error", re.Err())
 		} else {
