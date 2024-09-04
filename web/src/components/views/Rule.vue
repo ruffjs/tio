@@ -127,8 +127,7 @@
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type">
-          </el-table-column>
+          <el-table-column prop="type" label="type"/>
           <el-table-column label="status">
             <template #default="scope">
               <component :is="getStatus('source', scope.row.name)" />
@@ -163,8 +162,7 @@
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type">
-          </el-table-column>
+          <el-table-column prop="type" label="type"/>
           <el-table-column label="status">
             <template #default="scope">
               <component :is="getStatus('sink', scope.row.name)" />
@@ -236,11 +234,7 @@ const defaultEditData = {
   data: {},
 }
 const drawerEdit = reactive(Object.assign({}, defaultEditData))
-drawerEdit.schema.forEach(c => {
-  if (c.name == 'options') {
-    c.items = ruleSchema.connectorOptions.influxdb
-  }
-})
+
 
 let refreshInterval = null
 onMounted(async () => {
@@ -262,6 +256,13 @@ const loadRuleConfig = async () => {
   } else {
     ElNotification({ message: 'Rule is not configured', type: 'info' })
   }
+
+  // avoid null value for array
+  const rule = data.config
+  if (!rule.connectors) rule.connectors = []
+  if (!rule.sources) rule.sources = []
+  if (!rule.sinks) rule.sinks = []
+  if (!rule.rules) rule.rules = []
 }
 
 const toggleEnable = async (type, row, enable) => {
@@ -301,11 +302,6 @@ const getStatus = (type, name) => {
   } else {
     return h(ElTooltip, { effect: 'light', content: status.reason }, { default: () => tag })
   }
-  const rule = data.value
-  if (!rule.connector) rule.connectors = []
-  if (!rule.sources) rule.sources = []
-  if (!rule.sinks) rule.sinks = []
-  if (!rule.rules) rule.rules = []
 }
 
 // ----------- rule -----------
@@ -413,7 +409,6 @@ const showAddConnector = () => {
   d.show = true
 }
 const editConn = row => {
-  console.debug('edit conn', row)
   const d = drawerEdit
   d.type = 'connector'
   d.new = false
@@ -455,7 +450,6 @@ const showAddSrc = () => {
   d.show = true
 }
 const editSrc = row => {
-  console.debug('edit source', row)
   const d = drawerEdit
   d.type = 'source'
   d.new = false
@@ -490,7 +484,6 @@ const showAddSink = () => {
   d.show = true
 }
 const editSink = row => {
-  console.debug('edit sink', row)
   const d = drawerEdit
   d.type = 'sink'
   d.new = false
@@ -517,8 +510,7 @@ const delSink = async row => {
 
 <style lang="scss" scoped>
 .con {
-  margin: 0 10px;
-
+  margin: 0 10px 30px 10px;
   .segment-title {
     display: inline-block;
     margin: 0px 30px 10px 0px;
