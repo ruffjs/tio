@@ -37,6 +37,10 @@ type Config struct {
 
 type CreateFunc func(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Source, error)
 
+type Metric struct {
+	Received int64 `json:"received"`
+}
+
 var registry map[string]CreateFunc = make(map[string]CreateFunc)
 
 func Register(typ string, f CreateFunc) {

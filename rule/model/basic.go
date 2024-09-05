@@ -1,10 +1,10 @@
 package model
 
 type StatusInfo struct {
-	Status  string `json:"status"`
-	Reason  string `json:"reason"`
-	Error   error  `json:"error"`
-	Stopped bool   `json:"stopped"`
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+	Error  error  `json:"error"`
+	Metric any    `json:"metric"`
 }
 
 const (
@@ -14,9 +14,8 @@ const (
 
 func StatusNotStarted() StatusInfo {
 	return StatusInfo{
-		Status:  Disconnected,
-		Reason:  "not started",
-		Stopped: true,
+		Status: Disconnected,
+		Reason: "not started",
 	}
 }
 

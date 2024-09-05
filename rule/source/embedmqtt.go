@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
@@ -34,6 +35,7 @@ type embedMqttImpl struct {
 
 	started bool
 	status  model.StatusInfo
+	metric  Metric
 }
 
 func newEmbedMqtt(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Source, error) {
@@ -81,6 +83,7 @@ func (m *embedMqttImpl) Stop() {
 }
 
 func (m *embedMqttImpl) Status() model.StatusInfo {
+	m.status.Metric = Metric{Received: atomic.LoadInt64(&m.metric.Received)}
 	return m.status
 }
 
@@ -99,6 +102,8 @@ func (m *embedMqttImpl) OnMsg(ruleName string, h MsgHander) {
 
 func (m *embedMqttImpl) sub() error {
 	subId, err := embed.BrokerInstance().Subscribe(m.config.Topic, func(msg embed.Msg) {
+		atomic.AddInt64(&m.metric.Received, 1)
+
 		mm := Msg{
 			ThingId: msg.ThingId,
 			Topic:   msg.Topic,

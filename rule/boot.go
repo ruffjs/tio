@@ -40,7 +40,6 @@ type RuleMgr struct {
 
 type RuleStatusInfo map[string][]RuleStatusItem // type=>[RuleStatusItem]
 type RuleStatusItem struct {
-	Type   string           `json:"type"`
 	Name   string           `json:"name"`
 	Status model.StatusInfo `json:"status"`
 }
@@ -88,10 +87,11 @@ func (r *RuleMgr) GetStatus() RuleStatusInfo {
 		TypeConnector: make([]RuleStatusItem, 0),
 		TypeSource:    make([]RuleStatusItem, 0),
 		TypeSink:      make([]RuleStatusItem, 0),
+		TypeRule:      make([]RuleStatusItem, 0),
 	}
 
 	get := func(typ string, c StatusGetter) {
-		st := RuleStatusItem{Type: c.Type(), Name: c.Name()}
+		st := RuleStatusItem{Name: c.Name()}
 		if err, ok := r.initErrors[typ][c.Name()]; ok {
 			st.Status = model.StatusDisconnected("init failed", err)
 		} else {
@@ -108,6 +108,9 @@ func (r *RuleMgr) GetStatus() RuleStatusInfo {
 	}
 	for _, c := range r.sinks {
 		get(TypeSink, c)
+	}
+	for _, c := range r.rules {
+		get(TypeRule, c)
 	}
 
 	return rs

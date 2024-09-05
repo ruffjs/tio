@@ -14,6 +14,8 @@ import (
 	"log/slog"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"ruff.io/tio/rule/model"
 	"ruff.io/tio/rule/process"
@@ -33,12 +35,19 @@ type Rule interface {
 	Name() string
 	Start(ctx context.Context)
 	Stop()
+	Status() model.StatusInfo
 }
 
 type StatusGetter interface {
 	Name() string
-	Type() string
 	Status() model.StatusInfo
+}
+
+type Metric struct {
+	Received int64 `json:"received"`
+	Passed   int64 `json:"passed"`
+	Filtered int64 `json:"filtered"`
+	Failed   int64 `json:"failed"`
 }
 
 func NewRule(name string,
@@ -71,7 +80,9 @@ type ruleImpl struct {
 	processors   []process.Process
 	sinks        []sink.Sink
 
+	mu      sync.RWMutex
 	started bool
+	metric  Metric
 }
 
 func (r *ruleImpl) Name() string {
@@ -79,6 +90,8 @@ func (r *ruleImpl) Name() string {
 }
 
 func (r *ruleImpl) Start(ctx context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.started {
 		return
 	}
@@ -96,6 +109,35 @@ func (r *ruleImpl) Start(ctx context.Context) {
 	}
 }
 
+func (r *ruleImpl) Stop() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.started = false
+	if r.ctxCancel != nil {
+		r.ctxCancel()
+	}
+}
+
+func (r *ruleImpl) Status() model.StatusInfo {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	st := "running"
+	if !r.started {
+		st = "stopped"
+	}
+	s := model.StatusInfo{
+		Status: st,
+		Metric: Metric{
+			Received: atomic.LoadInt64(&r.metric.Received),
+			Filtered: atomic.LoadInt64(&r.metric.Filtered),
+			Passed:   atomic.LoadInt64(&r.metric.Passed),
+			Failed:   atomic.LoadInt64(&r.metric.Failed),
+		},
+	}
+	return s
+}
+
 func (r *ruleImpl) worker(msgQ chan source.Msg) {
 	for {
 		var msg source.Msg
@@ -105,11 +147,19 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 			return
 		case msg = <-msgQ:
 		}
+		atomic.AddInt64(&r.metric.Received, 1)
+
 		var out string
 		// process
-		if pout, ok := r.process(msg); ok && pout != nil {
+		if pout, ok, err := r.process(msg); ok && pout != nil && err == nil {
 			out = *pout
+			atomic.AddInt64(&r.metric.Passed, 1)
 		} else {
+			if err != nil {
+				atomic.AddInt64(&r.metric.Failed, 1)
+			} else {
+				atomic.AddInt64(&r.metric.Filtered, 1)
+			}
 			continue
 		}
 
@@ -132,17 +182,15 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 	}
 }
 
-func (r *ruleImpl) Stop() {
-	r.started = false
-	if r.ctxCancel != nil {
-		r.ctxCancel()
-	}
-}
-
-func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
+func (r *ruleImpl) process(msg source.Msg) (output *string, next bool, err error) {
 	defer func() {
-		if err := recover(); err != nil {
-			slog.Error("Rule process", "error", err, "msg", msg) // 打印错误信息
+		if e := recover(); e != nil {
+			slog.Error("Rule process", "error", e, "msg", msg) // 打印错误信息
+			if er, ok := e.(error); ok {
+				err = er
+			} else {
+				err = fmt.Errorf("%v", e)
+			}
 		}
 	}()
 
@@ -159,7 +207,8 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 		slog.Error("Rule failed to get shadow", "thingId", msg.ThingId)
 	}
 
-	input, err := MsgToProcessInput(msg, sd)
+	input, er := MsgToProcessInput(msg, sd)
+	err = er
 	if err != nil {
 		slog.Error("Rule failed to parse msg", "msg", msg, "error", err)
 		return
@@ -169,7 +218,8 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 	for _, p := range r.processors {
 		switch p.Type() {
 		case process.TypeFilter:
-			o, err := p.Run(input)
+			o, er := p.Run(input)
+			err = er
 			if err != nil {
 				slog.Error("Rule failed to process filter msg", "process", p.Name(), "msg", msg, "error", err)
 				return
@@ -180,7 +230,8 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 				return
 			}
 		case process.TypeTrans:
-			o, err := p.Run(input)
+			o, er := p.Run(input)
+			err = er
 			if err != nil {
 				slog.Error("Rule failed to process transform msg", "process", p.Name(), "msg", msg, "error", err)
 				return
@@ -195,7 +246,8 @@ func (r *ruleImpl) process(msg source.Msg) (output *string, next bool) {
 	// if has been tranformed, marshal it to string
 	// otherwise use the original payload
 	if hasTrans {
-		b, err := marshal(input)
+		b, er := marshal(input)
+		err = er
 		if err != nil {
 			slog.Error("Rule failed to marshal process output", "msg", msg, "output", input, "error", err)
 			return

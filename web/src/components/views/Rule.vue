@@ -18,6 +18,8 @@
                 <br />
                 Connectors are used by sources or sinks.
                 <br />
+                <br />
+                Add or upate rule, connector, source or sink will reload whole rules and reset the metircs
               </template>
               <template #reference>
 
@@ -53,15 +55,28 @@
               </template>
             </template>
           </el-table-column>
+          <el-table-column label="Status">
+            <template #header>
+              Status
+              <el-tooltip content="Mouse over the status to see details">
+                <el-icon>
+                  <InfoFilled />
+                </el-icon>
+              </el-tooltip>
+            </template>
+            <template #default="scope">
+              <component :is="getStatus('rule', scope.row.name)" />
+            </template>
+          </el-table-column>
           <el-table-column prop="note" label="Note">
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable">
+          <el-table-column prop="eanbled" label="Enable" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
                 @change="v => toggleEnable('rule', scope.row, v)">Enabled</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations">
+          <el-table-column label="Operations" width="190">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
                 Edit
@@ -93,18 +108,18 @@
           </el-table-column>
           <el-table-column prop="type" label="type">
           </el-table-column>
-          <el-table-column label="status">
+          <el-table-column label="Status">
             <template #default="scope">
               <component :is="getStatus('connector', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable">
+          <el-table-column prop="eanbled" label="Enable" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
                 @change="v => toggleEnable('connector', scope.row, v)">Enabled</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations">
+          <el-table-column label="Operations" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editConn(scope.row)">
                 Edit
@@ -127,19 +142,19 @@
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type"/>
-          <el-table-column label="status">
+          <el-table-column prop="type" label="type" />
+          <el-table-column label="Status">
             <template #default="scope">
               <component :is="getStatus('source', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable">
+          <el-table-column prop="eanbled" label="Enable" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
                 @change="v => toggleEnable('source', scope.row, v)">Enabled</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations">
+          <el-table-column label="Operations" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSrc(scope.row)">
                 Edit
@@ -162,19 +177,19 @@
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type"/>
-          <el-table-column label="status">
+          <el-table-column prop="type" label="type" />
+          <el-table-column label="Status">
             <template #default="scope">
               <component :is="getStatus('sink', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable">
+          <el-table-column prop="eanbled" label="Enable" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
                 @change="v => toggleEnable('sink', scope.row, v)">Enabled</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations">
+          <el-table-column label="Operations" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSink(scope.row)">
                 Edit
@@ -202,7 +217,7 @@
 
 <script setup>
 import { h, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { ElMessageBox, ElTag, ElTooltip } from 'element-plus';
+import { ElMessageBox, ElTag, ElPopover, ElTable, ElTableColumn } from 'element-plus';
 import * as api from '@/apis';
 import { getDependent } from '@/components/rule/rule'
 import EditRule from '@/components/rule/EditRule.vue';
@@ -295,13 +310,37 @@ const toggleEnable = async (type, row, enable) => {
 
 const getStatus = (type, name) => {
   const status = data.status[type].find(c => c.name == name)?.status || {}
-  const tagType = status.status == 'connected' ? 'success' : 'danger'
+
+  let tagType = "info"
+  if (['connected', 'running'].includes(status.status)) tagType = 'success'
+  if (status.status == 'stopped') tagType = 'info'
+  else 'danger'
+
   const tag = h(ElTag, { type: tagType }, { default: () => status.status })
-  if (status.status == 'connected') {
-    return tag
-  } else {
-    return h(ElTooltip, { effect: 'light', content: status.reason }, { default: () => tag })
+  const reason = h('div', status.reason)
+  let metric = h('div', '')
+  if (status.metric && Object.keys(status.metric).length > 0) {
+    const metricData = Object.keys(status.metric).map(k => ({ key: k, value: status.metric[k] }))
+    metric = h(
+      ElTable,
+      { data: metricData },
+      {
+        default: () => [
+          h(ElTableColumn, { prop: 'key', label: 'Metric' }),
+          h(ElTableColumn, { prop: 'value', label: 'Value' }),
+        ]
+      },
+    )
   }
+  const popover = h(ElPopover,
+    { width: 400 },
+    {
+      reference: () => tag,
+      default: () => [reason, metric]
+    },
+  )
+
+  return popover
 }
 
 // ----------- rule -----------
@@ -511,6 +550,7 @@ const delSink = async row => {
 <style lang="scss" scoped>
 .con {
   margin: 0 10px 30px 10px;
+
   .segment-title {
     display: inline-block;
     margin: 0px 30px 10px 0px;
