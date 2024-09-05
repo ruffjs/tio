@@ -19,11 +19,11 @@ type Process interface {
 }
 
 type Config struct {
-	Name   string
-	Type   string
-	Runner string // jq or js
-	Jq     string
-	Js     string
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Runner string `json:"runner"` // jq or js
+	Jq     string `json:"jq"`
+	Js     string `json:"js"`
 }
 
 func NewProcess(cfg Config) (Process, error) {

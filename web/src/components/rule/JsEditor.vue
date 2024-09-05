@@ -1,13 +1,15 @@
 <template>
-  <div class="edit-container">
-    <textarea ref="editRef" v-model="model"></textarea>
-  </div>
+  <div>
+    <div class="edit-container">
+      <textarea ref="editRef" v-model="model"></textarea>
+    </div>
 
-  <el-row>
-    <el-tooltip content="Auto height for code editor for see all code" placement="top">
-      <el-checkbox link type="primary" @change="onAutoHeightCheck">auto height</el-checkbox>
-    </el-tooltip>
-  </el-row>
+    <el-row>
+      <el-tooltip content="Auto height for code editor for see all code" placement="top">
+        <el-checkbox link type="primary" @change="onAutoHeightCheck">auto height</el-checkbox>
+      </el-tooltip>
+    </el-row>
+  </div>
 </template>
 
 <script setup>
@@ -35,6 +37,10 @@ const resize = () => {
 const createEditor = async () => {
   // MIME types defined: text/javascript, application/javascript, application/x-javascript, text/ecmascript, application/ecmascript, application/json, application/x-json, application/manifest+json, application/ld+json, text/typescript, application/typescript.
   const mime = "application/x-javascript";
+  if (!editRef.value) {
+    console.debug("editRef is null", editRef.value)
+    return
+  }
   editor.value = codemirror.fromTextArea(editRef.value, {
     value: model,
     mode: mime,
@@ -55,6 +61,7 @@ const createEditor = async () => {
     emit("update:modelValue", editor.value.getValue() || "");
   });
   editor.value.on("blur", () => { });
+  console.debug("editor inited")
 };
 
 defineExpose({

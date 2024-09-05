@@ -41,6 +41,7 @@ function doMerge(oldConfig: RuleConfig, ruleForMerge: RuleEditData, isNew: boole
   const newRule = {
     name: rule.name,
     note: rule.note,
+    enabled: rule.enabled,
     process: rule.process,
     sources: rule.sources.map((s) => s.name),
     sinks: rule.sinks.map((s) => s.name),

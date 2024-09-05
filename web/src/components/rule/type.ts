@@ -84,6 +84,7 @@ export interface RuleConfig {
 export interface RuleEditData {
   name: string;
   note: string;
+  enabled: boolean;
   sources: Source[];
   process: Process[];
   sinks: Sink[];

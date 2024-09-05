@@ -199,7 +199,7 @@
             </el-popover>
             <div class="io-btn">
               <el-button icon="Edit" circle link type="primary" size="large"></el-button>
-              <el-button icon="Delete" circle link type="danger" size="large"></el-button>
+              <el-button icon="Delete" circle link type="danger" size="large" @click="delIo('sink', s.name)"></el-button>
             </div>
           </div>
           <el-row>
@@ -297,12 +297,10 @@ const initRule = () => {
 
   if (rule) {
     rule = JSON.parse(JSON.stringify(rule))
-    form.name = rule.name
-    form.note = rule.note
-    form.process = rule.process
+    Object.assign(form, rule)
 
     form.process.forEach(p => {
-      if (p.runner == undefined) {
+      if (!p.runner) {
         p.runner = !!p.jq ? "jq" : "js"
       }
     })

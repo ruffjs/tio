@@ -51,10 +51,10 @@ func NewRuleMgr() *RuleMgr {
 		sources: make(map[string]source.Source),
 		rules:   make(map[string]Rule),
 		initErrors: map[string]map[string]error{ // type=>name=>error
-			"connectors": {},
-			"sources":    {},
-			"sinks":      {},
-			"rules":      {},
+			TypeConnector: {},
+			TypeSource:    {},
+			TypeSink:      {},
+			TypeRule:      {},
 		},
 	}
 	m.loadConfig()
@@ -93,7 +93,11 @@ func (r *RuleMgr) GetStatus() RuleStatusInfo {
 	get := func(typ string, c StatusGetter) {
 		st := RuleStatusItem{Name: c.Name()}
 		if err, ok := r.initErrors[typ][c.Name()]; ok {
-			st.Status = model.StatusDisconnected("init failed", err)
+			if typ == TypeRule {
+				st.Status = model.StatusInfo{Status: "init-failed", Reason: err.Error(), Error: err}
+			} else {
+				st.Status = model.StatusDisconnected("init failed", err)
+			}
 		} else {
 			st.Status = c.Status()
 		}
@@ -337,12 +341,7 @@ func (r *RuleMgr) initRule(rc RuleConfig, shadowGetter shadow.CacheService) (Rul
 	}
 	plist := make([]process.Process, 0)
 	for _, cfg := range rc.Process {
-		p, err := process.NewProcess(process.Config{
-			Name: cfg.Name,
-			Type: cfg.Type,
-			Jq:   cfg.Jq,
-			Js:   cfg.Js,
-		})
+		p, err := process.NewProcess(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("init process %q failed: %w", cfg.Name, err)
 		}

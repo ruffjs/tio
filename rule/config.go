@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
 	"ruff.io/tio/rule/source"
 )
@@ -17,19 +18,12 @@ type Config struct {
 }
 
 type RuleConfig struct {
-	Name    string    `json:"name"`
-	Note    string    `json:"note"`
-	Enabled bool      `json:"enabled"`
-	Sources []string  `json:"sources"`
-	Process []Process `json:"process"`
-	Sinks   []string  `json:"sinks"`
-}
-
-type Process struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Jq   string `json:"jq"`
-	Js   string `json:"js"`
+	Name    string           `json:"name"`
+	Note    string           `json:"note"`
+	Enabled bool             `json:"enabled"`
+	Sources []string         `json:"sources"`
+	Process []process.Config `json:"process"`
+	Sinks   []string         `json:"sinks"`
 }
 
 type AmqpSinkOption struct {
