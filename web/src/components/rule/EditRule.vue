@@ -243,7 +243,7 @@ const form = reactive({
   // rule
   name: '',
   note: '',
-  enabled: true,
+  enabled: false,
   sources: [],
   sinks: [],
   process: [{

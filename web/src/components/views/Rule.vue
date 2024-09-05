@@ -317,6 +317,9 @@ const getStatus = (type, name) => {
   else 'danger'
 
   const tag = h(ElTag, { type: tagType }, { default: () => status.status })
+  // connector has no metrics
+  if (type == 'connector' && tagType == 'success') return tag;
+
   const reason = h('div', status.reason)
   let metric = h('div', '')
   if (status.metric && Object.keys(status.metric).length > 0) {
