@@ -26,17 +26,7 @@
               <el-select v-if="t.type == 'select'" v-model="model[name][tname]" :placeholder="t.placeholder">
                 <el-option v-for="o in t.options" :label="o.label" :value="o.value" />
               </el-select>
-              <div v-if="t.type == 'kv'">
-                <el-row>
-                  <el-form-item>
-                    <el-input />
-                  </el-form-item>
-                  &nbsp; : &nbsp;
-                  <el-form-item>
-                    <el-input />
-                  </el-form-item>
-                </el-row>
-              </div>
+              <KeyValueEditor v-if="t.type == 'kv'" title="" :disabled="false" v-model="model[name][tname]" />
             </el-form-item>
           </template>
         </template>
@@ -58,6 +48,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue';
 import * as ruleSchema from '@/components/rule/rule-schema'
+import KeyValueEditor from '@/components/common/KeyValueEditor.vue'
 
 const model = defineModel()
 const props = defineProps({
@@ -94,6 +85,13 @@ const fillOptions = () => {
     }
     props.schema['connector'] = tmpConnSchema
   }
+
+  // to remove
+  // if (props.type == 'sink' && model.value.type == 'http') {
+  //   model.headers = {
+  //     "a": "a"
+  //   }
+  // }
 
   if (props.type == 'sink') {
     sinkTip.value = ruleSchema.sinkTips[model.value.type]

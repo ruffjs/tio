@@ -161,7 +161,7 @@ watch(
     align-items: center;
   }
   .key-value-editor-rows {
-    overflow-y: scroll;
+    overflow-y: auto;
     white-space: nowrap;
     .key-value-editor-row {
       display: flex;
