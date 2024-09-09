@@ -205,7 +205,7 @@
   <el-drawer size="700" destroy-on-close v-model="drawerEdit.show" v-if="drawerEdit.show" :title="drawerEdit.title"
     append-to-body>
     <EditOpt ref="editOpt" v-model="drawerEdit.data" :schema="drawerEdit.schema"
-      :optionsSchema="drawerEdit.optionsSchema" :config="data.config" :isNew="drawerEdit.new" />
+      :optionsSchema="drawerEdit.optionsSchema" :config="data.config" :type="drawerEdit.type" :isNew="drawerEdit.new" />
     <template #footer>
       <div style="flex: auto">
         <el-button type="primary" @click="confirmEdit">Confirm</el-button>

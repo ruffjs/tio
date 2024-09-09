@@ -172,7 +172,7 @@
 
         <div class="io">
           <div v-for="s in form.sinks" class="io-item">
-            <el-popover placement="top-start" title="Detail" :width="400" trigger="hover">
+            <el-popover placement="top-start" title="Detail" :width="500" trigger="hover">
               <template #default>
                 name: {{ s.name }}
                 <br />
@@ -187,10 +187,24 @@
                   <br />
                   &nbsp; {{ k }} : {{ v }}
                 </template>
+
+                <!-- Sink tip -->
+                <template v-if="ruleSchema.sinkTips[s.type]">
+                  <h4>Tip</h4>
+                  <div v-html="ruleSchema.sinkTips[s.type].note"></div>
+                  <label>Example: </label>
+                  <br />
+                  <template v-for="c in ruleSchema.sinkTips[s.type].formatExamples">
+                    <code>
+                    {{ c }}
+                  </code>
+                  <br/>
+                  </template>
+                </template>
+
               </template>
               <template #reference>
                 <div>
-
                   <el-tag>{{ s.type }}</el-tag>
                   {{ s.name }}
                 </div>
@@ -199,7 +213,8 @@
             </el-popover>
             <div class="io-btn">
               <el-button icon="Edit" circle link type="primary" size="large"></el-button>
-              <el-button icon="Delete" circle link type="danger" size="large" @click="delIo('sink', s.name)"></el-button>
+              <el-button icon="Delete" circle link type="danger" size="large"
+                @click="delIo('sink', s.name)"></el-button>
             </div>
           </div>
           <el-row>
@@ -229,6 +244,7 @@ import * as api from '@/apis';
 import JsEditor from '@/components/rule/JsEditor.vue';
 import JSONEditor from '@/components/common/JSONEditor.vue';
 import { tryMerge } from './rule.ts';
+import * as ruleSchema from '@/components/rule/rule-schema';
 
 const props = defineProps({
   config: Object,

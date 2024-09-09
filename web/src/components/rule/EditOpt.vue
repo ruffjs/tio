@@ -1,50 +1,63 @@
 <template>
-  <el-form :model="model" label-width="auto" style="width: 100%;" ref="formEl" status-icon>
-    <template v-for="(s, name) in schema">
-      <template v-if="s != null">
-        <el-form-item v-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label" :rules="s.rules"
-          :prop="name">
-          <el-input v-if="s.type == 'text'" v-model="model[name]" :placeholder="s.placeholder" :disabled="!isNew" />
-          <el-input type="password" show-password v-if="s.type == 'password'" v-model="model[name]"
-            :placeholder="s.placeholder" />
-          <el-input-number v-if="s.type == 'number'" v-model="model[name]" :placeholder="s.placeholder" />
-          <el-select v-if="s.type == 'select'" v-model="model[name]" :placeholder="s.placeholder">
-            <el-option v-for="o in s.options" :label="o.label" :value="o.value" />
-          </el-select>
-        </el-form-item>
-
-        <template v-if="s.type == 'object'">
-          <el-divider />
-          <label>{{ s.label }}</label>
-          <el-form-item v-for="(t, tname ) in s.items" :label="t.label" :rules="t.rules" :prop="name + '.' + tname">
-            <el-input v-if="t.type == 'text'" v-model="model[name][tname]" :placeholder="t.placeholder" />
-            <el-input type="password" show-password v-if="t.type == 'password'" v-model="model[name][tname]"
-              :placeholder="t.placeholder" />
-            <el-input-number v-if="t.type == 'number'" v-model="model[name][tname]" :placeholder="t.placeholder" />
-            <el-checkbox v-if="t.type == 'checkbox'" v-model="model[name][tname]" :title="t.placeholder" />
-            <el-select v-if="t.type == 'select'" v-model="model[name][tname]" :placeholder="t.placeholder">
-              <el-option v-for="o in t.options" :label="o.label" :value="o.value" />
+  <div>
+    <el-form :model="model" label-width="auto" style="width: 100%;" ref="formEl" status-icon>
+      <template v-for="(s, name) in schema">
+        <template v-if="s != null">
+          <el-form-item v-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label"
+            :rules="s.rules" :prop="name">
+            <el-input v-if="s.type == 'text'" v-model="model[name]" :placeholder="s.placeholder" :disabled="!isNew" />
+            <el-input type="password" show-password v-if="s.type == 'password'" v-model="model[name]"
+              :placeholder="s.placeholder" />
+            <el-input-number v-if="s.type == 'number'" v-model="model[name]" :placeholder="s.placeholder" />
+            <el-select v-if="s.type == 'select'" v-model="model[name]" :placeholder="s.placeholder">
+              <el-option v-for="o in s.options" :label="o.label" :value="o.value" />
             </el-select>
-            <div v-if="t.type == 'kv'">
-              <el-row>
-                <el-form-item>
-                  <el-input />
-                </el-form-item>
-                &nbsp; : &nbsp;
-                <el-form-item>
-                  <el-input />
-                </el-form-item>
-              </el-row>
-            </div>
           </el-form-item>
+
+          <template v-if="s.type == 'object'">
+            <el-divider />
+            <label>{{ s.label }}</label>
+            <el-form-item v-for="(t, tname ) in s.items" :label="t.label" :rules="t.rules" :prop="name + '.' + tname">
+              <el-input v-if="t.type == 'text'" v-model="model[name][tname]" :placeholder="t.placeholder" />
+              <el-input type="password" show-password v-if="t.type == 'password'" v-model="model[name][tname]"
+                :placeholder="t.placeholder" />
+              <el-input-number v-if="t.type == 'number'" v-model="model[name][tname]" :placeholder="t.placeholder" />
+              <el-checkbox v-if="t.type == 'checkbox'" v-model="model[name][tname]" :title="t.placeholder" />
+              <el-select v-if="t.type == 'select'" v-model="model[name][tname]" :placeholder="t.placeholder">
+                <el-option v-for="o in t.options" :label="o.label" :value="o.value" />
+              </el-select>
+              <div v-if="t.type == 'kv'">
+                <el-row>
+                  <el-form-item>
+                    <el-input />
+                  </el-form-item>
+                  &nbsp; : &nbsp;
+                  <el-form-item>
+                    <el-input />
+                  </el-form-item>
+                </el-row>
+              </div>
+            </el-form-item>
+          </template>
         </template>
       </template>
-    </template>
-  </el-form>
+    </el-form>
+    <div v-if="type == 'sink' && sinkTip">
+      <el-divider />
+      <h4>Tip</h4>
+      <div v-html="sinkTip.note"></div>
+      <label>Example: </label>
+      <br />
+      <template v-for="c in sinkTip.formatExamples">
+        <code>{{ c }} </code> <br />
+      </template>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue';
+import * as ruleSchema from '@/components/rule/rule-schema'
 
 const model = defineModel()
 const props = defineProps({
@@ -54,6 +67,8 @@ const props = defineProps({
   optionsSchema: Object,
   config: Object,
 })
+
+const sinkTip = ref("")
 
 const formEl = ref()
 
@@ -68,11 +83,7 @@ const fillOptions = () => {
     tmpOptSchema.items = opt
     props.schema['options'] = tmpOptSchema
   }
-  // if (props.schema['options'].items['kv']) {
-  //   model['kv'] = {}
-  // } else {
-  //   delete model['kv']
-  // }
+
   if (model.value.type == 'embed-mqtt') {
     props.schema['connector'] = undefined
   } else if (tmpConnSchema) {
@@ -82,6 +93,10 @@ const fillOptions = () => {
       tmpConnSchema['options'] = connOpt
     }
     props.schema['connector'] = tmpConnSchema
+  }
+
+  if (props.type == 'sink') {
+    sinkTip.value = ruleSchema.sinkTips[model.value.type]
   }
 
   // clear options value when type changed

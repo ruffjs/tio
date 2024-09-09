@@ -14,7 +14,7 @@ import (
 )
 
 // Tdengine sink, use SQL
-// Ref: https://docs.tdengine.com/reference/rest-api/
+// Ref: https://docs.tdengine.com/reference/connectors/rest-api/
 
 // Transform data to SQL and sink to Tdengine, jq script example for PresenceEvent:
 //   - input:  {"payload": {"thingId":"test", "eventType": "connected", "timestamp": 1711529686403} }

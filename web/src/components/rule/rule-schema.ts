@@ -116,12 +116,12 @@ export const connectorOptions = {
   },
   tdengine: {
     // url, username, password, timezone, database, timeout
-    url: { label: "URL", type: "text", placeholder: "tdengine://localhost:6030/rest/sql", rules: [{ required: true }] },
+    url: { label: "URL", type: "text", placeholder: "http://localhost:6030", rules: [{ required: true }] },
     username: { label: "Username", type: "text", placeholder: "admin", rules: [{ required: true }] },
     password: { label: "Password", type: "password", placeholder: "password", rules: [{ required: true }] },
     timezone: { label: "Timezone", type: "text", placeholder: "UTC" },
     database: { label: "Database", type: "text", placeholder: "my_database", rules: [{ required: true }] },
-    timeout: { label: "Timeout(Second)", type: "number", placeholder: "10" },
+    timeout: { label: "Timeout(Second)", type: "number", placeholder: "2" },
   },
   mysql: {
     // host, port, user password, db, charset, timezone, maxIdleConns, maxOpenConns, connMaxLifetime
@@ -263,6 +263,33 @@ export const sinkOptions = {
   redis: {},
   tdengine: {},
   log: {},
+};
+
+export const sinkTips = {
+  influxdb: {
+    note: `The format of the received data needs to be 
+    <a href="https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/" target="_blank">line protocal<a>.`,
+    formatExamples: ["test,thingId=test v=1 1711529686403", "test,thingId=test,zone=east v=1,v2=3 1711529686403"],
+  },
+  tdengine: {
+    note: `The format of the received data needs to be SQL string for 
+      <a href="https://docs.tdengine.com/reference/connectors/rest-api/" target="_blank">REST API</a>.
+      The table in TDengine should be created manually.`,
+    formatExamples: ['INSERT INTO presence(ts, thing_id, type) VALUES(1711529686403, "test", "connected")'],
+  },
+  mysql: {
+    note: `The format of the received data needs to be SQL string for 
+    <a href="https://dev.mysql.com/doc/refman/8.0/en/insert.html" target="_blank">INSERT</a>.
+      The table in MySQL should be created manually.`,
+    formatExamples: [
+      'INSERT INTO `data_latest` (`thing_id`, `name`, `time`, `value`, `type`) VALUES ("test", "temp", NOW(), "37", "number")',
+    ],
+  },
+  redis: {
+    note: `The format of the received data needs to be a 
+    <a href="https://redis.io/docs/latest/commands/" target="_blank">redis command</a>.`,
+    formatExamples: ["HSET prop:test hum 50 temp 37"],
+  },
 };
 
 export const defaultSink = {
