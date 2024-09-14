@@ -112,7 +112,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, shallowRef, watch } from "vue";
+import { computed, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { getInitMeatModel } from "@/utils/mqtt";
 import { qosOptions } from "@/configs/tool";
 import useMqtt from "@/reactives/useMqtt";
@@ -147,6 +147,10 @@ const hasMqtt5Props = ref(false);
 const isMetaFormShown = ref(false);
 const isTplsListShown = ref(false);
 const hasJSONError = ref(false);
+
+onMounted(() => {
+  loadMqttPubData();
+})
 
 const isNotEmptyObject = (value) => {
   if (typeof value === "object") {
@@ -211,7 +215,19 @@ const send = () => {
       }
     );
   }
+  saveMqttPubData();
 };
+const saveMqttPubData = () => {
+  localStorage.setItem("$tiopg/mqtt/pub/data", JSON.stringify({ topic: form.topic, payload: form.payload }));
+}
+const loadMqttPubData = () => {
+  const mqttData = localStorage.getItem("$tiopg/mqtt/pub/data", JSON.stringify({ topic: form.topic, payload: form.payload }));
+  if (mqttData) {
+    const j = JSON.parse(mqttData);
+    form.topic = j.topic
+    form.payload = j.payload
+  }
+}
 watch(
   () => props.topic,
   () => {

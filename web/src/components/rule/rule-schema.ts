@@ -296,7 +296,7 @@ export const defaultSink = {
   name: "",
   type: "embed-mqtt",
   options: {
-    topic: "$iothub/user/things/{thingId}/republish",
+    topic: "$iothub/user/things/${thingId}/republish",
   },
 };
 
