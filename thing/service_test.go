@@ -43,7 +43,7 @@ func TestThingSvc_Create(t *testing.T) {
 		require.NotEmpty(t, resTh.Id, "thing id is empty")
 		require.NotEmpty(t, resTh.AuthValue, "thing auth value is empty")
 
-		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		sd, err := sdSvc.Get(ctxTest, resTh.Id)
 		require.NoError(t, err)
 		require.Equal(t, resTh.Id, sd.ThingId)
 	})
@@ -57,7 +57,7 @@ func TestThingSvc_Create(t *testing.T) {
 		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
 		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
 
-		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		sd, err := sdSvc.Get(ctxTest, resTh.Id)
 		require.NoError(t, err)
 		require.Equal(t, resTh.Id, sd.ThingId)
 	})
@@ -71,7 +71,7 @@ func TestThingSvc_Create(t *testing.T) {
 		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
 		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
 
-		sd, err := sdSvc.Get(ctxTest, resTh.Id, shadow.GetOption{WithStatus: false})
+		sd, err := sdSvc.Get(ctxTest, resTh.Id)
 		require.NoError(t, err)
 		require.Equal(t, resTh.Id, sd.ThingId)
 	})
@@ -148,7 +148,7 @@ func TestThingSvc_Delete(t *testing.T) {
 	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId})
 	err = svc.Delete(ctxTest, randId)
 	require.NoError(t, err)
-	_, err = sdSvc.Get(ctxTest, randId, shadow.GetOption{WithStatus: false})
+	_, err = sdSvc.Get(ctxTest, randId)
 	require.Error(t, err, "shadow should get not found error when thing is deleted")
 	if herr, ok := err.(model.HttpErr); ok {
 		require.Equal(t, herr.HttpCode, 404)

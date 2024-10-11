@@ -130,10 +130,12 @@ func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context, updateTim
 	return res.Error
 }
 
-func (r shadowRepo) Get(ctx context.Context, thingId string) (*ShadowWithEnable, error) {
+func (r shadowRepo) GetWithStatus(ctx context.Context, thingId string) (*ShadowWithStatus, error) {
 	e := EntityWithEnable{}
 	res := r.db.Model(&Entity{}).
 		Select("t.enabled", "shadow.*").
+		Joins("ConnStatus").
+		Preload("ConnStatus").
 		Joins("LEFT JOIN thing t ON t.id=shadow.thing_id").
 		Where("shadow.thing_id=?", thingId).
 		First(&e)
@@ -142,8 +144,22 @@ func (r shadowRepo) Get(ctx context.Context, thingId string) (*ShadowWithEnable,
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	s, err := toShadow(e.Entity)
-	se := ShadowWithEnable{Enabled: e.Enabled, Shadow: s}
+	se, err := toShadowWithStatus(e)
+
+	return &se, err
+}
+
+func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
+	e := Entity{}
+	res := r.db.Model(&Entity{}).
+		Where("shadow.thing_id=?", thingId).
+		First(&e)
+
+	err := res.Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	se, err := toShadow(e)
 
 	return &se, err
 }
@@ -206,30 +222,38 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 		return page, res.Error
 	}
 
-	l, err := toShadowWithStatus(results)
+	l, err := toShadowWithStatusList(results)
 	page.Content = l
 
 	return page, err
 }
 
-func toShadowWithStatus(list []EntityWithEnable) ([]ShadowWithStatus, error) {
+func toShadowWithStatusList(list []EntityWithEnable) ([]ShadowWithStatus, error) {
 	res := make([]ShadowWithStatus, len(list))
 	for i, v := range list {
-		ss := ShadowWithStatus{}
-		if s, err := toShadow(v.Entity); err != nil {
-			return res, errors.WithMessage(err, "entity toShadow")
+		if s, err := toShadowWithStatus(v); err != nil {
+			return res, err
 		} else {
-			ss.Shadow = s
+			res[i] = s
 		}
-		ss.Enabled = v.Enabled
-		cs := v.ConnStatus
-		ss.Connected = &cs.Connected
-		ss.ConnectedAt = cs.ConnectedAt
-		ss.DisconnectedAt = cs.DisconnectedAt
-		ss.RemoteAddr = cs.RemoteAddr
-		res[i] = ss
 	}
 	return res, nil
+}
+
+func toShadowWithStatus(v EntityWithEnable) (ShadowWithStatus, error) {
+	ss := ShadowWithStatus{}
+	if s, err := toShadow(v.Entity); err != nil {
+		return ShadowWithStatus{}, errors.WithMessage(err, "entity toShadow")
+	} else {
+		ss.Shadow = s
+	}
+	ss.Enabled = v.Enabled
+	cs := v.ConnStatus
+	ss.Connected = &cs.Connected
+	ss.ConnectedAt = cs.ConnectedAt
+	ss.DisconnectedAt = cs.DisconnectedAt
+	ss.RemoteAddr = cs.RemoteAddr
+	return ss, nil
 }
 
 var _ Repo = (*shadowRepo)(nil)

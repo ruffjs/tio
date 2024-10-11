@@ -34,14 +34,13 @@ type Service interface {
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
 }
 
-type Page = model.PageData[ThingWithStatus]
+type Page = model.PageData[Thing]
 
 type PageQuery struct {
 	Enabled        *bool   `json:"enabled"`
 	IsGateway      *bool   `json:"isGateway"`
 	GatewayThingId *string `json:"gatewayThingId"`
 	WithAuthValue  bool    `json:"withAuthValue"`
-	WithStatus     bool    `json:"withStatus"`
 	model.PageQuery
 }
 
@@ -132,30 +131,7 @@ func (t *thingSvc) Query(ctx context.Context, pq PageQuery) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
-	rp := t.toPage(p, pq.WithStatus)
-	return rp, nil
-}
-
-func (t *thingSvc) toPage(p model.PageData[Thing], withStatus bool) Page {
-	rp := Page{
-		Total:   p.Total,
-		Content: make([]ThingWithStatus, len(p.Content)),
-	}
-	for i, pi := range p.Content {
-		rpi := &rp.Content[i]
-		rpi.Thing = pi
-		if !withStatus {
-			continue
-		}
-		c, err := t.connector.ClientInfo(pi.Id)
-		if err == nil {
-			rpi.Connected = &c.Connected
-			rpi.ConnectedAt = c.ConnectedAt
-			rpi.DisconnectedAt = c.DisconnectedAt
-			rpi.RemoteAddr = c.RemoteAddr
-		}
-	}
-	return rp
+	return p, nil
 }
 
 func (t *thingSvc) Get(ctx context.Context, id string) (*Thing, error) {

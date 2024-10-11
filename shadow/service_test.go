@@ -51,7 +51,7 @@ func TestShadowSvc_Create(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, id, s.ThingId)
 
-	ss, err := svc.Get(ctx, id, shadow.GetOption{})
+	ss, err := svc.Get(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, id, ss.ThingId)
 	require.Equal(t, int64(1), s.Version)
@@ -66,7 +66,7 @@ func TestShadowSvc_Create(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ss, err = svc.Get(ctx, id, shadow.GetOption{})
+	ss, err = svc.Get(ctx, id)
 	require.Equal(t, model.ErrNotFound, err)
 
 	// should also delete conn status
@@ -136,7 +136,7 @@ func TestSvcImpl_Set(t *testing.T) {
 		s, err := svc.SetDesired(ctx, thingId, req)
 		require.NoError(t, err)
 
-		_, err = svc.Get(ctx, thingId, shadow.GetOption{})
+		_, err = svc.Get(ctx, thingId)
 		require.NoError(t, err)
 
 		stateVal["color"] = "green"
@@ -171,7 +171,7 @@ func TestSvcImpl_Set(t *testing.T) {
 			}()
 		}
 		time.Sleep(time.Millisecond * 200)
-		s, err := svc.Get(ctx, thingId, shadow.GetOption{})
+		s, err := svc.Get(ctx, thingId)
 		require.NoError(t, err)
 		require.Equal(t, wantVersion, int(s.Version))
 	})
@@ -335,7 +335,7 @@ func TestSvcImpl_SetTags(t *testing.T) {
 		err = svc.SetTag(ctx, thingId, req)
 		require.NoError(t, err)
 
-		s, err := svc.Get(ctx, thingId, shadow.GetOption{})
+		s, err := svc.Get(ctx, thingId)
 		require.NoError(t, err)
 		require.Equal(t, s.Tags, tags)
 		require.Equal(t, int64(2), s.Version)

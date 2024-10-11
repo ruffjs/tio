@@ -123,7 +123,7 @@ func handleShadowStateUpdateReq(ctx context.Context, svc Service, h StateHandler
 }
 
 func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req GetReqMsg) {
-	ss, err := svc.Get(ctx, req.ThingId, GetOption{})
+	ss, err := svc.Get(ctx, req.ThingId)
 	if err != nil {
 		resp := ErrResp{ClientToken: req.Req.ClientToken, Timestamp: time.Now().UnixMilli()}
 		resp.Message = err.Error()

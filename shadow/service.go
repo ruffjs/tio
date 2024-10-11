@@ -54,7 +54,7 @@ type CrudService interface {
 	Create(ctx context.Context, thingId string) (Shadow, error)
 	Delete(ctx context.Context, thingId string) error
 	Query(ctx context.Context, page model.PageQuery, query string) (Page, error)
-	Get(ctx context.Context, thingId string, opt GetOption) (ShadowWithStatus, error)
+	Get(ctx context.Context, thingId string) (ShadowWithStatus, error)
 }
 type CacheGetter interface {
 	GetFromCache(thingId string) (ShadowWithStatus, bool)
@@ -91,7 +91,8 @@ type Repo interface {
 	Create(ctx context.Context, thingId string, s Shadow) (*Shadow, error)
 	Delete(ctx context.Context, thingId string) error
 	Update(ctx context.Context, thingId string, version int64, s Shadow) (*Shadow, error)
-	Get(ctx context.Context, thingId string) (*ShadowWithEnable, error)
+	Get(ctx context.Context, thingId string) (*Shadow, error)
+	GetWithStatus(ctx context.Context, thingId string) (*ShadowWithStatus, error)
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[ShadowWithStatus], error)
 
 	UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error
@@ -310,25 +311,15 @@ func entityToMap(list []ShadowWithStatus) ([]map[string]interface{}, error) {
 	return res, nil
 }
 
-func (s *shadowSvc) Get(ctx context.Context, thingId string, opt GetOption) (ShadowWithStatus, error) {
-	ss, err := s.repo.Get(ctx, thingId)
+func (s *shadowSvc) Get(ctx context.Context, thingId string) (ShadowWithStatus, error) {
+	ss, err := s.repo.GetWithStatus(ctx, thingId)
 	if err != nil {
 		return ShadowWithStatus{}, err
 	}
 	if ss == nil {
 		return ShadowWithStatus{}, model.ErrNotFound
 	}
-	res := ShadowWithStatus{Shadow: ss.Shadow, Enabled: ss.Enabled}
-	if opt.WithStatus {
-		ci, err := s.connectorChecker.ClientInfo(thingId)
-		if err == nil {
-			res.Connected = &ci.Connected
-			res.ConnectedAt = ci.ConnectedAt
-			res.DisconnectedAt = ci.DisconnectedAt
-			res.RemoteAddr = ci.RemoteAddr
-		}
-	}
-	return res, nil
+	return *ss, nil
 }
 
 func (s *shadowSvc) Delete(ctx context.Context, thingId string) error {
@@ -394,7 +385,7 @@ func (s *shadowSvc) setState(
 		// update
 
 		ss.Version++
-		reS, err := txtRepo.Update(ctx, thingId, version, ss.Shadow)
+		reS, err := txtRepo.Update(ctx, thingId, version, *ss)
 		if err != nil {
 			return err
 		}
@@ -505,7 +496,7 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 		mergedTags := MergeTags(cur.Tags, t.Tags)
 		cur.Version++
 		cur.Tags = mergedTags
-		_, err = txtRepo.Update(ctx, thingId, t.Version, cur.Shadow)
+		_, err = txtRepo.Update(ctx, thingId, t.Version, *cur)
 		return err
 	})
 	if err != nil {

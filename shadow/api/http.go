@@ -98,7 +98,7 @@ func Service(
 func GetDesiredStateHandler(ctx context.Context, svc shadow.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		thingId := r.PathParameter("id")
-		s, err := svc.Get(ctx, thingId, shadow.GetOption{WithStatus: true})
+		s, err := svc.Get(ctx, thingId)
 		if err != nil {
 			if errors.Is(err, model.ErrNotFound) {
 				rest.SendResp(w, 404, rest.Resp[any]{Code: 404, Message: err.Error()})
