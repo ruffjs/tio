@@ -32,10 +32,10 @@ func (h *presenceHook) Provides(b byte) bool {
 
 func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
 	username := string(cl.Properties.Username)
-	slog.Debug("Mqtt OnConnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote)
+	slog.Info("Mqtt OnConnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote, "now", time.Now().UnixMicro())
 	exist, ok := h.getClientFn(cl.ID)
 	if !ok || exist.Closed() {
-		slog.Debug("Ignore OnConnect message "+
+		slog.Info("Ignore OnConnect message "+
 			"cause client is disconnected,"+
 			" may be concurrent connect and disconnect",
 			"clientId", cl.ID, "username", username)
@@ -55,11 +55,11 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 
 func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	username := string(cl.Properties.Username)
-	slog.Debug("Mqtt OnDisconnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote)
+	slog.Info("Mqtt OnDisconnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote, "now", time.Now().UnixMicro())
 
 	exist, ok := h.getClientFn(cl.ID)
 	if ok && !exist.Closed() {
-		slog.Debug("Ignore OnDisconnect message "+
+		slog.Info("Ignore OnDisconnect message "+
 			"cause client is connected,"+
 			" may be concurrent connect and disconnect",
 			"clientId", cl.ID, "username", username)

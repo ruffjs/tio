@@ -166,15 +166,27 @@ func (e *embedBroker) OnConnect() <-chan connector.PresenceEvent {
 
 func (e *embedBroker) ClientInfo(clientId string) (connector.ClientInfo, error) {
 	if c, ok := e.clients.Load(clientId); ok {
-		return c.(connector.ClientInfo), nil
+		ci := c.(connector.ClientInfo)
+		if cl, ok := e.impl.Clients.Get(clientId); ok {
+			ci.Connected = !cl.Closed()
+		} else {
+			ci.Connected = false
+		}
+		return ci, nil
 	}
 	return connector.ClientInfo{ClientId: clientId}, fmt.Errorf("not found")
 }
 
 func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 	clients := make([]connector.ClientInfo, 0)
+	mqttClients := e.impl.Clients.GetAll()
 	e.clients.Range(func(key, value any) bool {
 		i := value.(connector.ClientInfo)
+		if c, ok := mqttClients[i.ClientId]; ok {
+			i.Connected = !c.Closed()
+		} else {
+			i.Connected = false
+		}
 		clients = append(clients, i)
 		return true
 	})
@@ -303,13 +315,14 @@ func readCert(keyFile, certFile string) tls.Certificate {
 	return cert
 }
 
+// updateClient sync mqtt client info, cause mochi-mqtt has no connect time for client
 func (e *embedBroker) updateClient(c connector.ClientInfo) {
 	if old, ok := e.clients.Load(c.ClientId); ok {
 		old := old.(connector.ClientInfo)
 		// not the latest info, ignore it
 		oldTime := old.ConnectedAt
-		if old.DisconnectedAt != nil && old.ConnectedAt != nil &&
-			old.DisconnectedAt.After(*old.ConnectedAt) {
+		if old.DisconnectedAt != nil &&
+			(old.ConnectedAt == nil || old.DisconnectedAt.After(*old.ConnectedAt)) {
 			oldTime = old.DisconnectedAt
 		}
 		newTime := c.ConnectedAt
@@ -321,6 +334,7 @@ func (e *embedBroker) updateClient(c connector.ClientInfo) {
 		}
 
 		if !c.Connected {
+			// copy the last connected time for disconnected client
 			c.ConnectedAt = old.ConnectedAt
 		}
 	}
