@@ -277,6 +277,7 @@ watch(
 
 <style lang="scss">
 .http-poster-mask {
+  z-index: 10;
   width: max(32vw, 570px);
   height: 100vh;
   inset: unset !important;
