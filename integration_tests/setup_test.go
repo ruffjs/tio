@@ -138,7 +138,7 @@ func newMysqlDB(cfg mysql.Config) *gorm.DB {
 func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, thingSvc thing.Service) {
 	embed.InitBroker(embed.MochiConfig{
 		TcpPort: cfg.TcpPort,
-		AuthzFn: password.AuthzMqttClient(ctx, cfg.SuperUsers, thingSvc),
+		AuthzFn: password.AuthzMqttClient(ctx, cfg.SuperUsers, thingSvc, nil),
 		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true
 		},

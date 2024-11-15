@@ -92,5 +92,11 @@ connector:
     apiUser: admin
     apiPassword: public
 
+# Provision secret for automatic thing creation
+# Thing's password should comply the generative rule:
+#   echo -n "thingId" | openssl dgst -md5 -hmac "provisionSecret" | xargs -I {} echo H{}
+# If provisionSecret is an empty string, disable automatic thing creation
+provisionSecret: public
+
 log:
-  level: debug # debug info warn error 
+  level: debug # debug info warn error

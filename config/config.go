@@ -83,7 +83,8 @@ type Config struct {
 		Mysql  mysql.Config  `json:"mysql"`
 		Sqlite sqlite.Config `json:"sqlite"`
 	} `json:"db"`
-	Connector Connector `json:"connector"`
+	Connector       Connector `json:"connector"`
+	ProvisionSecret string
 }
 
 func ReadConfig() Config {

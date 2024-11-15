@@ -101,7 +101,11 @@ func main() {
 
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
-		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc)
+		provisionSvc := thing.NewProvision(thingSvc, cfg.ProvisionSecret)
+		if cfg.ProvisionSecret == "" {
+			provisionSvc = nil
+		}
+		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc)
 		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
 	}
 

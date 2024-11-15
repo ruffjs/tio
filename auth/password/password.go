@@ -2,15 +2,17 @@ package password
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"ruff.io/tio/connector/mqtt/embed"
+	"ruff.io/tio/pkg/model"
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/thing"
 )
 
-func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thingSvc thing.Service) embed.AuthzFn {
+func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thingSvc thing.Service, provision thing.Provision) embed.AuthzFn {
 	return func(connParams embed.ConnectParams) bool {
 		user, password, clientId := string(connParams.Username), string(connParams.Password), connParams.ClientIdentifier
 		for _, u := range superUsers {
@@ -21,6 +23,12 @@ func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thin
 		}
 		th, err := thingSvc.Get(ctx, user)
 		if err != nil {
+			if errors.Is(err, model.ErrNotFound) && provision != nil {
+				pass, _, err := provision.AutoRegisterViaHmac(ctx, user, password)
+				if pass && err == nil {
+					return true
+				}
+			}
 			slog.Info("Mqtt client authz error", "user", user, "clientId", clientId, "error", err)
 			return false
 		}
