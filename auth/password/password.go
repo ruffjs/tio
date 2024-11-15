@@ -2,11 +2,11 @@ package password
 
 import (
 	"context"
+	"log/slog"
 
 	"ruff.io/tio/connector/mqtt/embed"
 
 	"ruff.io/tio/config"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/thing"
 )
 
@@ -15,29 +15,30 @@ func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thin
 		user, password, clientId := string(connParams.Username), string(connParams.Password), connParams.ClientIdentifier
 		for _, u := range superUsers {
 			if user == u.Name && password == u.Password {
-				log.Infof("Mqtt client user %s is authorized by default users", u.Name)
+				slog.Info("Mqtt client is authorized by default users", "user", u.Name)
 				return true
 			}
 		}
 		th, err := thingSvc.Get(ctx, user)
 		if err != nil {
-			log.Infof("Mqtt client user %s client %s authz error: %v", user, clientId, err)
+			slog.Info("Mqtt client authz error", "user", user, "clientId", clientId, "error", err)
 			return false
 		}
 		if !th.Enabled {
-			log.Infof("Mqtt client user %s client %s password %s is not authorized cause thing is not Enabled",
-				user, clientId, password)
+			slog.Info("Mqtt client is not authorized cause thing is not Enabled",
+				"user", user, "clientId", clientId)
 			return false
 		}
 		if th.AuthValue == password {
 			if !connParams.Clean {
-				log.Warnf("Mqtt client user %s client %s authz error: things can not be allowed to use cleanSession false", user, clientId)
+				slog.Warn("Mqtt client authz error: things can not be allowed to use cleanSession false",
+					"user", user, "clientId", clientId)
 				return false
 			}
 			return true
 		} else {
-			log.Infof("Mqtt client user %s client %s password %s is not authorized cause password is wrong",
-				user, clientId, password)
+			slog.Info("Mqtt client not authorized cause password is wrong",
+				"user", user, "clientId", clientId, "password", password)
 			return false
 		}
 	}
