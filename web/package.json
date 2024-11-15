@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "axios": "^1.6.7",
+    "axios": "^1.7.7",
     "buffer": "^6.0.3",
     "codemirror": "^5.65.2",
     "dayjs": "^1.11.10",
@@ -21,7 +21,7 @@
     "events": "^3.3.0",
     "json-editor-vue": "^0.12.0",
     "lodash": "^4.17.21",
-    "mqtt": "^5.3.5",
+    "mqtt": "^5.10.2",
     "process": "^0.11.10",
     "querystring": "^0.2.1",
     "sql-formatter": "^15.2.0",
