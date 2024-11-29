@@ -1,6 +1,6 @@
 module ruff.io/tio
 
-go 1.22
+go 1.23
 
 require (
 	github.com/dop251/goja v0.0.0-20240816181238-8130cadc5774

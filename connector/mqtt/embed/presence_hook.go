@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 
@@ -31,6 +32,9 @@ func (h *presenceHook) Provides(b byte) bool {
 }
 
 func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
+	if tcpConn, ok := cl.Net.Conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAliveConfig(net.KeepAliveConfig{Enable: false, Idle: 2 * time.Hour, Interval: 2 * time.Hour, Count: 9})
+	}
 	username := string(cl.Properties.Username)
 	slog.Info("Mqtt OnConnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote, "now", time.Now().UnixMicro())
 	exist, ok := h.getClientFn(cl.ID)
