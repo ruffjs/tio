@@ -33,7 +33,12 @@ func (h *presenceHook) Provides(b byte) bool {
 
 func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
 	if tcpConn, ok := cl.Net.Conn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAliveConfig(net.KeepAliveConfig{Enable: false, Idle: 2 * time.Hour, Interval: 2 * time.Hour, Count: 9})
+		// Golang's default tcp keep alive parameter is idle: 15s, interval: 15s, count: 9,
+		// which is not suitable for this scenario of mqtt connections.
+		// By default, MQTT uses its own heartbeat mechanism,
+		// and tcp keep alive is only used as a guarantee mechanism,
+		// so the conditions can be wider to avoid unnecessary traffic.
+		tcpConn.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true, Idle: 2 * time.Hour, Interval: 75 * time.Second, Count: 3})
 	}
 	username := string(cl.Properties.Username)
 	slog.Info("Mqtt OnConnect", "clientId", cl.ID, "username", username, "ip", cl.Net.Remote, "now", time.Now().UnixMicro())
