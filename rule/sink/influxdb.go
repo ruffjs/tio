@@ -25,12 +25,13 @@ func init() {
 }
 
 type InfluxDBConfig struct {
+	// Add configuration fields here if needed
 }
 
 func NewInfluxDB(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
 	var ac InfluxDBConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
-		return nil, fmt.Errorf("decode config")
+		return nil, fmt.Errorf("decode config: %w", err)
 	}
 	c, ok := conn.(*connector.InfluxDB)
 	if !ok {
@@ -91,22 +92,21 @@ func (s *InfluxDBImpl) Publish(msg Msg) {
 
 func (s *InfluxDBImpl) publishLoop() {
 	for {
-		var msg *Msg
 		select {
 		case <-s.ctx.Done():
 			return
-		case msg = <-s.ch:
-		}
-		r, err := s.conn.Client().R().
-			SetContext(s.ctx).
-			SetBody(msg.Payload).
-			Post("")
-		if err != nil {
-			slog.Error("Rule sinke InfluxDB post data", "error", err, "resposeBody", r.Body())
-		} else if r.IsError() {
-			slog.Error("Rule sink InfluxDB post data", "httpStatus", r.StatusCode, "resposeBody", r.Body())
-		} else {
-			slog.Debug("Rule sink InfluxDB post data SUCCESS", "payload", msg.Payload)
+		case msg := <-s.ch:
+			r, err := s.conn.Client().R().
+				SetContext(s.ctx).
+				SetBody(msg.Payload).
+				Post("")
+			if err != nil {
+				slog.Error("Rule sink InfluxDB post data", "error", err, "responseBody", r.Body())
+			} else if r.IsError() {
+				slog.Error("Rule sink InfluxDB post data", "httpStatus", r.StatusCode, "responseBody", r.Body())
+			} else {
+				slog.Debug("Rule sink InfluxDB post data SUCCESS", "payload", msg.Payload)
+			}
 		}
 	}
 }
