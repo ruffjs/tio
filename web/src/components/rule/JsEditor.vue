@@ -35,7 +35,6 @@ const resize = () => {
 };
 
 const createEditor = async () => {
-  // MIME types defined: text/javascript, application/javascript, application/x-javascript, text/ecmascript, application/ecmascript, application/json, application/x-json, application/manifest+json, application/ld+json, text/typescript, application/typescript.
   const mime = "application/x-javascript";
   if (!editRef.value) {
     console.debug("editRef is null", editRef.value)
@@ -53,15 +52,14 @@ const createEditor = async () => {
     matchBrackets: true,
     cursorHeight: 1,
     lineWrapping: true,
-    // readOnly: false,
     extraKeys: { Ctrl: "autocomplete" },
   });
-  editor.value.on("inputRead", () => {
-    // editor.value.showHint();
+  
+  editor.value.on("change", () => {
     emit("update:modelValue", editor.value.getValue() || "");
   });
   editor.value.on("blur", () => { });
-  console.debug("editor inited")
+  console.debug("editor inited");
 };
 
 defineExpose({
