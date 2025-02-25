@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"github.com/spf13/viper"
 	"ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
@@ -44,6 +46,12 @@ type RuleStatusItem struct {
 	Status model.StatusInfo `json:"status"`
 }
 
+// ComponentChanges stores component change information
+type ComponentChanges struct {
+	Removed map[string][]string // type -> name list
+	Changed map[string][]string // type -> name list
+}
+
 func NewRuleMgr() *RuleMgr {
 	m := RuleMgr{
 		conns:   make(map[string]connector.Conn),
@@ -61,6 +69,23 @@ func NewRuleMgr() *RuleMgr {
 	return &m
 }
 
+func NewComponentChanges() ComponentChanges {
+	return ComponentChanges{
+		Removed: map[string][]string{
+			TypeConnector: {},
+			TypeSource:    {},
+			TypeSink:      {},
+			TypeRule:      {},
+		},
+		Changed: map[string][]string{
+			TypeConnector: {},
+			TypeSource:    {},
+			TypeSink:      {},
+			TypeRule:      {},
+		},
+	}
+}
+
 // Boot Read rule config, assemble rules and then boot them
 //
 // If config file is not exist, give up
@@ -75,7 +100,7 @@ func (r *RuleMgr) Boot(ctx context.Context, shadowGetter shadow.CacheService) {
 		slog.Error("Rule boot", "error", err)
 		return
 	}
-	r.start(ctx, shadowGetter)
+	r.start(ctx)
 }
 
 func (r *RuleMgr) GetConfig() Config {
@@ -128,11 +153,296 @@ func (r *RuleMgr) ApplyConfig(cfg Config) error {
 	if err := SetConfig(cfg); err != nil {
 		return errors.WithMessagef(err, "save config to file")
 	}
-	r.cfg = cfg
 
-	r.stop()
-	r.start(r.ctx, r.shadowGetter)
+	changes := r.diffConfig(cfg)
+	slog.Info("Compare configs", "changes", changes)
+
+	r.cfg = cfg
+	r.stopComponents(changes)
+	r.startComponents(changes)
+
 	return nil
+}
+
+func (r *RuleMgr) diffConfig(newCfg Config) ComponentChanges {
+	changes := NewComponentChanges()
+
+	// Compare connectors
+	oldConnectors := lo.SliceToMap(r.cfg.Connectors, func(c connector.Config) (string, connector.Config) {
+		return c.Name, c
+	})
+	for _, newConn := range newCfg.Connectors {
+		if oldConn, exists := oldConnectors[newConn.Name]; !exists {
+			changes.Changed[TypeConnector] = append(changes.Changed[TypeConnector], newConn.Name) // New connector
+		} else if oldConn.Type != newConn.Type || !compareOptions(oldConn.Options, newConn.Options) {
+			changes.Changed[TypeConnector] = append(changes.Changed[TypeConnector], newConn.Name) // Changed connector
+		}
+		delete(oldConnectors, newConn.Name)
+	}
+	for name := range oldConnectors {
+		changes.Removed[TypeConnector] = append(changes.Removed[TypeConnector], name) // Removed connector
+	}
+
+	// Compare sources
+	oldSources := lo.SliceToMap(r.cfg.Sources, func(c source.Config) (string, source.Config) {
+		return c.Name, c
+	})
+	for _, newSrc := range newCfg.Sources {
+		if oldSrc, exists := oldSources[newSrc.Name]; !exists {
+			changes.Changed[TypeSource] = append(changes.Changed[TypeSource], newSrc.Name) // New source
+		} else if oldSrc.Type != newSrc.Type || !compareOptions(oldSrc.Options, newSrc.Options) {
+			changes.Changed[TypeSource] = append(changes.Changed[TypeSource], newSrc.Name) // Changed source
+		}
+		delete(oldSources, newSrc.Name)
+	}
+	for name := range oldSources {
+		changes.Removed[TypeSource] = append(changes.Removed[TypeSource], name) // Removed source
+	}
+
+	// Compare sinks
+	oldSinks := lo.SliceToMap(r.cfg.Sinks, func(c sink.Config) (string, sink.Config) {
+		return c.Name, c
+	})
+	for _, newSink := range newCfg.Sinks {
+		if oldSink, exists := oldSinks[newSink.Name]; !exists {
+			changes.Changed[TypeSink] = append(changes.Changed[TypeSink], newSink.Name) // New sink
+		} else if oldSink.Type != newSink.Type || !compareOptions(oldSink.Options, newSink.Options) {
+			changes.Changed[TypeSink] = append(changes.Changed[TypeSink], newSink.Name) // Changed sink
+		}
+		delete(oldSinks, newSink.Name)
+	}
+	for name := range oldSinks {
+		changes.Removed[TypeSink] = append(changes.Removed[TypeSink], name) // Removed sink
+	}
+
+	// Compare rules
+	oldRules := lo.SliceToMap(r.cfg.Rules, func(c RuleConfig) (string, RuleConfig) {
+		return c.Name, c
+	})
+	for _, newRule := range newCfg.Rules {
+		if oldRule, exists := oldRules[newRule.Name]; !exists {
+			changes.Changed[TypeRule] = append(changes.Changed[TypeRule], newRule.Name) // New rule
+		} else if !compareRuleConfig(oldRule, newRule) {
+			changes.Changed[TypeRule] = append(changes.Changed[TypeRule], newRule.Name) // Changed rule
+		}
+		delete(oldRules, newRule.Name)
+	}
+	for name := range oldRules {
+		changes.Removed[TypeRule] = append(changes.Removed[TypeRule], name) // Removed rule
+	}
+
+	// -------- Get components that depend on changed components --------
+
+	// Get sources and sinks that depend on changed connectors
+	for _, name := range changes.Changed[TypeConnector] {
+		for _, src := range r.cfg.Sources {
+			if src.Connector == name {
+				changes.Changed[TypeSource] = append(changes.Changed[TypeSource], src.Name)
+			}
+		}
+		for _, sink := range r.cfg.Sinks {
+			if sink.Connector == name {
+				changes.Changed[TypeSink] = append(changes.Changed[TypeSink], sink.Name)
+			}
+		}
+	}
+
+	// Get rules that depend on changed sources and sinks
+	for _, name := range changes.Changed[TypeSource] {
+		for _, rule := range r.cfg.Rules {
+			if lo.Contains(rule.Sources, name) {
+				changes.Changed[TypeRule] = append(changes.Changed[TypeRule], rule.Name)
+			}
+		}
+	}
+	for _, name := range changes.Changed[TypeSink] {
+		for _, rule := range r.cfg.Rules {
+			if lo.Contains(rule.Sinks, name) {
+				changes.Changed[TypeRule] = append(changes.Changed[TypeRule], rule.Name)
+			}
+		}
+	}
+
+	// Distinct changed components
+	changes.Changed[TypeConnector] = lo.Uniq(changes.Changed[TypeConnector])
+	changes.Changed[TypeSource] = lo.Uniq(changes.Changed[TypeSource])
+	changes.Changed[TypeSink] = lo.Uniq(changes.Changed[TypeSink])
+	changes.Changed[TypeRule] = lo.Uniq(changes.Changed[TypeRule])
+
+	return changes
+}
+
+func compareOptions(oldComponent map[string]any, newOptions map[string]any) bool {
+	return reflect.DeepEqual(normalizeOptions(oldComponent), normalizeOptions(newOptions))
+}
+
+func compareRuleConfig(oldRule RuleConfig, newRule RuleConfig) bool {
+	return reflect.DeepEqual(oldRule, newRule)
+}
+
+// normalizeOptions normalize options
+// Convert all numbers to float64
+func normalizeOptions(options any) any {
+	switch v := options.(type) {
+	case map[string]any:
+		normalized := make(map[string]any)
+		for key, value := range v {
+			normalized[key] = normalizeOptions(value)
+		}
+		return normalized
+	case []any:
+		for i, value := range v {
+			v[i] = normalizeOptions(value)
+		}
+		return v
+	case int:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case float32:
+		return float64(v)
+	case float64:
+		return v
+	default:
+		return v
+	}
+}
+
+func (r *RuleMgr) stopComponents(changes ComponentChanges) {
+	// stop and remove deleted components
+	r.stopComponentsByType(TypeConnector, changes.Removed[TypeConnector])
+	r.stopComponentsByType(TypeSource, changes.Removed[TypeSource])
+	r.stopComponentsByType(TypeSink, changes.Removed[TypeSink])
+	r.stopComponentsByType(TypeRule, changes.Removed[TypeRule])
+
+	// stop changed components
+	r.stopComponentsByType(TypeConnector, changes.Changed[TypeConnector])
+	r.stopComponentsByType(TypeSource, changes.Changed[TypeSource])
+	r.stopComponentsByType(TypeSink, changes.Changed[TypeSink])
+	r.stopComponentsByType(TypeRule, changes.Changed[TypeRule])
+}
+
+func (r *RuleMgr) stopComponentsByType(typ string, names []string) {
+	for _, name := range names {
+		switch typ {
+		case TypeConnector:
+			if conn, exists := r.conns[name]; exists {
+				err := conn.Stop()
+				if err != nil {
+					slog.Error("Rule failed to stop connector", "name", name, "error", err)
+				}
+				delete(r.conns, name)
+			}
+		case TypeSource:
+			if src, exists := r.sources[name]; exists {
+				src.Stop()
+				delete(r.sources, name)
+			}
+		case TypeSink:
+			if sink, exists := r.sinks[name]; exists {
+				err := sink.Stop()
+				if err != nil {
+					slog.Error("Rule failed to stop sink", "name", name, "error", err)
+				}
+				delete(r.sinks, name)
+			}
+		case TypeRule:
+			if rule, exists := r.rules[name]; exists {
+				rule.Stop()
+				delete(r.rules, name)
+			}
+		}
+	}
+}
+
+// start new or changed components
+func (r *RuleMgr) startComponents(changes ComponentChanges) {
+	r.startComponentsByType(TypeConnector, changes.Changed[TypeConnector])
+	r.startComponentsByType(TypeSource, changes.Changed[TypeSource])
+	r.startComponentsByType(TypeSink, changes.Changed[TypeSink])
+	r.startComponentsByType(TypeRule, changes.Changed[TypeRule])
+}
+
+func (r *RuleMgr) startComponentsByType(typ string, names []string) {
+	for _, name := range names {
+		switch typ {
+		case TypeConnector:
+			for _, cfg := range r.cfg.Connectors {
+				if cfg.Name == name {
+					if !cfg.Enabled {
+						continue
+					}
+					conn, err := r.initConn(r.ctx, cfg)
+					if err != nil {
+						slog.Error("Rule failed to initialize connector", "name", name, "error", err)
+						continue
+					}
+					r.conns[name] = conn
+					err = conn.Start()
+					if err != nil {
+						slog.Error("Rule failed to start connector", "name", name, "error", err)
+					}
+					break
+				}
+			}
+		case TypeSource:
+			for _, cfg := range r.cfg.Sources {
+				if cfg.Name == name {
+					if !cfg.Enabled {
+						continue
+					}
+					src, err := r.initSource(r.ctx, cfg)
+					if err != nil {
+						slog.Error("Rule failed to initialize source", "name", name, "error", err)
+						continue
+					}
+					r.sources[name] = src
+					err = src.Start()
+					if err != nil {
+						slog.Error("Rule failed to start source", "name", name, "error", err)
+					}
+					break
+				}
+			}
+		case TypeSink:
+			for _, cfg := range r.cfg.Sinks {
+				if cfg.Name == name {
+					if !cfg.Enabled {
+						continue
+					}
+					sink, err := r.initSink(r.ctx, cfg)
+					if err != nil {
+						slog.Error("Rule failed to initialize sink", "name", name, "error", err)
+						continue
+					}
+					r.sinks[name] = sink
+					err = sink.Start()
+					if err != nil {
+						slog.Error("Rule failed to start sink", "name", name, "error", err)
+					}
+					break
+				}
+			}
+		case TypeRule:
+			for _, cfg := range r.cfg.Rules {
+				if cfg.Name == name {
+					if !cfg.Enabled {
+						continue
+					}
+					rule, err := r.initRule(cfg, r.shadowGetter)
+					if err != nil {
+						slog.Error("Rule failed to initialize rule", "name", name, "error", err)
+						continue
+					}
+					r.rules[name] = rule
+					rule.Start(r.ctx)
+					break
+				}
+			}
+		}
+	}
 }
 
 // Enable enable or disable connector,source,sink or rule by type and name
@@ -229,7 +539,7 @@ func (r *RuleMgr) loadConfig() error {
 }
 
 // start sequence: connectors -> sinks -> rules -> sources
-func (r *RuleMgr) start(ctx context.Context, shadowGetter shadow.CacheService) {
+func (r *RuleMgr) start(ctx context.Context) {
 	for _, cc := range r.cfg.Connectors {
 		conn, err := r.initConn(ctx, cc)
 		if err != nil {
@@ -286,7 +596,7 @@ func (r *RuleMgr) start(ctx context.Context, shadowGetter shadow.CacheService) {
 
 	// Crete rules
 	for _, rc := range r.cfg.Rules {
-		rule, err := r.initRule(rc, shadowGetter)
+		rule, err := r.initRule(rc, r.shadowGetter)
 		if err != nil {
 			r.initErrors[TypeRule][rc.Name] = err
 			slog.Error("Init rule failed", "name", rc.Name, "error", err)
@@ -299,27 +609,6 @@ func (r *RuleMgr) start(ctx context.Context, shadowGetter shadow.CacheService) {
 			slog.Info("Rule started", "name", rc.Name)
 		}
 	}
-}
-
-func (r *RuleMgr) stop() {
-	for _, s := range r.sources {
-		s.Stop()
-	}
-	for _, s := range r.sinks {
-		s.Stop()
-	}
-	for _, c := range r.conns {
-		c.Stop()
-	}
-	for _, r := range r.rules {
-		r.Stop()
-	}
-
-	// clear components, and for GC
-	r.conns = make(map[string]connector.Conn)
-	r.sources = make(map[string]source.Source)
-	r.sinks = make(map[string]sink.Sink)
-	r.rules = make(map[string]Rule)
 }
 
 func (r *RuleMgr) initRule(rc RuleConfig, shadowGetter shadow.CacheService) (Rule, error) {
