@@ -67,7 +67,12 @@ func (s *MqttImpl) Status() model.StatusInfo {
 }
 
 func (s *MqttImpl) Stop() error {
+	if !s.started {
+		slog.Info("Rule skip stopping sink (not started)", "type", TypeMqtt, "name", s.name)
+		return nil
+	}
 	s.started = false
+	slog.Info("Rule stopped sink", "type", TypeMqtt, "name", s.name)
 	return nil
 }
 
@@ -80,8 +85,16 @@ func (*MqttImpl) Type() string {
 }
 
 func (s *MqttImpl) Start() error {
+	if s.started {
+		slog.Info("Rule skip starting sink (already started)", "type", TypeMqtt, "name", s.name)
+		return nil
+	}
 	s.started = true
-	return s.Status().Error
+	err := s.Status().Error
+	if err == nil {
+		slog.Info("Rule started sink", "type", TypeMqtt, "name", s.name)
+	}
+	return err
 }
 
 func (s *MqttImpl) Publish(msg Msg) {

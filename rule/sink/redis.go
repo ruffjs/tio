@@ -64,6 +64,7 @@ type redisImpl struct {
 
 func (s *redisImpl) Start() error {
 	s.started = true
+	slog.Info("Rule start sink", "type", s.Type(), "name", s.name)
 	return s.Status().Error
 }
 
@@ -76,6 +77,7 @@ func (s *redisImpl) Status() model.StatusInfo {
 
 func (s *redisImpl) Stop() error {
 	s.started = false
+	slog.Info("Rule stop sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 

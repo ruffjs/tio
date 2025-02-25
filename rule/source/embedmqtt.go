@@ -62,15 +62,25 @@ func (m *embedMqttImpl) Start() error {
 	defer m.mu.Unlock()
 
 	if m.started {
+		slog.Info("Rule skip starting source (already started)", "type", TypeEmbedMqtt, "name", m.name)
 		return nil
 	}
 	m.started = true
-	return m.sub()
+	err := m.sub()
+	if err == nil {
+		slog.Info("Rule started source", "type", TypeEmbedMqtt, "name", m.name)
+	}
+	return err
 }
 
 func (m *embedMqttImpl) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if !m.started {
+		slog.Info("Rule skip stopping source (not started)", "type", TypeEmbedMqtt, "name", m.name)
+		return
+	}
 
 	if m.subscriptionId > 0 {
 		err := embed.BrokerInstance().Unsubscribe(m.config.Topic, m.subscriptionId)
@@ -80,6 +90,7 @@ func (m *embedMqttImpl) Stop() {
 	}
 	m.started = false
 	m.status = model.StatusNotStarted()
+	slog.Info("Rule stopped source", "type", TypeEmbedMqtt, "name", m.name)
 }
 
 func (m *embedMqttImpl) Status() model.StatusInfo {

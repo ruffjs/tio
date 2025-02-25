@@ -1,9 +1,10 @@
 // Package rule implements data integration rule.
+
 // A rule is a process of data processing:
 //
 //	Sources --> Process(filter and transform) --> Sinks
 //
-// Sources an Sinks may use data Connector to get data or send data.
+// Sources an Sinks may use data `Connector` to get data or send data.
 // Rules are assembled by Connectors, Sources and Sinks.
 package rule
 
@@ -105,8 +106,10 @@ func (r *ruleImpl) Start(ctx context.Context) {
 			q <- msg
 		})
 
-		go r.worker(q)
+		go r.worker(src.Name(), q)
 	}
+
+	slog.Info("Rule started", "name", r.name)
 }
 
 func (r *ruleImpl) Stop() {
@@ -116,6 +119,7 @@ func (r *ruleImpl) Stop() {
 	if r.ctxCancel != nil {
 		r.ctxCancel()
 	}
+	slog.Info("Rule stopped", "name", r.name)
 }
 
 func (r *ruleImpl) Status() model.StatusInfo {
@@ -138,12 +142,12 @@ func (r *ruleImpl) Status() model.StatusInfo {
 	return s
 }
 
-func (r *ruleImpl) worker(msgQ chan source.Msg) {
+func (r *ruleImpl) worker(srcName string, msgQ chan source.Msg) {
 	for {
 		var msg source.Msg
 		select {
 		case <-r.ctx.Done():
-			slog.Debug("Rule worker exit cause context done", "rule", r.name)
+			slog.Debug("Rule worker exit cause context done", "rule", r.name, "source", srcName)
 			return
 		case msg = <-msgQ:
 		}
@@ -173,7 +177,7 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 				}
 				defer func() {
 					if err := recover(); err != nil {
-						slog.Error("Rule publish to sink", "sink", sk.Name(), "msg", msg, "error", err)
+						slog.Error("Rule publish to sink", "rule", r.name, "source", srcName, "sink", sk.Name(), "msg", msg, "error", err)
 					}
 				}()
 				sk.Publish(msg)
@@ -185,7 +189,7 @@ func (r *ruleImpl) worker(msgQ chan source.Msg) {
 func (r *ruleImpl) process(msg source.Msg) (output *string, next bool, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			slog.Error("Rule process", "error", e, "msg", msg) // 打印错误信息
+			slog.Error("Rule process", "rule", r.name, "error", e, "msg", msg)
 			if er, ok := e.(error); ok {
 				err = er
 			} else {

@@ -61,6 +61,7 @@ type InfluxDBImpl struct {
 
 func (s *InfluxDBImpl) Start() error {
 	s.started = true
+	slog.Info("Rule started sink", "type", s.Type(), "name", s.name)
 	return s.Status().Error
 }
 
@@ -73,6 +74,7 @@ func (s *InfluxDBImpl) Status() model.StatusInfo {
 
 func (s *InfluxDBImpl) Stop() error {
 	s.started = false
+	slog.Info("Rule stopped sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 

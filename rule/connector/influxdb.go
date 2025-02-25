@@ -46,12 +46,17 @@ type InfluxDB struct {
 }
 
 func (c *InfluxDB) Start() error {
-	return c.Status().Error
+	err := c.Status().Error
+	if err == nil {
+		slog.Info("Rule started connector", "type", c.Type(), "name", c.Name())
+	}
+	return err
 }
 
 func (c *InfluxDB) Stop() error {
 	c.client.GetClient().CloseIdleConnections()
 	// TODO finish send msg in buffer
+	slog.Info("Rule stopped connector", "type", c.Type(), "name", c.Name())
 	return nil
 }
 

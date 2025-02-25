@@ -57,7 +57,9 @@ func newMqtt(ctx context.Context, name string, cfg map[string]any, conn connecto
 }
 
 func (m *mqttImpl) Start() error {
+	slog.Info("Rule starting source", "type", TypeMqtt, "name", m.name)
 	if m.started {
+		slog.Info("Rule skip starting source (already started)", "type", TypeMqtt, "name", m.name)
 		return nil
 	}
 	m.started = true
@@ -65,15 +67,23 @@ func (m *mqttImpl) Start() error {
 		m.status = rmodel.StatusDisconnected("failed to subscribe: "+err.Error(), err)
 		return errors.WithMessagef(err, "failed to subscribe topic %q", m.config.Topic)
 	}
+	slog.Info("Rule started source", "type", TypeMqtt, "name", m.name)
 	return nil
 }
 
 func (m *mqttImpl) Stop() {
+	slog.Info("Rule stopping source", "type", TypeMqtt, "name", m.name)
+	if !m.started {
+		slog.Info("Rule skip stopping source (not started)", "type", TypeMqtt, "name", m.name)
+		return
+	}
 	m.started = false
 	m.status = rmodel.StatusNotStarted()
 	err := m.conn.UnSubscribe(m.ctx, m.config.Topic)
 	if err != nil {
 		slog.Error("Rule source mqtt stop, failed to unsubscribe", "name", m.name, "error", err)
+	} else {
+		slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
 	}
 }
 

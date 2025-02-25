@@ -4,6 +4,7 @@ package embed
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -52,11 +53,17 @@ func (m *embedMqttAdapter) Close(thingId string) error {
 }
 
 func (m *embedMqttAdapter) Remove(thingId string) error {
-	_ = m.Close(thingId)
+	err := m.Close(thingId)
+	if err != nil {
+		return err
+	}
 	go func() {
 		// wait for thing connection closed
 		time.Sleep(time.Second)
-		_ = BrokerInstance().Publish(connector.TopicPresence(thingId), nil, true, 0)
+		err := BrokerInstance().Publish(connector.TopicPresence(thingId), nil, true, 0)
+		if err != nil {
+			slog.Error("Publish nil for removed client failed", "thingId", thingId)
+		}
 	}()
 	return nil
 }

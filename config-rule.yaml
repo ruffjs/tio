@@ -1,73 +1,97 @@
-# data integration
-
-# connectors used by sources or sinks
 connectors:
-  - name: test-conn
-    type: amqp
-    options:
-      url: amqp://guest:guest@localhost:5672/
-  - name: test-tsdb
-    type: influxdb
-    options:
-      url: http://localhost:8086
-      org: ruff
-      bucket: test
-      token: Zndv6HzF-VxtUzwPe4eLDoH4DrSZ57UmffofEV_m-5dEJT3S0E5X3J9yTwhw9o6C3l4gRWUkwia4GKYti_b-Wg==
-      timePrecision: ms
-      timeout: 3
-
-# data sources
-sources:
-  - name: test-src1
-    type: embed-mqtt
-    options:
-      topic: $iothub/events/things/+/presence
-      qos: 1
-  # - name: test-src2
-  #   type: embed-mqtt
-  #   options:
-  #     topic: $iothub/user/things/+/property
-  #     qos: 1
-# data sinks
+    - name: ksrs_ops_metric
+      type: influxdb
+      enabled: true
+      options:
+        bucket: ksrs
+        org: ruff
+        timePrecision: ms
+        timeout: 6
+        token: -eGvIqJGEsgp-LgqqYhO-vDSyOT9wC-Zz47HI-AEZ0OayI2za4vFdTQXfRGXxjz0EUo-Qxnf5e2J3KBh5ZdIXQ==
+        url: http://influxdb.xdata.net:8086
+rules:
+    - name: basic
+      note: ""
+      enabled: false
+      sources:
+        - dtu
+      process:
+        - name: decode
+          type: transform
+          runner: js
+          jq: .payload
+          js: "function generateCRCTable() {\n  // test2\n  let crcTable = [];\n  let polynomial = 0xA001;\n\n  for (let i = 0; i < 256; i++) {\n      let crc = i;\n      for (let j = 0; j < 8; j++) {\n          if (crc & 1) {\n              crc = (crc >>> 1) ^ polynomial;\n          } else {\n              crc = crc >>> 1;\n          }\n      }\n      crcTable[i] = crc;\n  }\n  \n\n  return crcTable;\n}\n\nfunction crc16(buffer) {\n  let crcTable = generateCRCTable();\n  let crc = 0xFFFF;\n\n  for (let i = 0; i < buffer.length; i++) {\n      let byte = buffer[i];\n      crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 0xFF];\n  }\n\n  const checksum = crc & 0xFFFF;\n  return toBigEndian(checksum)\n}\n\nfunction toBigEndian(crc) {\n  let loByte = crc & 0xFF;\n  let hiByte = (crc >> 8) & 0xFF;\n  return (loByte << 8) | hiByte;\n}\n\nfunction hexStringToByteArray(hexString) {\n    if (hexString.length % 2 !== 0) {\n        throw new Error(\"Invalid hex string\");\n    }\n    const byteArray = new Uint8Array(hexString.length / 2);\n    for (let i = 0; i < hexString.length; i += 2) {\n        byteArray[i / 2] = parseInt(hexString.substr(i, 2), 16);\n    }\n    return byteArray;\n}\n\nfunction valid(hex) {\n  if (!hex || hex.length <= 10) {\n    return false;\n  }\n  const pre = hex.substring(0, hex.length - 4);\n  const crc = hex.substr(hex.length - 4);\n  const data = pre.substr(6);\n\n  const checksum = crc16(hexStringToByteArray(pre));\n  const crcGot = checksum.toString(16).toUpperCase();\n  return {valid: crc === crcGot, data};\n}\n\nfunction getFloat32(hexString) {\n    const byteArray = hexStringToByteArray(hexString);\n    const dataView = new DataView(byteArray.buffer);\n    return dataView.getFloat32(0, false); // false for big-endian, true for little-endian\n}\nfunction getSwapFloat32(hexString) {\n    const byteArray = hexStringToByteArray(hexString);\n    let swapBuffer = new Uint8Array(4);\n    // 3412 -> 1234\n    swapBuffer[0] = byteArray[2];\n    swapBuffer[1] = byteArray[3];\n    swapBuffer[2] = byteArray[0];\n    swapBuffer[3] = byteArray[1];\n    const dataView = new DataView(swapBuffer.buffer);\n    return dataView.getFloat32(0, false); // false for big-endian, true for little-endian\n}\n\n// hexdata eg:\n// 01030829E53F2127F03DD981EE\n// 0103080FDB43102F77405A789F\n\n\nfunction run(d) {\n  const { hexdata, hexdata_2 } = d.payload;\n\n  const v = valid(hexdata);\n  const v2 = valid(hexdata_2);\n  if (v.valid) {\n      if (d.payload.version && d.payload.version === \"3\") {\n          d.payload.data = getSwapFloat32(v.data);\n          if (v2.valid) {\n              d.payload.data2 = getSwapFloat32(v2.data);\n          }\n      } else {\n          d.payload.data = getFloat32(v.data);\n          if (v2.valid) {\n              d.payload.data2 =  getFloat32(v2.data);\n          }\n      }\n    return d.payload;\n  } else {\n    return null;\n  }\n}\n"
+      sinks:
+        - forward
+    - name: dtu_gas
+      note: float64
+      enabled: true
+      sources:
+        - dtu_gas
+      process:
+        - name: decode
+          type: transform
+          runner: js
+          jq: ""
+          js: "function generateCRCTable() {\n  let crcTable = [];\n  let polynomial = 0xA001;\n\n  for (let i = 0; i < 256; i++) {\n      let crc = i;\n      for (let j = 0; j < 8; j++) {\n          if (crc & 1) {\n              crc = (crc >>> 1) ^ polynomial;\n          } else {\n              crc = crc >>> 1;\n          }\n      }\n      crcTable[i] = crc;\n  }\n  \n\n  return crcTable;\n}\n\nfunction crc16(buffer) {\n  let crcTable = generateCRCTable();\n  let crc = 0xFFFF;\n\n  for (let i = 0; i < buffer.length; i++) {\n      let byte = buffer[i];\n      crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 0xFF];\n  }\n\n  const checksum = crc & 0xFFFF;\n  return toBigEndian(checksum)\n}\n\nfunction toBigEndian(crc) {\n  let loByte = crc & 0xFF;\n  let hiByte = (crc >> 8) & 0xFF;\n  return (loByte << 8) | hiByte;\n}\n\nfunction hexStringToByteArray(hexString) {\n    if (hexString.length % 2 !== 0) {\n        throw new Error(\"Invalid hex string\");\n    }\n    const byteArray = new Uint8Array(hexString.length / 2);\n    for (let i = 0; i < hexString.length; i += 2) {\n        byteArray[i / 2] = parseInt(hexString.substr(i, 2), 16);\n    }\n    return byteArray;\n}\n\nfunction valid(hex) {\n  if (!hex || hex.length <= 10) {\n    return false;\n  }\n  const pre = hex.substring(0, hex.length - 4);\n  const crc = hex.substr(hex.length - 4);\n  const data = pre.substr(6);\n\n  const checksum = crc16(hexStringToByteArray(pre));\n  const crcGot = checksum.toString(16).toUpperCase();\n  return {valid: crc === crcGot, data};\n}\n\nfunction getFloat64(hexString) {\n    const byteArray = hexStringToByteArray(hexString);\n    const dataView = new DataView(byteArray.buffer);\n    return dataView.getFloat64(0, false); // false for big-endian, true for little-endian\n}\n\n// hexdata eg:\n// 01030829E53F2127F03DD981EE\n// 0103080FDB43102F77405A789F\n\nfunction run(d) {\n  const { hexdata } = d.payload;\n  const v = valid(hexdata);\n  if (v.valid) {\n    d.payload.data = parseFloat(getFloat64(v.data).toFixed(2));\n    return d.payload;\n  } else {\n    return null;\n  }\n}\n"
+      sinks:
+        - forward
+    - name: ops-metric
+      note: save ops metric into influxdb
+      enabled: true
+      sources:
+        - dtu
+        - dtu_gas
+        - dtu_camera
+      process:
+        - name: decode
+          type: transform
+          runner: js
+          jq: ""
+          js: |-
+            const run = data=> {
+              // data format:
+              // {"thingId": "string", "topic": "string", "payload": {}, "shadow": {} }
+              const { imei, csq, vbat } = data.payload;
+              if (!imei || typeof csq != 'number' || typeof vbat != 'number') {
+            	return null;
+              }
+              // eg
+              // data: {"bootReason":1,"csq":14,"datetime":"2024-09-05 09:34:00","hexdata":"01030843702F77405A00006672","iccid":"898608481024D0969751","imei":"863644072663082","vbat":3661,"version":"04-08-29-2"}
+              // result:  mon,imei=863644072663082 csq=14,vbat=3.661
+              return `mon,imei=${imei} csq=${csq},vbat=${vbat/1000}`;
+            }
+      sinks:
+        - ksrs_ops_metric
 sinks:
-  # - name: test-sink
-  #   type: amqp
-  #   connector: test-conn
-  #   options:
-  #     exchange: dev-tio
-  #     routingKey: 
-
-  - name: test-sink
-    type: influxdb
-    connector: test-tsdb
-    options:
-
-# Sources --> Process(filter and transform) --> Sinks
-# Only json messages are supported
-#
-# processing message using gojq https://github.com/itchyny/gojq
-#
-# Message format :
-# {
-#   "thingId": "thignId",
-#   "topic": "message/mqtt/topic"
-#   "payload": {
-#     "a": "a value of message payload"
-#   } 
-# }
-
-# rules:
-#   - name: test-rule
-#     sources:
-#       - test-src1
-#       # - test-src2
-#     process:
-#       # - type: filter
-#       #   name: keep-bigger-than-10
-#       #   jq: ".payload.data.a > 10"
-#       - type: transform
-#         name: to-line-protocol
-#         jq: |
-#             .payload | "presence,thingId=" + .thingId + " v=" + (.eventType=="connected"|tostring) + " " + (.timestamp|tostring)
-#     sinks:
-#       - test-sink
+    - name: forward
+      type: embed-mqtt
+      connector: ""
+      enabled: true
+      options:
+        topic: $iothub/user/things/ksrs_dtu/data
+    - name: ksrs_ops_metric
+      type: influxdb
+      connector: ksrs_ops_metric
+      enabled: true
+      options: {}
+sources:
+    - name: dtu
+      type: embed-mqtt
+      connector: ""
+      enabled: true
+      options:
+        qos: 1
+        topic: $iothub/user/things/ksrs_dtu/forward/+
+    - name: dtu_gas
+      type: embed-mqtt
+      connector: ""
+      enabled: true
+      options:
+        topic: $iothub/user/things/ksrs_dtu/gas/forward/+
+    - name: dtu_camera
+      type: embed-mqtt
+      connector: ""
+      enabled: true
+      options:
+        topic: $iothub/user/things/ksrs_dtu/camera/forward/+

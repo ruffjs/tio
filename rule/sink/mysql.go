@@ -73,6 +73,7 @@ type mysqlImpl struct {
 
 func (s *mysqlImpl) Start() error {
 	s.started = true
+	slog.Info("Rule start sink", "type", s.Type(), "name", s.name)
 	return s.Status().Error
 }
 
@@ -85,6 +86,7 @@ func (s *mysqlImpl) Status() model.StatusInfo {
 
 func (s *mysqlImpl) Stop() error {
 	s.started = false
+	slog.Info("Rule stop sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 

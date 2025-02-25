@@ -60,8 +60,17 @@ type HttpImpl struct {
 }
 
 func (s *HttpImpl) Start() error {
+	slog.Info("Rule starting sink", "type", TypeHttp, "name", s.name)
+	if s.started {
+		slog.Info("Rule skip starting sink (already started)", "type", TypeHttp, "name", s.name)
+		return nil
+	}
 	s.started = true
-	return s.Status().Error
+	err := s.Status().Error
+	if err == nil {
+		slog.Info("Rule started sink", "type", TypeHttp, "name", s.name)
+	}
+	return err
 }
 
 func (s *HttpImpl) Status() model.StatusInfo {
@@ -72,7 +81,12 @@ func (s *HttpImpl) Status() model.StatusInfo {
 }
 
 func (s *HttpImpl) Stop() error {
+	if !s.started {
+		slog.Info("Rule skip stopping sink (not started)", "type", TypeHttp, "name", s.name)
+		return nil
+	}
 	s.started = false
+	slog.Info("Rule stopped sink", "type", TypeHttp, "name", s.name)
 	return nil
 }
 

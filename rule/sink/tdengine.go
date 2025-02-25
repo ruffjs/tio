@@ -67,6 +67,7 @@ type TdengineImpl struct {
 
 func (s *TdengineImpl) Start() error {
 	s.started = true
+	slog.Info("Rule start sink", "type", s.Type(), "name", s.name)
 	return s.Status().Error
 }
 
@@ -79,6 +80,7 @@ func (s *TdengineImpl) Status() model.StatusInfo {
 
 func (s *TdengineImpl) Stop() error {
 	s.started = false
+	slog.Info("Rule stop sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 

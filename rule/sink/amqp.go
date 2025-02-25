@@ -65,16 +65,21 @@ type amqpImpl struct {
 }
 
 func (a *amqpImpl) Start() error {
+	slog.Info("Rule start sink", "type", a.Type(), "name", a.name)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.started {
+		slog.Info("Rule skip start sink (already started)", "type", a.Type(), "name", a.name)
 		return nil
 	}
 	a.started = true
+	slog.Info("Rule sink started", "type", a.Type(), "name", a.name)
+
 	return a.initChannel()
 }
 
 func (a *amqpImpl) Stop() error {
+	slog.Info("Rule stopping sink", "type", a.Type(), "name", a.name)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.started = false
@@ -87,6 +92,7 @@ func (a *amqpImpl) Stop() error {
 			a.conn.RemoveChannel(a.channelName())
 		}()
 	}
+	slog.Info("Rule sink stopped", "type", a.Type(), "name", a.name)
 	return nil
 }
 

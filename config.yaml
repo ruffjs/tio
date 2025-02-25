@@ -72,7 +72,7 @@ connector:
     # mqtt storage, if left blank, the storage is disabled
     # https://github.com/mochi-mqtt/server?tab=readme-ov-file#badger-db
     storage: 
-      type: file  # file or redis
+      type: redis  # file or redis
       filePath: "./embed-mqtt.db" # when type is file
       redis:
         addr: 127.0.0.1:6379

@@ -59,6 +59,7 @@ func (m *embedMqttImpl) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = false
+	slog.Info("Rule stop sinked", "type", m.Type(), "name", m.name)
 	return nil
 }
 
@@ -66,6 +67,7 @@ func (m *embedMqttImpl) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = true
+	slog.Info("Rule started sink", "type", m.Type(), "name", m.name)
 	return m.Status().Error
 }
 

@@ -35,6 +35,7 @@ type logImpl struct {
 
 func (s *logImpl) Start() error {
 	s.started = true
+	slog.Info("Rule started sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 
@@ -44,6 +45,7 @@ func (s *logImpl) Status() model.StatusInfo {
 
 func (s *logImpl) Stop() error {
 	s.started = false
+	slog.Info("Rule stopped sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 
