@@ -3,6 +3,19 @@
     <el-form :model="model" label-width="auto" style="width: 100%;" ref="formEl" status-icon>
       <template v-for="(s, name) in schema">
         <template v-if="s != null">
+
+          <!-- <el-form-item v-if="name === 'connector'" :label="s.label" :rules="s.rules" :prop="name">
+            <div style="display: flex; align-items: center;">
+              <el-select v-model="model[name]" :placeholder="s.placeholder" style="width: 220px;">
+                <el-option v-for="o in s.options" :label="o.label" :value="o.value" />
+              </el-select>
+              <el-button type="primary" @click="$emit('create-connector')" style="margin-left: 10px;">
+                New
+              </el-button>
+            </div>
+          </el-form-item> -->
+
+          <!-- <el-form-item v-else-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label" -->
           <el-form-item v-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label"
             :rules="s.rules" :prop="name">
             <el-input v-if="s.type == 'text'" v-model="model[name]" :placeholder="s.placeholder" :disabled="!isNew" />
@@ -17,7 +30,7 @@
           <template v-if="s.type == 'object'">
             <el-divider />
             <label>{{ s.label }}</label>
-            <el-form-item v-for="(t, tname ) in s.items" :label="t.label" :rules="t.rules" :prop="name + '.' + tname">
+            <el-form-item v-for="(t, tname) in s.items" :label="t.label" :rules="t.rules" :prop="name + '.' + tname">
               <el-input v-if="t.type == 'text'" v-model="model[name][tname]" :placeholder="t.placeholder" />
               <el-input type="password" show-password v-if="t.type == 'password'" v-model="model[name][tname]"
                 :placeholder="t.placeholder" />
@@ -58,6 +71,8 @@ const props = defineProps({
   optionsSchema: Object,
   config: Object,
 })
+
+const emit = defineEmits(['create-connector']);
 
 const sinkTip = ref("")
 

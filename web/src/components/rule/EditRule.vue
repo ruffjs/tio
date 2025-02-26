@@ -149,15 +149,18 @@
               </template>
             </el-popover>
             <div class="io-btn">
+              <el-button icon="Edit" circle link type="primary" @click="editSource(s)"></el-button>
               <el-button icon="Delete" circle link type="danger" @click="delIo('source', s.name)"></el-button>
             </div>
           </div>
           <el-row>
+            <!-- for add source to rule -->
             <div v-if="ioAdd.source.show" class="io-sel">
               <el-select v-model="ioAdd.source.selected">
                 <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('source')">Confirm</el-button>
+              <el-button type="success" @click="createNewSource">New</el-button>
               <el-button @click="ioAdd.source.show = false">Cancel</el-button>
             </div>
             <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
@@ -212,17 +215,19 @@
               </template>
             </el-popover>
             <div class="io-btn">
-              <el-button icon="Edit" circle link type="primary" size="large"></el-button>
+              <el-button icon="Edit" circle link type="primary" @click="editSink(s)"></el-button>
               <el-button icon="Delete" circle link type="danger" size="large"
                 @click="delIo('sink', s.name)"></el-button>
             </div>
           </div>
           <el-row>
+            <!-- for add sink to rule -->
             <div v-if="ioAdd.sink.show" class="io-sel">
               <el-select v-model="ioAdd.sink.selected">
                 <el-option v-for="s in ioAdd.sink.availabe" :label="s.name" :value="s.name" />
               </el-select>
               <el-button type="primary" @click="addIo('sink')">Confirm</el-button>
+              <el-button type="success" @click="createNewSink">New</el-button>
               <el-button @click="ioAdd.sink.show = false">Cancel</el-button>
             </div>
             <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
@@ -234,6 +239,25 @@
 
   </el-row>
 
+  <!-- Add Component Edit Drawer -->
+  <el-drawer size="700" destroy-on-close v-model="componentEditor.drawerEdit.show" 
+    v-if="componentEditor.drawerEdit.show" :title="componentEditor.drawerEdit.title"
+    append-to-body>
+    <EditOpt ref="editOptComponent" v-model="componentEditor.drawerEdit.data" 
+      :schema="componentEditor.drawerEdit.schema"
+      :optionsSchema="componentEditor.drawerEdit.optionsSchema" 
+      :config="localConfig" 
+      :type="componentEditor.drawerEdit.type" 
+      :isNew="componentEditor.drawerEdit.new"
+      @create-connector="createNewConnector" />
+    <template #footer>
+      <div style="flex: auto">
+        <el-button type="primary" @click="confirmComponentEdit">Confirm</el-button>
+        <el-button @click="cancelComponentEdit">Cancel</el-button>
+      </div>
+    </template>
+  </el-drawer>
+
 </template>
 
 <script setup>
@@ -243,8 +267,11 @@ import * as api from '@/apis';
 
 import JsEditor from '@/components/rule/JsEditor.vue';
 import JSONEditor from '@/components/common/JSONEditor.vue';
+import EditOpt from '@/components/rule/EditOpt.vue';
 import { tryMerge } from './rule.ts';
 import * as ruleSchema from '@/components/rule/rule-schema';
+import { deepCopy } from '@/utils/common';
+import { createComponentEditor } from './ComponentEditor';
 
 const props = defineProps({
   config: Object,
@@ -297,6 +324,40 @@ const ioAdd = reactive({
   },
 })
 
+// Local configuration for temporarily storing edited components
+const localConfig = reactive({
+  sources: [],
+  sinks: [],
+  connectors: []
+});
+
+// Create component editor
+const componentEditor = createComponentEditor(localConfig, (newConfig) => {
+  // Update local configuration
+  Object.assign(localConfig, newConfig);
+  
+  // Update available component list
+  ioAdd.source.availabe = localConfig.sources.filter(s => !form.sources.find(ns => ns.name === s.name));
+  ioAdd.sink.availabe = localConfig.sinks.filter(s => !form.sinks.find(ns => ns.name === s.name));
+
+  // Replace rule's sources and sinks updated by component editor
+  form.sources.forEach(s => {
+    const c = localConfig.sources.find(cs => cs.name === s.name);
+    if (c) {
+      Object.assign(s, c);
+    }
+  });
+  form.sinks.forEach(s => {
+    const c = localConfig.sinks.find(cs => cs.name === s.name);
+    if (c) {
+      Object.assign(s, c);
+    }
+  });
+
+});
+
+const editOptComponent = ref();
+
 onMounted(async () => {
   initRule()
 })
@@ -324,16 +385,32 @@ const initRule = () => {
     form.sinks = rule.sinks.map(s => config.sinks.find(cs => cs.name == s))
   }
 
-  ioAdd.source.availabe = props.config.sources.filter(s => !form.sources.find(ns => ns.name == s.name))
-  ioAdd.sink.availabe = props.config.sinks.filter(s => !form.sinks.find(ns => ns.name == s.name))
+  // Initialize local configuration
+  localConfig.sources = deepCopy(props.config.sources || []);
+  localConfig.sinks = deepCopy(props.config.sinks || []);
+  localConfig.connectors = deepCopy(props.config.connectors || []);
+
+  // Update available component list
+  ioAdd.source.availabe = localConfig.sources.filter(s => !form.sources.find(ns => ns.name == s.name));
+  ioAdd.sink.availabe = localConfig.sinks.filter(s => !form.sinks.find(ns => ns.name == s.name));
 }
 
 watch(() => form.sources, () => {
-  ioAdd.source.availabe = props.config.sources.filter(s => !form.sources.find(ns => ns.name == s.name))
-}, { deep: true })
+  ioAdd.source.availabe = localConfig.sources.filter(s => !form.sources.find(ns => ns.name === s.name));
+}, { deep: true });
+
 watch(() => form.sinks, () => {
-  ioAdd.sink.availabe = props.config.sinks.filter(s => !form.sinks.find(ns => ns.name == s.name))
-}, { deep: true })
+  ioAdd.sink.availabe = localConfig.sinks.filter(s => !form.sinks.find(ns => ns.name === s.name));
+}, { deep: true });
+
+// Watch local configuration changes
+watch(() => localConfig.sources, () => {
+  ioAdd.source.availabe = localConfig.sources.filter(s => !form.sources.find(ns => ns.name === s.name));
+}, { deep: true });
+
+watch(() => localConfig.sinks, () => {
+  ioAdd.sink.availabe = localConfig.sinks.filter(s => !form.sinks.find(ns => ns.name === s.name));
+}, { deep: true });
 
 const toAddIo = (type) => {
   const d = ioAdd[type]
@@ -386,24 +463,104 @@ const test = async () => {
   ElNotification({ message: 'Test returned', type: 'info' })
 }
 
-const save = async () => {
-  console.debug('======> save rule', form)
-  console.debug('old config', props.config)
-  try {
-    const mergeResult = tryMerge(props.config, form, props.isNew)
-    if (!mergeResult.isValid) {
-      ElNotification({ message: mergeResult.errors.join('\n'), type: 'error' })
-      return
+// Edit Source
+const editSource = (source) => {
+  componentEditor.editSource(source, null, (updatedSource) => {
+    // Update rule's source
+    const index = form.sources.findIndex(s => s.name === source.name);
+    if (index !== -1) {
+      form.sources[index] = updatedSource;
     }
-    console.debug('merged config:', mergeResult)
-    await api.saveRulesConfig(mergeResult.config)
-    ElNotification({ message: 'Save success', type: 'success' })
-    emit('cancel')
-  } catch (e) {
-    const msg = e.message || e + ''
-    ElNotification({ message: msg, type: 'error' })
-  }
+  });
+};
+
+// Create new Source
+const createNewSource = () => {
+  componentEditor.showAddSource(null, (newSource) => {
+    // Add to rule
+    form.sources.push(newSource);
+    ioAdd.source.show = false;
+  });
+};
+
+// Edit Sink
+const editSink = (sink) => {
+  componentEditor.editSink(sink, null, (updatedSink) => {
+    // Update rule's sink
+    const index = form.sinks.findIndex(s => s.name === sink.name);
+    if (index !== -1) {
+      form.sinks[index] = updatedSink;
+    }
+  });
+};
+
+// Create new Sink
+const createNewSink = () => {
+  componentEditor.showAddSink(null, (newSink) => {
+    // Add to rule
+    form.sinks.push(newSink);
+    ioAdd.sink.show = false;
+  });
+};
+
+// 创建新 Connector（在编辑 Source/Sink 时）
+const createNewConnector = async () => {
+  await closeDrawer();
+  // Save current edit state
+  const currentEdit = deepCopy(componentEditor.drawerEdit);
+  
+  componentEditor.showAddConnector(currentEdit, (newConnector) => {
+    // Update current edit's Source/Sink's connector field
+    componentEditor.drawerEdit.data.connector = newConnector.name;
+  });
+};
+const closeDrawer = async () => {
+  componentEditor.drawerEdit.show = false;
+  await nextTick();
 }
+
+// Confirm component edit
+const confirmComponentEdit = async () => {
+  const success = await componentEditor.confirmEdit(editOptComponent);
+  if (success) {
+    // Update available component list
+    ioAdd.source.availabe = localConfig.sources.filter(s => !form.sources.find(ns => ns.name === s.name));
+    ioAdd.sink.availabe = localConfig.sinks.filter(s => !form.sinks.find(ns => ns.name === s.name));
+  }
+};
+
+// Cancel component edit
+const cancelComponentEdit = () => {
+  componentEditor.cancelEdit();
+};
+
+// Modify save method, merge local configuration into global configuration
+const save = async () => {
+  console.debug('======> save rule', form);
+  console.debug('old config', props.config);
+  try {
+    // Create merged configuration
+    const mergedConfig = deepCopy(props.config);
+    
+    // Merge local modified components
+    mergedConfig.sources = localConfig.sources;
+    mergedConfig.sinks = localConfig.sinks;
+    mergedConfig.connectors = localConfig.connectors;
+    
+    const mergeResult = tryMerge(mergedConfig, form, props.isNew);
+    if (!mergeResult.isValid) {
+      ElNotification({ message: mergeResult.errors.join('\n'), type: 'error' });
+      return;
+    }
+    console.debug('merged config:', mergeResult);
+    await api.saveRulesConfig(mergeResult.config);
+    ElNotification({ message: 'Save successfully', type: 'success' });
+    emit('cancel');
+  } catch (e) {
+    const msg = e.message || e + '';
+    ElNotification({ message: msg, type: 'error' });
+  }
+};
 
 </script>
 
