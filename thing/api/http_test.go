@@ -161,7 +161,7 @@ func TestCreateBatchHandler(t *testing.T) {
 	svr := newServer()
 	defer svr.Close()
 
-	vaildThing := api.CreateReq{"some-id-xxx", "password", true}
+	vaildThing := api.CreateReq{"some-id-xxx", "password", true, nil}
 	noPasswordThing := api.CreateReq{ThingId: "noPasswordThing"}
 
 	doReq := func(r []api.CreateReq) (*http.Response, error) {

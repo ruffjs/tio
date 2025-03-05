@@ -77,7 +77,7 @@ func TestShadowSvc_Create(t *testing.T) {
 
 func TestShadowSVc_Query(t *testing.T) {
 	id := fmt.Sprintf("for-query-%d", time.Now().UnixNano())
-	_, err := thingSvc.Create(ctx, thing.Thing{Id: id, Enabled: true}, false)
+	_, err := thingSvc.Create(ctx, thing.Thing{Id: id, Enabled: true}, nil, false)
 	// s, err := svc.Create(ctx, id)
 	require.NoError(t, err)
 	// require.Equal(t, id, s.ThingId)

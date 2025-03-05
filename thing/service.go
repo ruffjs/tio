@@ -18,7 +18,7 @@ import (
 )
 
 type Service interface {
-	Create(ctx context.Context, th Thing, upsert bool) (Thing, error)
+	Create(ctx context.Context, th Thing, tags shadow.TagsValue, upsert bool) (Thing, error)
 	Update(ctx context.Context, id string, tu ThingPatch) error
 	Delete(ctx context.Context, id string) error
 	Query(ctx context.Context, pq PageQuery) (Page, error)
@@ -57,7 +57,7 @@ func NewSvc(repo Repo, idProvider tio.IdProvider, ss shadow.Service, connector c
 	return &thingSvc{repo: repo, idProvider: idProvider, shadowSvc: ss, connector: connector}
 }
 
-func (t *thingSvc) Create(ctx context.Context, th Thing, upsert bool) (Thing, error) {
+func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, upsert bool) (Thing, error) {
 	exist := false
 	if th.Id == "" {
 		id, err := t.idProvider.ID()
@@ -94,6 +94,7 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, upsert bool) (Thing, er
 
 	var res Thing
 	var err error
+	// TODO optimize: in one transaction
 	if upsert && exist {
 		err = t.repo.Update(ctx, th.Id, thingPatch{
 			AuthType:       &th.AuthType,
@@ -104,19 +105,23 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, upsert bool) (Thing, er
 		if err != nil {
 			return Thing{}, err
 		}
+		if tags != nil {
+			t.shadowSvc.SetTag(ctx, th.Id, shadow.TagsReq{Tags: tags})
+		}
 		n, err := t.repo.Get(ctx, th.Id)
 		if err != nil {
 			return Thing{}, err
 		}
 		res = *n
 	} else {
-		res, err = t.repo.Create(ctx, th)
+		res, err = t.repo.Create(ctx, th, tags)
 		if err != nil {
 			return Thing{}, err
 		}
 		// notify shadow service
 		t.shadowSvc.NotifyCreated(th.Id, shadow.ShadowWithEnable{Shadow: shadow.DefaultShadow(th.Id), Enabled: true})
 	}
+
 	return res, nil
 }
 

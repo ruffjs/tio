@@ -40,7 +40,7 @@ func (p *provisioSvc) AutoRegisterViaHmac(ctx context.Context, thingId, password
 		AuthType:  AuthTypePassword,
 		AuthValue: password,
 		Enabled:   true,
-	}, false)
+	}, nil, false)
 	if err == nil {
 		slog.Info("Provision register success", "thingId", thingId)
 	} else {

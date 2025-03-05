@@ -22,7 +22,9 @@ import (
 type CreateReq struct {
 	ThingId   string `json:"thingId"`
 	Password  string `json:"password"`
-	IsGateway bool   `json:"IsGateway"`
+	IsGateway bool   `json:"isGateway"`
+
+	Tags map[string]any `json:"tags"`
 
 	// AuthType string `json:"authType"`
 }
@@ -207,7 +209,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 			AuthValue: cReq.Password,
 			IsGateway: cReq.IsGateway,
 		}
-		rTh, err := svc.Create(ctx, th, upsert)
+		rTh, err := svc.Create(ctx, th, cReq.Tags, upsert)
 		if err != nil {
 			sent := checkHttpErrAndSend(err, w)
 			if !sent {
@@ -272,7 +274,7 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 				AuthType:  thing.AuthTypePassword,
 				AuthValue: req.Password,
 			}
-			rTh, err := svc.Create(ctx, th, false)
+			rTh, err := svc.Create(ctx, th, nil, false)
 			if err != nil {
 				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "InternalFailureException", err.Error()})
 				continue

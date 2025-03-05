@@ -38,7 +38,7 @@ func TestThingSvc_Create(t *testing.T) {
 	th := thing.Thing{}
 	t.Run("create thing with no id", func(t *testing.T) {
 		th.Id = ""
-		resTh, err := svc.Create(ctxTest, th, false)
+		resTh, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		require.NotEmpty(t, resTh.Id, "thing id is empty")
 		require.NotEmpty(t, resTh.AuthValue, "thing auth value is empty")
@@ -52,7 +52,7 @@ func TestThingSvc_Create(t *testing.T) {
 		th.Id = ""
 		th.IsGateway = true
 		th.Enabled = false
-		resTh, err := svc.Create(ctxTest, th, false)
+		resTh, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
 		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
@@ -66,7 +66,7 @@ func TestThingSvc_Create(t *testing.T) {
 		th.Id = ""
 		th.IsGateway = false
 		th.Enabled = true
-		resTh, err := svc.Create(ctxTest, th, false)
+		resTh, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		require.Equal(t, th.IsGateway, resTh.IsGateway, "thing type isGateway")
 		require.Equal(t, th.Enabled, resTh.Enabled, "thing enabled")
@@ -77,16 +77,16 @@ func TestThingSvc_Create(t *testing.T) {
 	})
 
 	t.Run("create thing with duplicates", func(t *testing.T) {
-		pre, err := svc.Create(ctxTest, th, false)
+		pre, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		th.Id = pre.Id
-		_, err = svc.Create(ctxTest, th, false)
+		_, err = svc.Create(ctxTest, th, nil, false)
 		require.ErrorIs(t, err, model.ErrDuplicated, "should have conflict error")
 	})
 
 	t.Run("create thing with same id after delete", func(t *testing.T) {
 		th.Id = ""
-		pre, err := svc.Create(ctxTest, th, false)
+		pre, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		connDelCall := connector.On("Close", pre.Id).Return(nil)
 		removeCall := connector.On("Remove", pre.Id).Return(nil)
@@ -97,14 +97,14 @@ func TestThingSvc_Create(t *testing.T) {
 		require.NoError(t, err)
 
 		th.Id = pre.Id
-		_, err = svc.Create(ctxTest, th, false)
+		_, err = svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err, "should have no error when creating duplicates with the same id as th deleted thing")
 	})
 
 	t.Run("create thing with password", func(t *testing.T) {
 		th.Id = ""
 		th.AuthValue = "password-xxx"
-		re, err := svc.Create(ctxTest, th, false)
+		re, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err, "should have created with password")
 		require.Equal(t, th.AuthValue, re.AuthValue, "should use password in request")
 	})
@@ -112,21 +112,51 @@ func TestThingSvc_Create(t *testing.T) {
 	t.Run("create thing with upsert", func(t *testing.T) {
 		th.Id = ""
 		th.AuthValue = "password-xxx"
-		res, err := svc.Create(ctxTest, th, false)
+		res, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err, "should have created with password")
 
 		th.Id = res.Id
 		th.AuthValue = "password-yyy"
-		re, err := svc.Create(ctxTest, th, true)
+		re, err := svc.Create(ctxTest, th, nil, true)
 		require.NoError(t, err, "should have created with password")
 		require.Equal(t, th.AuthValue, re.AuthValue, "should use password in request")
+	})
+	t.Run("create thing with tags", func(t *testing.T) {
+		th.Id = ""
+		tags := map[string]any{"color": "red"}
+		res, err := svc.Create(ctxTest, th, tags, false)
+		require.NoError(t, err, "should have created with tags")
+
+		sd, err := sdSvc.Get(ctxTest, res.Id)
+		require.NoError(t, err)
+		require.Equal(t, shadow.TagsValue(tags), sd.Tags, "should use tags in request")
+	})
+	t.Run("create thing with tags and upsert", func(t *testing.T) {
+		th.Id = ""
+		tags := map[string]any{"color": "red", "age": float64(10)}
+		res, err := svc.Create(ctxTest, th, tags, false)
+		require.NoError(t, err, "should have created with tags")
+
+		th.Id = res.Id
+		tags = map[string]any{"color": "blue", "size": "large"}
+		_, err = svc.Create(ctxTest, th, tags, true)
+		require.NoError(t, err, "should have created with tags")
+
+		sd, err := sdSvc.Get(ctxTest, res.Id)
+		require.NoError(t, err)
+		resTags := shadow.TagsValue{
+			"color": "blue",
+			"size":  "large",
+			"age":   float64(10),
+		}
+		require.Equal(t, resTags, sd.Tags, "should use tags in request")
 	})
 }
 
 func TestThingSvc_Update(t *testing.T) {
 	svc, _ := NewTestSvc()
 	th := thing.Thing{Id: "for-update-test"}
-	_, err := svc.Create(ctxTest, th, false)
+	_, err := svc.Create(ctxTest, th, nil, false)
 	require.NoError(t, err)
 	t.Run("Disable thing", func(t *testing.T) {
 		connDelCall := connector.On("Close", th.Id).Return(nil).Times(1)
@@ -158,7 +188,7 @@ func TestThingSvc_Delete(t *testing.T) {
 	err := svc.Delete(ctxTest, randId)
 	require.NoError(t, err, "should no error when not found")
 
-	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId}, false)
+	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId}, nil, false)
 	err = svc.Delete(ctxTest, randId)
 	require.NoError(t, err)
 	_, err = sdSvc.Get(ctxTest, randId)
@@ -179,7 +209,7 @@ func TestThingSvc_Get(t *testing.T) {
 	isNotFound := errors.Is(err, model.ErrNotFound)
 	require.True(t, isNotFound, "error should be thing.NotFoundErr")
 
-	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId}, false)
+	_, _ = svc.Create(ctxTest, thing.Thing{Id: randId}, nil, false)
 
 	pq := thing.PageQuery{
 		WithAuthValue: true,
@@ -248,10 +278,10 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 
 	for _, cas := range cases {
 		t.Run(cas.name, func(t *testing.T) {
-			gw, err := svc.Create(ctxTest, thing.Thing{Id: cas.gwId, IsGateway: true}, false)
+			gw, err := svc.Create(ctxTest, thing.Thing{Id: cas.gwId, IsGateway: true}, nil, false)
 			require.NoError(t, err)
 			for _, thId := range cas.thIds {
-				_, err = svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false}, false)
+				_, err = svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false}, nil, false)
 				require.NoError(t, err, "create thing %q", thId)
 			}
 			err = svc.BindToGateway(ctxTest, cas.thIds, gw.Id)
@@ -290,10 +320,10 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 	}
 
 	t.Run("bind exceed max things to gateway", func(t *testing.T) {
-		gw, err := svc.Create(ctxTest, thing.Thing{Id: "gateway-exceed", IsGateway: true}, false)
+		gw, err := svc.Create(ctxTest, thing.Thing{Id: "gateway-exceed", IsGateway: true}, nil, false)
 		require.NoError(t, err)
 		for _, thId := range exceedIds {
-			_, err := svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false}, false)
+			_, err := svc.Create(ctxTest, thing.Thing{Id: thId, IsGateway: false}, nil, false)
 			require.NoError(t, err, "create thing %q", thId)
 		}
 		err = svc.BindToGateway(ctxTest, exceedIds, gw.Id)
@@ -301,7 +331,7 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 	})
 
 	t.Run("bind gateway not exist", func(t *testing.T) {
-		th, err := svc.Create(ctxTest, thing.Thing{Id: "th-for-nogw-1", IsGateway: false}, false)
+		th, err := svc.Create(ctxTest, thing.Thing{Id: "th-for-nogw-1", IsGateway: false}, nil, false)
 		require.NoError(t, err)
 		err = svc.BindToGateway(ctxTest, []string{th.Id}, "not-exist-gateway")
 		require.ErrorAs(t, err, &model.ErrNotFound, "should have found error")

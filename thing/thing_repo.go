@@ -2,6 +2,7 @@ package thing
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -10,7 +11,7 @@ import (
 )
 
 type Repo interface {
-	Create(ctx context.Context, th Thing) (Thing, error)
+	Create(ctx context.Context, th Thing, tags shadow.TagsValue) (Thing, error)
 	Update(ctx context.Context, id string, tu thingPatch) error
 	UpdateBatch(ctx context.Context, ids []string, tu thingPatch) error
 	Delete(ctx context.Context, id string) error
@@ -37,7 +38,7 @@ func NewThingRepo(db *gorm.DB) Repo {
 
 var _ Repo = (*thingRepo)(nil)
 
-func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
+func (t thingRepo) Create(ctx context.Context, th Thing, tags shadow.TagsValue) (Thing, error) {
 	en := ToEntity(th)
 	err := t.db.Transaction(func(tx *gorm.DB) error {
 		// create Thing
@@ -47,12 +48,20 @@ func (t thingRepo) Create(ctx context.Context, th Thing) (Thing, error) {
 
 		// create Shadow
 		defaultObj := []byte("{}")
+		tagsJson := []byte("{}")
+		if tags != nil {
+			j, err := json.Marshal(tags)
+			if err != nil {
+				return err
+			}
+			tagsJson = j
+		}
 		shd := shadow.Entity{
 			ThingId:  th.Id,
 			Desired:  defaultObj,
 			Reported: defaultObj,
 			Metadata: defaultObj,
-			Tags:     defaultObj,
+			Tags:     tagsJson,
 			Version:  1,
 		}
 		if err := tx.Create(&shd).Error; err != nil {
