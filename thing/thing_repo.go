@@ -22,6 +22,8 @@ type Repo interface {
 
 type thingPatch struct {
 	Enabled        *bool `json:"enabled"`
+	AuthType       *string
+	AuthValue      *string
 	GatewayThingId *string
 }
 
@@ -77,6 +79,12 @@ func (t *thingRepo) UpdateBatch(ctx context.Context, ids []string, tu thingPatch
 	}
 	if tu.GatewayThingId != nil {
 		u["gateway_thing_id"] = *tu.GatewayThingId
+	}
+	if tu.AuthType != nil {
+		u["auth_type"] = *tu.AuthType
+	}
+	if tu.AuthValue != nil {
+		u["auth_value"] = *tu.AuthValue
 	}
 	if len(u) == 0 {
 		return nil

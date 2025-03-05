@@ -89,6 +89,8 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Operation("create-one").
 		Doc("create thing").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("upsert", "whether upsert thing if it already exists").
+			DataType("boolean").DefaultValue("false")).
 		Reads(CreateReq{}).
 		Returns(200, "OK", rest.RespOK(thing.Thing{})))
 
@@ -196,6 +198,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
+		upsert := r.QueryParameter("upsert") == "true"
 
 		th := thing.Thing{
 			Id:        cReq.ThingId,
@@ -204,7 +207,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 			AuthValue: cReq.Password,
 			IsGateway: cReq.IsGateway,
 		}
-		rTh, err := svc.Create(ctx, th)
+		rTh, err := svc.Create(ctx, th, upsert)
 		if err != nil {
 			sent := checkHttpErrAndSend(err, w)
 			if !sent {
@@ -269,7 +272,7 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 				AuthType:  thing.AuthTypePassword,
 				AuthValue: req.Password,
 			}
-			rTh, err := svc.Create(ctx, th)
+			rTh, err := svc.Create(ctx, th, false)
 			if err != nil {
 				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "InternalFailureException", err.Error()})
 				continue

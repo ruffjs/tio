@@ -18,7 +18,7 @@ import (
 )
 
 type Service interface {
-	Create(ctx context.Context, th Thing) (Thing, error)
+	Create(ctx context.Context, th Thing, upsert bool) (Thing, error)
 	Update(ctx context.Context, id string, tu ThingPatch) error
 	Delete(ctx context.Context, id string) error
 	Query(ctx context.Context, pq PageQuery) (Page, error)
@@ -57,7 +57,8 @@ func NewSvc(repo Repo, idProvider tio.IdProvider, ss shadow.Service, connector c
 	return &thingSvc{repo: repo, idProvider: idProvider, shadowSvc: ss, connector: connector}
 }
 
-func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
+func (t *thingSvc) Create(ctx context.Context, th Thing, upsert bool) (Thing, error) {
+	exist := false
 	if th.Id == "" {
 		id, err := t.idProvider.ID()
 		if err != nil {
@@ -74,7 +75,10 @@ func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
 			return Thing{}, errors.Wrap(err, "get thing "+th.Id)
 		}
 		if old != nil {
-			return Thing{}, model.ErrDuplicated
+			exist = true
+			if !upsert {
+				return Thing{}, model.ErrDuplicated
+			}
 		}
 	}
 	if th.AuthType == "" {
@@ -87,12 +91,32 @@ func (t *thingSvc) Create(ctx context.Context, th Thing) (Thing, error) {
 		}
 		th.AuthValue = s
 	}
-	res, err := t.repo.Create(ctx, th)
-	if err != nil {
-		return Thing{}, err
+
+	var res Thing
+	var err error
+	if upsert && exist {
+		err = t.repo.Update(ctx, th.Id, thingPatch{
+			AuthType:       &th.AuthType,
+			AuthValue:      &th.AuthValue,
+			Enabled:        &th.Enabled,
+			GatewayThingId: &th.GatewayThingId,
+		})
+		if err != nil {
+			return Thing{}, err
+		}
+		n, err := t.repo.Get(ctx, th.Id)
+		if err != nil {
+			return Thing{}, err
+		}
+		res = *n
+	} else {
+		res, err = t.repo.Create(ctx, th)
+		if err != nil {
+			return Thing{}, err
+		}
+		// notify shadow service
+		t.shadowSvc.NotifyCreated(th.Id, shadow.ShadowWithEnable{Shadow: shadow.DefaultShadow(th.Id), Enabled: true})
 	}
-	// notify shadow service
-	t.shadowSvc.NotifyCreated(th.Id, shadow.ShadowWithEnable{Shadow: shadow.DefaultShadow(th.Id), Enabled: true})
 	return res, nil
 }
 
