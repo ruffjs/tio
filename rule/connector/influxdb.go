@@ -19,7 +19,7 @@ func init() {
 		if err := mapstructure.Decode(cfg, &ac); err != nil {
 			return nil, errors.WithMessage(err, "decode config")
 		}
-		c := &InfluxDB{
+		c := &influxDBImpl{
 			ctx:    ctx,
 			name:   name,
 			config: ac,
@@ -38,14 +38,19 @@ type InfluxDBConfig struct {
 	Timeout       int    `json:"timeout"`       // in seconds
 }
 
-type InfluxDB struct {
+type InfluxDB interface {
+	Conn
+	Client() *resty.Client
+}
+
+type influxDBImpl struct {
 	ctx    context.Context
 	name   string
 	config InfluxDBConfig
 	client *resty.Client
 }
 
-func (c *InfluxDB) Start() error {
+func (c *influxDBImpl) Start() error {
 	err := c.Status().Error
 	if err == nil {
 		slog.Info("Rule started connector", "type", c.Type(), "name", c.Name())
@@ -53,14 +58,14 @@ func (c *InfluxDB) Start() error {
 	return err
 }
 
-func (c *InfluxDB) Stop() error {
+func (c *influxDBImpl) Stop() error {
 	c.client.GetClient().CloseIdleConnections()
 	// TODO finish send msg in buffer
 	slog.Info("Rule stopped connector", "type", c.Type(), "name", c.Name())
 	return nil
 }
 
-func (c *InfluxDB) Status() model.StatusInfo {
+func (c *influxDBImpl) Status() model.StatusInfo {
 	err := testConnectByUrl(c.config.Url)
 	if err != nil {
 		slog.Error("Rule connector http test connect failed", "name", c.name, "url", c.config.Url, "error", err)
@@ -70,23 +75,23 @@ func (c *InfluxDB) Status() model.StatusInfo {
 	}
 }
 
-func (c *InfluxDB) Name() string {
+func (c *influxDBImpl) Name() string {
 	return c.name
 }
 
-func (*InfluxDB) Type() string {
+func (*influxDBImpl) Type() string {
 	return TypeInfluxDB
 }
 
-func (c *InfluxDB) Connect() error {
+func (c *influxDBImpl) Connect() error {
 	return nil
 }
 
-func (c *InfluxDB) Client() *resty.Client {
+func (c *influxDBImpl) Client() *resty.Client {
 	return c.client
 }
 
-func (c *InfluxDB) initClient() *resty.Client {
+func (c *influxDBImpl) initClient() *resty.Client {
 	cl := resty.New().
 		SetBaseURL(c.config.Url+"/api/v2/write").
 		SetQueryParam("org", c.config.Org).
