@@ -35,7 +35,7 @@ type cacheImpl struct {
 }
 
 func (c *cacheImpl) Set(thingId string, shadow ShadowWithStatus) {
-	slog.Debug("Shadow cache Set", "thingId", thingId, "shadow", shadow)
+	slog.Debug("Shadow cache Set", "thingId", thingId, "shadowVersion", shadow.Version)
 	c.cache.Store(thingId, shadow)
 }
 
@@ -43,7 +43,7 @@ func (c *cacheImpl) SetShadow(thingId string, shadow Shadow) {
 	if s, ok := c.Get(thingId); ok {
 		s.Shadow = shadow
 		c.Set(thingId, s)
-		slog.Debug("Shadow cache SetShadow", "thingId", thingId, "shadow", shadow)
+		slog.Debug("Shadow cache SetShadow", "thingId", thingId, "shadowVersion", shadow.Version)
 	} else {
 		c.Set(thingId, ShadowWithStatus{Shadow: shadow, Enabled: true})
 	}
@@ -77,7 +77,7 @@ func (c *cacheImpl) UpdateConnStatus(thingId string, conn connector.ClientInfo) 
 		}
 		s.RemoteAddr = conn.RemoteAddr
 		c.Set(thingId, s)
-		slog.Debug("Shadow cache UpdateConnStatus", "thingId", thingId, "conn", conn, "shadow", s)
+		slog.Debug("Shadow cache UpdateConnStatus", "thingId", thingId, "conn", conn.Connected, "shadowVersion", s.Version)
 	}
 }
 

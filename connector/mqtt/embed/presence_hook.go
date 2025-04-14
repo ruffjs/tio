@@ -77,7 +77,7 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	now := time.Now()
 	cinfo := toClientInfo(cl, false, nil, &now, err)
 	broker.updateClient(cinfo)
-	if isPublishPresent(string(cl.Properties.Username)) {
+	if isPublishPresent(username) {
 		evt := toEvent(cl, connector.EventDisconnected, now, fmt.Sprintf("%s", err))
 		go func() {
 			h.publishEventFn(connector.TopicPresence(username), true, evt)
