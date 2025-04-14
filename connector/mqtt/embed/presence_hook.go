@@ -16,7 +16,7 @@ import (
 
 type presenceHook struct {
 	mqtt.HookBase
-	publishEventFn func(topic string, retain bool, evt connector.PresenceEvent)
+	publishEventFn func(thingId string, evt connector.PresenceEvent)
 	getClientFn    func(id string) (*mqtt.Client, bool)
 }
 
@@ -56,8 +56,7 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 	if isPublishPresent(username) {
 		evt := toEvent(cl, connector.EventConnected, now, "")
 		go func() {
-			h.publishEventFn(connector.TopicPresence(username), true, evt)
-			h.publishEventFn(connector.TopicPresenceEvent(username), false, evt)
+			h.publishEventFn(username, evt)
 		}()
 	}
 }
@@ -80,8 +79,7 @@ func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	if isPublishPresent(username) {
 		evt := toEvent(cl, connector.EventDisconnected, now, fmt.Sprintf("%s", err))
 		go func() {
-			h.publishEventFn(connector.TopicPresence(username), true, evt)
-			h.publishEventFn(connector.TopicPresenceEvent(username), false, evt)
+			h.publishEventFn(username, evt)
 		}()
 	}
 }

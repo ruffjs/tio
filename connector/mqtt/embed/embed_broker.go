@@ -25,7 +25,6 @@ import (
 	"github.com/pkg/errors"
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -93,7 +92,8 @@ func InitBroker(c MochiConfig) Broker {
 		// start
 		err := s.Serve()
 		if err != nil {
-			log.Fatalf("Start embedded mqtt broker failed: %v", err)
+			slog.Error("Start embedded mqtt broker failed", "error", err)
+			os.Exit(1)
 		}
 
 	})
@@ -203,7 +203,8 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
 	err := svr.AddHook(authHk, nil)
 	if err != nil {
-		log.Fatalf("broker add hook: %v", err)
+		slog.Error("broker add hook", "error", err)
+		os.Exit(1)
 	}
 
 	if cfg.Storage.Type == "file" && cfg.Storage.FilePath != "" {
@@ -211,9 +212,10 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			Path: cfg.Storage.FilePath,
 		})
 		if err != nil {
-			log.Fatalf("Add storage badger hook: %v", err)
+			slog.Error("Add storage badger hook", "error", err)
+			os.Exit(1)
 		} else {
-			log.Infof("Add storage file badger hook")
+			slog.Info("Add storage file badger hook")
 		}
 	} else if cfg.Storage.Type == "redis" {
 		pre := "mqtt:"
@@ -230,9 +232,10 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			},
 		})
 		if err != nil {
-			log.Fatalf("Add storage redis hook: %v", err)
+			slog.Error("Add storage redis hook", "error", err)
+			os.Exit(1)
 		} else {
-			log.Info("Add storage redis hook")
+			slog.Info("Add storage redis hook")
 		}
 	}
 
@@ -242,14 +245,16 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	}
 	err = svr.AddHook(presenceHk, nil)
 	if err != nil {
-		log.Fatalf("broker add hook: %v", err)
+		slog.Error("broker add hook", "error", err)
+		os.Exit(1)
 	}
 
 	addr := fmt.Sprintf(":%d", cfg.TcpPort)
 	tcp := listeners.NewTCP(listeners.Config{ID: "tio-tcp", Type: "tcp", Address: addr})
 	err = svr.AddListener(tcp)
 	if err != nil {
-		log.Fatalf("Start mqtt server add tcp listener failed: %v", err)
+		slog.Error("Start mqtt server add tcp listener failed", "error", err)
+		os.Exit(1)
 	}
 
 	var cert tls.Certificate
@@ -264,9 +269,10 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		})
 		err = svr.AddListener(tcpSsl)
 		if err != nil {
-			log.Fatalf("Start mqtt server add ssl listener failed: %v", err)
+			slog.Error("Start mqtt server add ssl listener failed", "error", err)
+			os.Exit(1)
 		} else {
-			log.Infof("Mqtt server tcp ssl listening on %s", addr)
+			slog.Info("Mqtt server tcp ssl listening", "addr", addr)
 		}
 	}
 
@@ -283,9 +289,10 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		})
 		err = svr.AddListener(wss)
 		if err != nil {
-			log.Fatalf("Start mqtt server add wss listener failed: %v", err)
+			slog.Error("Start mqtt server add wss listener failed", "error", err)
+			os.Exit(1)
 		} else {
-			log.Infof("Mqtt server wss listening on %s", addr)
+			slog.Info("Mqtt server wss listening", "addr", addr)
 		}
 	}
 
@@ -293,7 +300,8 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	ws := listeners.NewWebsocket(listeners.Config{ID: "tio-ws", Type: "ws", Address: wsAddr})
 	err = svr.AddListener(ws)
 	if err != nil {
-		log.Fatalf("Add mqtt broker websocket listener failed: %v", err)
+		slog.Error("Add mqtt broker websocket listener failed", "error", err)
+		os.Exit(1)
 	}
 
 	return svr
@@ -302,15 +310,18 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 func readCert(keyFile, certFile string) tls.Certificate {
 	keyBytes, err := os.ReadFile(keyFile)
 	if err != nil {
-		log.Fatalf("Read key file %v", err)
+		slog.Error("Read key file", "error", err)
+		os.Exit(1)
 	}
 	certBytes, err := os.ReadFile(certFile)
 	if err != nil {
-		log.Fatalf("Read cert file %v", err)
+		slog.Error("Read cert file", "error", err)
+		os.Exit(1)
 	}
 	cert, err := tls.X509KeyPair(keyBytes, certBytes)
 	if err != nil {
-		log.Fatalf("Wrong cert or key file: %v", err)
+		slog.Error("Wrong cert or key file", "error", err)
+		os.Exit(1)
 	}
 	return cert
 }
@@ -345,25 +356,35 @@ func (e *embedBroker) CloseClient(clientId string) bool {
 	c, ok := e.impl.Clients.Get(clientId)
 	if ok {
 		c.Stop(errors.New("manual close"))
-		log.Infof("Closed mqtt client: clientId=%s", clientId)
+		slog.Info("Closed mqtt client", "clientId", clientId)
 		return true
 	}
 	return false
 }
 
-func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.PresenceEvent]) func(topic string, retain bool, evt connector.PresenceEvent) {
-	return func(topic string, retain bool, evt connector.PresenceEvent) {
+func publishEventFn(e *mqtt.Server, evtBus *eventbus.EventBus[connector.PresenceEvent]) func(thingId string, evt connector.PresenceEvent) {
+	return func(thingId string, evt connector.PresenceEvent) {
 		payload, err := json.Marshal(evt)
 		if err != nil {
-			log.Errorf("Unmarshal event payload %#v: %v", evt, err)
+			slog.Error("Unmarshal event payload", "event", evt, "error", err)
 			return
 		}
 		evtBus.Publish(presenceEventName, evt)
-		err = e.Publish(topic, payload, retain, 1)
+
+		topic := connector.TopicPresence(thingId)
+		err = e.Publish(topic, payload, true, 1)
 		if err != nil {
-			log.Errorf("Publish %s event %#v error: %v", evt.EventType, evt, err)
+			slog.Error("Publish presence", "topic", topic, "event", evt, "error", err)
 		} else {
-			log.Infof("Published %s event, topic=%q event=%v", evt.EventType, topic, evt)
+			slog.Info("Published presence", "topic", topic, "event", evt)
+		}
+
+		topic = connector.TopicPresenceEvent(thingId)
+		err = e.Publish(topic, payload, false, 1)
+		if err != nil {
+			slog.Error("Publish presence event", "topic", topic, "event", evt, "error", err)
+		} else {
+			slog.Info("Published presence event", "topic", topic, "event", evt)
 		}
 	}
 }
