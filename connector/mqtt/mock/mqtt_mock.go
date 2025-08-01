@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"log/slog"
 	"math/rand"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/mock"
-	"ruff.io/tio/pkg/log"
 )
 
 // mock mqtt client
@@ -73,7 +73,7 @@ func (m *MockedMqttClient) Subscribe(ctx context.Context, topic string, qos byte
 		}
 	}()
 	m.subscribers[topic] = callback
-	log.Debugf("Subscribe mock: topic=%q qos=%v", topic, qos)
+	slog.Debug("Subscribe mock", "topic", topic, "qos", qos)
 	if args.Get(0) == nil {
 		return nil
 	} else {
@@ -86,7 +86,7 @@ func (m *MockedMqttClient) Publish(topic string, qos byte, retained bool, payloa
 	if m.PublishCallback != nil {
 		m.PublishCallback(topic, qos, retained, payload)
 	}
-	log.Debugf("Publish mock: topic=%q qos=%v retained=%v payload=%s", topic, qos, retained, payload)
+	slog.Debug("Publish mock", "topic", topic, "qos", qos, "retained", retained, "payload", payload)
 	m.route(topic, payload)
 	return args.Get(0).(mqtt.Token)
 }

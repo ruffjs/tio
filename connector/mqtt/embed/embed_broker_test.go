@@ -3,6 +3,7 @@ package embed_test
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/config"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 

@@ -1,10 +1,9 @@
 package eventbus
 
 import (
+	"log/slog"
 	"sync"
 	"time"
-
-	"ruff.io/tio/pkg/log"
 )
 
 const (
@@ -55,7 +54,7 @@ func (eb *EventBus[T]) Publish(event string, message T) {
 			select {
 			case ch <- message:
 			case <-time.After(time.Second):
-				log.Error("EventBus notify event timeout in 1 s")
+				slog.Error("EventBus notify event timeout in 1 s")
 			}
 		}
 	}

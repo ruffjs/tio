@@ -3,9 +3,9 @@ package config
 import (
 	"bytes"
 	"context"
+	"log"
 
 	"ruff.io/tio"
-	"ruff.io/tio/pkg/log"
 
 	_ "embed"
 
@@ -72,7 +72,9 @@ type InnerMqttBroker struct {
 }
 
 type Config struct {
-	Log log.Config `json:"log"`
+	Log struct {
+		Level string `json:"level,omitempty"`
+	} `json:"log"`
 	API struct {
 		Port      int          `json:"port"`
 		Cors      bool         `json:"cors"`

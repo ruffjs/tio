@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log"
 	"log/slog"
 	"sync"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/pkg/errors"
 	"ruff.io/tio/config"
 	"ruff.io/tio/pkg/eventbus"
-	"ruff.io/tio/pkg/log"
 )
 
 const (
@@ -249,11 +249,11 @@ func (e *emqxAdapter) updateClient(i ClientInfo) {
 func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 	err := e.mqttClient.Subscribe(ctx, TopicClientConnected, 1, func(c mqtt.Client, message mqtt.Message) {
 		go func() {
-			log.Debugf("emqx connected %s", message.Payload())
+			slog.Debug("emqx connected", "topic", message.Topic(), "payload", string(message.Payload()))
 			var d MqttConnectedEvent
 			err := json.Unmarshal(message.Payload(), &d)
 			if err != nil {
-				log.Warnf("Unmarshal emqx mqtt client connected msg %q error: %v", message.Payload(), err)
+				slog.Warn("Unmarshal emqx mqtt client connected msg", "error", err)
 				return
 			}
 			t := time.UnixMilli(d.ConnectedAt)
@@ -275,16 +275,16 @@ func (e *emqxAdapter) listenConnectivity(ctx context.Context) error {
 
 	err = e.mqttClient.Subscribe(ctx, TopicClientDisconnected, 1, func(c mqtt.Client, message mqtt.Message) {
 		go func() {
-			log.Debugf("emqx disconnected %s", message.Payload())
+			slog.Debug("emqx disconnected", "topic", message.Topic(), "payload", string(message.Payload()))
 			var d MqttDisconnectedEvent
 			err := json.Unmarshal(message.Payload(), &d)
 			if err != nil {
-				log.Warnf("Unmarshal emqx mqtt client connected msg %q error: %v", message.Payload(), err)
+				slog.Warn("Unmarshal emqx mqtt client connected msg", "error", err)
 				return
 			}
 			// Ignore disconnected event for these reasons (ref issue: https://askemq.com/t/topic/2358/4)
 			if d.Reason == "discarded" || d.Reason == "takeovered" || d.Reason == "takenover" {
-				log.Infof("Ignore client %q disconnected event for reason %q", d.ClientId, d.Reason)
+				slog.Info("Ignore client disconnected event for reason", "clientId", d.ClientId, "reason", d.Reason)
 				return
 			}
 			dt := time.UnixMilli(d.DisconnectedAt)
@@ -318,7 +318,7 @@ func notifyEvent(ctx context.Context, mqCl mq.Client, username string, evt conne
 		return
 	}
 	// if ctx.Err() != nil {
-	// 	log.Warnf("Broker closed before notify")
+	// 	slog.Warnf("Broker closed before notify")
 	// 	return
 	// }
 

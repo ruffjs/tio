@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"gorm.io/driver/sqlite"
-	"gorm.io/gorm/logger"
-
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type PoolConfig struct {

@@ -2,11 +2,11 @@ package shadow_test
 
 import (
 	"encoding/json"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/shadow"
 )
 
@@ -162,12 +162,12 @@ func TestMergeState(t *testing.T) {
 	for i, c := range cases {
 		var meta shadow.MetaValue
 		var updatedMeta shadow.MetaValue
-		log.Debugf("====> in case: %s %d", c.name, i)
-		log.Debugf("update state origin=%#v", c.target)
+		slog.Debug("====> in case", "name", c.name, "index", i)
+		slog.Debug("update state origin", "target", c.target)
 
 		tgt := shadow.StateValue(shadow.DeepCopyMap(c.target))
 		shadow.MergeState(&tgt, c.src, &meta, &updatedMeta)
-		log.Debugf("target=%#v source=%#v meta=%#v", tgt, c.src, meta)
+		slog.Debug("target", "target", tgt, "source", c.src, "meta", meta)
 		require.Equal(t, c.want, tgt, "target=%#v source=%#v meta=%#v", tgt, c.src, meta)
 
 		for _, k := range c.keysUpdated {
@@ -228,7 +228,7 @@ func TestStateUnmarshal(t *testing.T) {
 	for i, c := range cases {
 		var s shadow.StateValue
 		_ = json.Unmarshal([]byte(c), &s)
-		log.Debugf("====> in case: %d, %#v", i, s)
+		slog.Debug("====> in case", "index", i, "state", s)
 	}
 }
 
@@ -271,7 +271,7 @@ func TestMergeState_MetaDelete(t *testing.T) {
 		},
 	}
 	for i, c := range cases {
-		log.Debugf("====> in case: %d", i)
+		slog.Debug("====> in case", "index", i)
 		var meta = c.meta
 		var updatedMeta shadow.MetaValue
 		shadow.MergeState(&c.target, c.src, &meta, &updatedMeta)

@@ -1,11 +1,12 @@
 package test
 
 import (
+	"log"
+
 	"gorm.io/gorm"
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/job"
 	"ruff.io/tio/job/wire"
-	"ruff.io/tio/pkg/log"
 )
 
 func NewTestSvc(jc job.Center) (job.MgrService, job.Repo) {

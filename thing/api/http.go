@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"ruff.io/tio/auth"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/thing"
@@ -190,13 +189,13 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		var cReq CreateReq
 		err := r.ReadEntity(&cReq)
 		if err != nil {
-			log.Infof("Error decoding body for create thing: %v", err)
+			slog.Error("Error decoding body for create thing", "error", err)
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
 		err = cReq.validate()
 		if err != nil {
-			log.Infof("Invalid request for create thing: %v", err)
+			slog.Error("Invalid request for create thing", "error", err)
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
@@ -227,7 +226,7 @@ func UpdateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		var req thing.ThingPatch
 		err := r.ReadEntity(&req)
 		if err != nil {
-			log.Infof("Error decoding body for update thing: %v", err)
+			slog.Error("Error decoding body for update thing", "error", err)
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
@@ -248,7 +247,7 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 		var cReq []CreateReq
 		err := r.ReadEntity(&cReq)
 		if err != nil {
-			log.Infof("Error decoding body for create thing: %v", err)
+			slog.Error("Error decoding body for create thing", "error", err)
 			_ = w.WriteHeaderAndEntity(400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
@@ -263,7 +262,7 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 			err = req.batchValidate()
 			if err != nil {
 				msg := fmt.Sprintf("Invalid request for create thing: %v", err)
-				log.Info(msg)
+				slog.Info(msg)
 				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "Illegal", msg})
 				continue
 			}
@@ -333,7 +332,7 @@ func GetHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
 func DeleteHandler(ctx context.Context, svc thing.Service) restful.RouteFunction {
 	return func(r *restful.Request, w *restful.Response) {
 		id := r.PathParameter("id")
-		log.Infof("To delete thing %q", id)
+		slog.Info("To delete thing", "thingId", id)
 		err := svc.Delete(ctx, id)
 		if err != nil {
 			sent := checkHttpErrAndSend(err, w)
@@ -341,7 +340,7 @@ func DeleteHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 				rest.SendResp(w, 500, rest.Resp[string]{Code: 500, Message: err.Error()})
 			}
 		} else {
-			log.Infof("Deleted thing %q", id)
+			slog.Info("Deleted thing", "thingId", id)
 			rest.SendResp(w, 200, rest.RespOK(""))
 		}
 	}

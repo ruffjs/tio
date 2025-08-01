@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,7 +32,6 @@ import (
 	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/db/mysql"
 	"ruff.io/tio/db/sqlite"
-	"ruff.io/tio/pkg/log"
 
 	"ruff.io/tio/shadow"
 	shadowWire "ruff.io/tio/shadow/wire"
@@ -52,6 +54,23 @@ const (
 	stopWaitTime = time.Second * 1
 )
 
+func initLogger(cfg struct {
+	Level string `json:"level,omitempty"`
+}) {
+	l, ok := map[string]slog.Level{
+		"DEBUG": slog.LevelDebug,
+		"INFO":  slog.LevelInfo,
+		"WARN":  slog.LevelWarn,
+		"ERROR": slog.LevelError,
+	}[strings.ToUpper(cfg.Level)]
+	if !ok {
+		panic("Wrong log level config: " + cfg.Level)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l}))
+	slog.SetDefault(logger)
+}
+
 func main() {
 	config.Version = Version
 	config.GitCommit = GitCommit
@@ -61,17 +80,17 @@ func main() {
 	cfgJ, _ := json.Marshal(cfg)
 
 	// init logger
-	log.Init(cfg.Log)
+	initLogger(cfg.Log)
 
-	log.Infof("Version: %s GitCommit: %s", Version, GitCommit)
-	log.Infof("Config: %s", cfgJ)
+	slog.Info("Version", "version", Version, "gitCommit", GitCommit)
+	slog.Info("Config", "config", cfgJ)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	config.GlobalCtxCancel = cancel
 	go func() {
 		if sig := signalHandler(ctx); sig != nil {
 			cancel()
-			log.Info(fmt.Sprintf("Tio shutdown by signal: %s", sig))
+			slog.Info("Tio shutdown by signal", "signal", sig)
 		}
 	}()
 
@@ -176,10 +195,9 @@ func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) 
 	server := &http.Server{Addr: addr, Handler: handler}
 	errCh := make(chan error)
 	go func() {
-		log.Infof("Http listening on %s", addr)
+		slog.Info("Http listening", "addr", addr)
 
-		log.Infof("Open http://127.0.0.1%s user=%s password=%s",
-			addr, cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
+		slog.Info("Open http", "url", fmt.Sprintf("http://127.0.0.1%s", addr), "user", cfg.API.BasicAuth.Name, "password", cfg.API.BasicAuth.Password)
 		errCh <- server.ListenAndServe()
 	}()
 	select {
@@ -187,11 +205,11 @@ func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) 
 		ctxShutdown, cancelShutdown := context.WithTimeout(ctx, stopWaitTime)
 		defer cancelShutdown()
 		if err := server.Shutdown(ctxShutdown); err != nil {
-			log.Errorf("Http server error occurred during shutdown at %s: %s", addr, err)
+			slog.Error("Http server error occurred during shutdown", "addr", addr, "error", err)
 		}
-		log.Info(fmt.Sprintf("Http server shutdown of http at %s", addr))
+		slog.Info("Http server shutdown", "addr", addr)
 	case err := <-errCh:
-		log.Errorf("Http server exit cause: %v", err)
+		slog.Error("Http server exit cause", "error", err)
 	}
 }
 

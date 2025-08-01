@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"reflect"
@@ -13,7 +14,6 @@ import (
 	"ruff.io/tio/connector"
 
 	"github.com/pkg/errors"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -207,10 +207,10 @@ func (s *shadowSvc) syncConnStatus(ctx context.Context) error {
 				c := toClientInfo(e)
 				err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{c})
 				if err != nil {
-					log.Errorf("update conn for %s error: %v", c.ClientId, err)
+					slog.Error("update conn error", "clientId", c.ClientId, "error", err)
 				} else {
 					s.cache.UpdateConnStatus(c.ClientId, c)
-					log.Debugf("updated conn status %#v", c)
+					slog.Debug("updated conn status", "clientInfo", c)
 				}
 			}
 		}
@@ -411,7 +411,7 @@ func (s *shadowSvc) setState(
 	if isDesired {
 		typ = StateTypeDesired
 	}
-	log.Infof("Successfully set shadow %s, %s, content %#v", typ, thingId, sr)
+	slog.Info("Successfully set shadow", "type", typ, "thingId", thingId, "content", sr)
 
 	// notify regardless of whether there is a field update or not.
 	s.notifyDeltaState(thingId, sr.ClientToken, &resShadow)

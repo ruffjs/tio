@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/emicklei/go-restful/v3"
 	"github.com/pkg/errors"
 	"ruff.io/tio/job"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 )
@@ -138,15 +138,15 @@ func createJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunc
 	return func(r *restful.Request, w *restful.Response) {
 		var cr job.CreateReq
 		if err := r.ReadEntity(&cr); err != nil {
-			log.Infof("Error decoding body for create job: %v", err)
+			slog.Info("Error decoding body for create job", "error", err)
 			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
 		if j, err := svc.CreateJob(ctx, cr); err != nil {
-			log.Errorf("Create job error, req=%#v, error: %v", cr, err)
+			slog.Error("Create job error", "req", cr, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Create job success, jobId=%q", j.JobId)
+			slog.Info("Create job success", "jobId", j.JobId)
 			rest.SendRespOK(w, j)
 		}
 	}
@@ -157,15 +157,15 @@ func updateJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunc
 		var req job.UpdateReq
 		jobId := r.PathParameter("jobId")
 		if err := r.ReadEntity(&req); err != nil {
-			log.Infof("Error decoding body for update job: %v", err)
+			slog.Info("Error decoding body for update job", "error", err)
 			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
 		if err := svc.UpdateJob(ctx, jobId, req); err != nil {
-			log.Errorf("Create job error, jobId=%q, req=%#v, error: %v", jobId, req, err)
+			slog.Error("Create job error", "jobId", jobId, "req", req, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Update job success, jobId=%q, req=%#v", jobId, req)
+			slog.Info("Update job success", "jobId", jobId, "req", req)
 			rest.SendRespOK[any](w, nil)
 		}
 	}
@@ -181,15 +181,15 @@ func cancelJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunc
 		}
 
 		if err := r.ReadEntity(&req); err != nil {
-			log.Infof("Error decoding body for update job: %v", err)
+			slog.Info("Error decoding body for update job", "error", err)
 			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
 		if err := svc.CancelJob(ctx, jobId, req, force); err != nil {
-			log.Errorf("Cancel job error, jobId=%q, req=%#v, error: %v", jobId, req, err)
+			slog.Error("Cancel job error", "jobId", jobId, "req", req, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Cancel job success, jobId=%q, req=%#v", jobId, req)
+			slog.Info("Cancel job success", "jobId", jobId, "req", req)
 			rest.SendRespOK[any](w, nil)
 		}
 	}
@@ -203,10 +203,10 @@ func deleteJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunc
 			force = true
 		}
 		if _, err := svc.DeleteJob(ctx, jobId, force); err != nil {
-			log.Errorf("Delete job error, jobId=%q, force=%v, error: %v", jobId, force, err)
+			slog.Error("Delete job error", "jobId", jobId, "force", force, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Delete job success, jobId=%q, force=%v", jobId, force)
+			slog.Info("Delete job success", "jobId", jobId, "force", force)
 			rest.SendRespOK[any](w, nil)
 		}
 	}
@@ -223,15 +223,15 @@ func cancelTaskHandler(ctx context.Context, svc job.MgrService) restful.RouteFun
 		}
 
 		if err := r.ReadEntity(&req); err != nil {
-			log.Infof("Error decoding body for cancel task: %v", err)
+			slog.Info("Error decoding body for cancel task", "error", err)
 			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
 		if err := svc.CancelTask(ctx, thingId, jobId, req, force); err != nil {
-			log.Errorf("Cancel task error, jobId=%q, req=%#v, error: %v", jobId, req, err)
+			slog.Error("Cancel task error", "jobId", jobId, "req", req, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Cancel task success, jobId=%q, req=%#v", jobId, req)
+			slog.Info("Cancel task success", "jobId", jobId, "req", req)
 			rest.SendRespOK[any](w, nil)
 		}
 	}
@@ -254,10 +254,10 @@ func deleteTaskHandler(ctx context.Context, svc job.MgrService) restful.RouteFun
 			force = true
 		}
 		if _, err := svc.DeleteTask(ctx, thingId, jobId, taskId, force); err != nil {
-			log.Errorf("Delete job error, jobId=%q, force=%v, error: %v", jobId, force, err)
+			slog.Error("Delete job error", "jobId", jobId, "force", force, "error", err)
 			checkErrAndSend(err, w)
 		} else {
-			log.Infof("Delete job success, jobId=%q, force=%v", jobId, force)
+			slog.Info("Delete job success", "jobId", jobId, "force", force)
 			rest.SendRespOK[any](w, nil)
 		}
 	}
@@ -267,7 +267,7 @@ func getJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunctio
 	return func(r *restful.Request, w *restful.Response) {
 		jobId := r.PathParameter("jobId")
 		if j, err := svc.GetJob(ctx, jobId); err != nil {
-			log.Errorf("Get job error, jobId=%q, error: %v", jobId, err)
+			slog.Error("Get job error", "jobId", jobId, "error", err)
 			checkErrAndSend(err, w)
 		} else {
 			rest.SendRespOK[any](w, j)
@@ -288,7 +288,7 @@ func getTaskHandler(ctx context.Context, svc job.MgrService) restful.RouteFuncti
 			taskId = tid
 		}
 		if j, err := svc.GetTask(ctx, thingId, jobId, taskId); err != nil {
-			log.Errorf("Get job error, jobId=%q, error: %v", jobId, err)
+			slog.Error("Get job error", "jobId", jobId, "error", err)
 			checkErrAndSend(err, w)
 		} else {
 			rest.SendRespOK[any](w, j)
@@ -306,7 +306,7 @@ func queryJobHandler(ctx context.Context, svc job.MgrService) restful.RouteFunct
 			pq = q
 		}
 		if p, err := svc.QueryJob(ctx, pq); err != nil {
-			log.Errorf("Query job error, query=%#v, error: %v", pq, err)
+			slog.Error("Query job error", "query", pq, "error", err)
 			checkErrAndSend(err, w)
 		} else {
 			rest.SendRespOK[any](w, p)
@@ -325,7 +325,7 @@ func queryJobTaskHandler(ctx context.Context, svc job.MgrService) restful.RouteF
 			pq = q
 		}
 		if p, err := svc.QueryTaskForJob(ctx, jobId, pq); err != nil {
-			log.Errorf("Query task for job error, query=%#v, error: %v", pq, err)
+			slog.Error("Query task for job error", "jobId", jobId, "query", pq, "error", err)
 			checkErrAndSend(err, w)
 		} else {
 			rest.SendRespOK[any](w, p)
@@ -345,7 +345,7 @@ func queryThingTaskHandler(ctx context.Context, svc job.MgrService) restful.Rout
 			pq = q
 		}
 		if p, err := svc.QueryTaskForThing(ctx, thingId, pq); err != nil {
-			log.Errorf("Query task for thing error, query=%#v, error: %v", pq, err)
+			slog.Error("Query task for thing error", "thingId", thingId, "query", pq, "error", err)
 			checkErrAndSend(err, w)
 		} else {
 			rest.SendRespOK[any](w, p)

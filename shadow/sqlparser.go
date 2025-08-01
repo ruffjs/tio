@@ -3,13 +3,13 @@ package shadow
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/pkg/errors"
 	"github.com/xwb1989/sqlparser"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -107,7 +107,7 @@ func parseQuerySql(qrySql string) (ParsedQuerySql, error) {
 
 	allSql := sqlNodeToString(selStmt)
 	allSql = trimJsonExtractSpecialChar(allSql)
-	log.Debugf("parsed SQL: %s", allSql)
+	slog.Debug("parsed SQL", "sql", allSql)
 
 	return res, nil
 }

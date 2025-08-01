@@ -2,12 +2,12 @@ package mock
 
 import (
 	"context"
+	"log/slog"
 
 	"ruff.io/tio/connector"
 	"ruff.io/tio/shadow"
 
 	"github.com/stretchr/testify/mock"
-	"ruff.io/tio/pkg/log"
 )
 
 type Connectivity struct {
@@ -40,7 +40,7 @@ func (g *Connectivity) ClientInfo(thingId string) (connector.ClientInfo, error) 
 }
 
 func (g *Connectivity) Close(thingId string) error {
-	log.Infof("Closed mqtt client: clientId=%q", thingId)
+	slog.Info("Closed mqtt client", "clientId", thingId)
 	args := g.Called(thingId)
 	if args.Get(0) == nil {
 		return nil
@@ -50,7 +50,7 @@ func (g *Connectivity) Close(thingId string) error {
 }
 
 func (g *Connectivity) Remove(thingId string) error {
-	log.Infof("Remove mqtt client: clientId=%q", thingId)
+	slog.Info("Remove mqtt client", "clientId", thingId)
 	err := g.Close(thingId)
 	if err != nil {
 		return err

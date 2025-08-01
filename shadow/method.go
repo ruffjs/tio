@@ -2,13 +2,13 @@ package shadow
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 
 	"encoding/json"
@@ -99,10 +99,10 @@ func (h *mqttMethod) InitMethodHandler(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "start method handler")
 	} else {
-		log.Infof("Method response subscribe started")
+		slog.Info("Method response subscribe started")
 	}
 	h.subscribeThingOnline(ctx)
-	log.Info("Method thing online subscribe started")
+	slog.Info("Method thing online subscribe started")
 	return nil
 }
 
@@ -240,13 +240,13 @@ func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
-				log.Errorf("Got wrong topic msg topic for method response")
+				slog.Error("Got wrong topic msg topic for method response")
 				return
 			}
 			var r MethodResp
 			err = json.Unmarshal(msg.Payload(), &r)
 			if err != nil {
-				log.Errorf("Invalid message payload for method response")
+				slog.Error("Invalid message payload for method response")
 				return
 			}
 			res := MethodRespMsg{
@@ -264,7 +264,7 @@ func (h *mqttMethod) sendResp(ctx context.Context, msg MethodRespMsg) {
 	if tokenMap, ok := h.pending.Load(msg.ThingId); ok {
 		resp, ok := tokenMap.(*sync.Map).Load(msg.Resp.ClientToken)
 		if !ok {
-			log.Warnf("Method response got no request, thingId=%v clientToken=%s", msg.ThingId, msg.Resp.ClientToken)
+			slog.Warn("Method response got no request", "thingId", msg.ThingId, "clientToken", msg.Resp.ClientToken)
 			return
 		}
 		pResp := resp.(pendingResp)
@@ -274,6 +274,6 @@ func (h *mqttMethod) sendResp(ctx context.Context, msg MethodRespMsg) {
 		case <-ctx.Done():
 		}
 	} else {
-		log.Warnf("Method response got no request, thingId=%v clientToken=%s", msg.ThingId, msg.Resp.ClientToken)
+		slog.Warn("Method response got no request", "thingId", msg.ThingId, "clientToken", msg.Resp.ClientToken)
 	}
 }

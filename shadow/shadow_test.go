@@ -3,12 +3,12 @@ package shadow_test
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	mockmq "ruff.io/tio/connector/mqtt/mock"
-	"ruff.io/tio/pkg/log"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -97,7 +97,7 @@ func TestHandler_Accepted(t *testing.T) {
 	}{}
 	// mock mqtt client
 	pubCallback := func(topic string, qos byte, retained bool, payload interface{}) {
-		log.Debugf("====PUB==== topic=%q payload=%q", topic, payload)
+		slog.Debug("====PUB====", "topic", topic, "payload", payload)
 		latestPub.topic = topic
 		err := json.Unmarshal(payload.([]byte), &latestPub.resp)
 		require.NoError(t, err)

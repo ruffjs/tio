@@ -4,13 +4,13 @@ package client
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
 	"ruff.io/tio/config"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"ruff.io/tio/pkg/log"
 )
 
 const (
@@ -45,7 +45,7 @@ type mqttClient struct {
 var _ Client = (*mqttClient)(nil)
 
 func NewClient(cfg config.MqttClientConfig) Client {
-	log.Infof("Init mqtt client %#v", cfg)
+	slog.Info("Init mqtt client", slog.Any("config", cfg))
 	opts := mqtt.NewClientOptions().
 		AddBroker(fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port)).
 		SetClientID(cfg.ClientId).
@@ -67,13 +67,13 @@ func NewClient(cfg config.MqttClientConfig) Client {
 	opts.SetDefaultPublishHandler(messagePubHandler)
 
 	opts.OnConnect = func(c mqtt.Client) {
-		log.Infof("Mqtt client connected, clientId: %s, user: %s", cfg.ClientId, cfg.User)
+		slog.Info("Mqtt client connected", slog.String("clientId", cfg.ClientId), slog.String("user", cfg.User))
 		for _, s := range client.subscribes {
 			err := client.subscribe(s.ctx, s.topic, s.qos, s.callback)
 			if err != nil {
-				log.Errorf("Failed subscribe for topic %s at client connected event", s.topic)
+				slog.Error("Failed subscribe for topic", slog.String("topic", s.topic), slog.Any("error", err))
 			} else {
-				log.Infof("Subscribe topic %s success at client connected event", s.topic)
+				slog.Info("Subscribe topic success", slog.String("topic", s.topic))
 			}
 		}
 		if client.onConnect != nil {
@@ -81,7 +81,7 @@ func NewClient(cfg config.MqttClientConfig) Client {
 		}
 	}
 	opts.OnConnectionLost = func(c mqtt.Client, err error) {
-		log.Warnf("Mqtt client Connect lost, clientId: %s, user: %s, error: %v", cfg.ClientId, cfg.User, err)
+		slog.Warn("Mqtt client Connect lost", slog.String("clientId", cfg.ClientId), slog.String("user", cfg.User), slog.Any("error", err))
 	}
 
 	client = mqttClient{conn: mqtt.NewClient(opts)}
@@ -93,14 +93,14 @@ func (c *mqttClient) Connect(ctx context.Context) error {
 	if c.conn.IsConnected() {
 		return nil
 	}
-	log.Infof("Mqtt client connecting ...")
+	slog.Info("Mqtt client connecting ...")
 	if token := c.conn.Connect(); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	go func() {
 		<-ctx.Done()
 		c.conn.Disconnect(1000)
-		log.Info("Mqtt client disconnected cause context done")
+		slog.Info("Mqtt client disconnected cause context done")
 	}()
 	return nil
 }
@@ -121,16 +121,16 @@ func (c *mqttClient) Subscribe(ctx context.Context, topic string, qos byte, call
 		c.conn.AddRoute(topic, callback)
 	}
 	c.subscribes = append(c.subscribes, subscriber{ctx, topic, qos, callback})
-	log.Debugf("Added subscriber topic=%s qos=%d", topic, qos)
+	slog.Debug("Added subscriber", slog.String("topic", topic), slog.Int("qos", int(qos)))
 	return nil
 }
 
 func (c *mqttClient) subscribe(ctx context.Context, topic string, qos byte, callback mqtt.MessageHandler) error {
-	log.Infof("Subscribe topic %s", topic)
+	slog.Info("Subscribe topic", slog.String("topic", topic))
 	token := c.conn.Subscribe(topic, qos, callback)
 	select {
 	case <-ctx.Done():
-		log.Debugf("Give up subscribe topic %s cause context done", topic)
+		slog.Debug("Give up subscribe topic", slog.String("topic", topic), slog.Any("cause", ctx.Err()))
 		return nil
 	case <-token.Done():
 		return token.Error()
@@ -141,7 +141,7 @@ func (c *mqttClient) Unsubscribe(ctx context.Context, topic string) error {
 	token := c.conn.Unsubscribe(topic)
 	select {
 	case <-ctx.Done():
-		log.Debugf("Give up unsubscribe topic %s cause context done", topic)
+		slog.Debug("Give up unsubscribe topic", slog.String("topic", topic), slog.Any("cause", ctx.Err()))
 		return nil
 	case <-token.Done():
 		if token.Error() != nil {
@@ -159,7 +159,7 @@ func (c *mqttClient) Unsubscribe(ctx context.Context, topic string) error {
 			if index >= 0 {
 				c.subscribes = append(c.subscribes[:index], c.subscribes[index+1:]...)
 			} else {
-				log.Errorf("Unsubscribe topic %s failed cause not found", topic)
+				slog.Error("Unsubscribe topic failed cause not found", slog.String("topic", topic))
 			}
 			return nil
 		}
@@ -179,7 +179,7 @@ func (c *mqttClient) OnConnect(callback func()) {
 }
 
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	log.Debugf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+	slog.Debug("Received message", slog.String("topic", msg.Topic()), slog.Any("payload", msg.Payload()))
 }
 
 func IsSysClient(id string) bool {

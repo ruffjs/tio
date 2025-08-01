@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"log"
 
 	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/shadow"
 )
 
@@ -139,7 +141,7 @@ func (r *runnerImpl) DeleteTaskOfJob(jobId, operation string, force bool) {
 func (r *runnerImpl) CancelTaskOfJob(jobId, operation string, force bool) {
 	if IsSysOp(operation) {
 		r.sysOpTaskDelCh <- deleteTaskMsg{jobId: jobId}
-		log.Debugf("JobRunner sent msg for delete tasks of system operation, jobId=%q", jobId)
+		slog.Debug("JobRunner sent msg for delete tasks of system operation", "jobId", jobId)
 	} else {
 		// TODO: custom
 	}
@@ -165,7 +167,7 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 	for {
 		select {
 		case <-r.ctx.Done():
-			log.Debug("JobRunner task change watcher exit cause context closed")
+			slog.Debug("JobRunner task change watcher exit cause context closed")
 			return
 		case chMsg := <-r.innerTaskChangeCh:
 			r.updateTaskStatus(chMsg)
@@ -183,8 +185,8 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 	sdBuf, err := json.Marshal(msg.StatusDetails)
 	if err != nil {
-		log.Errorf("JobRunner update task status, unexpected marshal statusDetails=%v, jobId=%q, taskId=%d, error: %v",
-			msg.StatusDetails, msg.Task.JobId, msg.Task.TaskId, err)
+		slog.Error("JobRunner update task status, unexpected marshal statusDetails",
+			"statusDetails", msg.StatusDetails, "jobId", msg.Task.JobId, "taskId", msg.Task.TaskId, "error", err)
 	}
 	err = r.repo.ExecWithTx(func(txRepo Repo) error {
 		t, er := txRepo.GetTask(r.ctx, msg.Task.TaskId)
@@ -212,16 +214,14 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 		return nil
 	})
 	if err != nil {
-		log.Errorf("JobRunner update task status, jobId=%q, taskId=%d, status=%q, error: %v",
-			msg.Task.JobId, msg.Task.TaskId, msg.Status, err)
+		slog.Error("JobRunner update task status", "jobId", msg.Task.JobId, "taskId", msg.Task.TaskId, "status", msg.Status, "error", err)
 	}
-	log.Debugf("JobRunner update task status, jobId=%q, taskId=%d, status=%q, progress=%v",
-		msg.Task.JobId, msg.Task.TaskId, msg.Status, msg.Progress)
+	slog.Debug("JobRunner update task status", "jobId", msg.Task.JobId, "taskId", msg.Task.TaskId, "status", msg.Status, "progress", msg.Progress)
 }
 
 func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskMsg) {
 	defer func() {
-		log.Info("JobRunner system operation loop method loop exit")
+		slog.Info("JobRunner system operation loop method loop exit")
 	}()
 	concurrentOnTick := 10
 	// The task queue is only used in this go routine for lock-free
@@ -233,12 +233,12 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 	for {
 		select {
 		case <-r.ctx.Done():
-			log.Debugf("JobRunner system operation exit cause context closed")
+			slog.Debug("JobRunner system operation exit cause context closed")
 			return
 		case tl := <-addCh:
 			for _, t := range tl {
 				st := t
-				log.Debugf("JobRunner push task %d", st.TaskId)
+				slog.Debug("JobRunner push task", "taskId", st.TaskId)
 				curQ.Push(&st)
 			}
 			continue
@@ -279,14 +279,13 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 			continue
 		case e := <-onConn:
 			if e.EventType == connector.EventConnected {
-				log.Debugf("JobRunner got thing online thingId=%q", e.ThingId)
+				slog.Debug("JobRunner got thing online", "thingId", e.ThingId)
 				if l, ok := offlineThingTasks[e.ThingId]; ok {
 					delete(offlineThingTasks, e.ThingId)
 					for _, t := range l {
 						curQ.Push(&t)
 					}
-					log.Debugf("JobRunner got thing online thingId=%q, taskCount=%d put back tasks done",
-						e.ThingId, len(l))
+					slog.Debug("JobRunner got thing online", "thingId", e.ThingId, "taskCount", len(l), "put back tasks done")
 				}
 			}
 		case <-r.getPendingTasksOfSysReqCh:
@@ -308,12 +307,11 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 			jc := r.jcGetter(t.JobId)
 			if jc == nil {
 				// should never happen
-				log.Warnf("JobRunner job context is nil, maybe deleted jobId=%s", t.JobId)
+				slog.Warn("JobRunner job context is nil, maybe deleted", "jobId", t.JobId)
 				continue
 			}
 			if isJobToTerminal(jc.Status) {
-				log.Infof("JobRunner job is going to terminal status %q, give up task %d for thing %q",
-					jc.Status, t.TaskId, t.ThingId)
+				slog.Info("JobRunner job is going to terminal status", "status", jc.Status, "taskId", t.TaskId, "thingId", t.ThingId)
 				continue
 			}
 
@@ -321,14 +319,14 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 			if IsDirectMethodOp(t.Operation) {
 				// check thing connection online
 				if online, err := r.conn.IsConnected(t.ThingId); err != nil {
-					log.Errorf("JobRunner check thing online, thingId=%q, error: %v", t.ThingId, err)
+					slog.Error("JobRunner check thing online", "thingId", t.ThingId, "error", err)
 				} else if !online {
 					if l, ok := offlineThingTasks[t.ThingId]; ok {
 						offlineThingTasks[t.ThingId] = append(l, *t)
 					} else {
 						offlineThingTasks[t.ThingId] = []Task{*t}
 					}
-					log.Debugf("JobRunner put task to offline map taskId=%d", t.TaskId)
+					slog.Debug("JobRunner put task to offline map", "taskId", t.TaskId)
 					continue
 				}
 				submitErr = r.submitDirectMethodTaskToPool(jc, t)
@@ -337,15 +335,13 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 			}
 
 			if submitErr != nil {
-				log.Warnf("JobRunner submit task error, jobId=%q, taskId=%d, thingId=%q, error: %v",
-					t.JobId, t.TaskId, t.ThingId, submitErr)
+				slog.Warn("JobRunner submit task error", "jobId", t.JobId, "taskId", t.TaskId, "thingId", t.ThingId, "error", submitErr)
 				curQ.Push(t)
 
 				// maybe pool is full, break for next tick
 				break
 			} else {
-				log.Infof("JobRunner submit task success, jobId=%q, taskId=%d, thingId=%q",
-					jc.JobId, t.TaskId, t.ThingId)
+				slog.Info("JobRunner submit task success", "jobId", jc.JobId, "taskId", t.TaskId, "thingId", t.ThingId)
 				if t.Status == TaskQueued {
 					r.innerTaskChangeCh <- TaskChangeMsg{Task: *t, Status: TaskSent}
 				}
@@ -358,25 +354,21 @@ func (r *runnerImpl) submitDirectMethodTaskToPool(jc *JobContext, t *Task) error
 	return r.pool.Submit(func() {
 		var req InvokeDirectMethodReq
 		if jc.JobDoc == nil {
-			log.Errorf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc is nil for invoke direct method", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
 		jBuf, err := json.Marshal(jc.JobDoc)
 		if err != nil {
-			log.Errorf("JobRunner unexpected job doc is nil for invoke direct method! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc is nil for invoke direct method", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 		if err := json.Unmarshal(jBuf, &req); err != nil {
 			// job doc should be checked before job created
-			log.Errorf("JobRunner unexpected job doc for invoke direct method! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc for invoke direct method", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
 		re := r.doInvokeDirectMethod(*t, req)
 		if re.Err != nil {
-			log.Errorf("JobRunner do invoke direct method, jobId=%q taskId=%d thingId=%s : %v",
-				jc.JobId, t.TaskId, t.ThingId, re.Err)
+			slog.Error("JobRunner do invoke direct method", "jobId", jc.JobId, "taskId", t.TaskId, "thingId", t.ThingId, "error", re.Err)
 		}
 		// notify result
 		r.innerTaskChangeCh <- re
@@ -387,25 +379,21 @@ func (r *runnerImpl) submitUpdateShadowTaskToPool(jc *JobContext, t *Task) error
 	return r.pool.Submit(func() {
 		var req UpdateShadowReq
 		if jc.JobDoc == nil {
-			log.Errorf("JobRunner unexpected job doc is nil for update shadow! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc is nil for update shadow", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
 		jBuf, err := json.Marshal(jc.JobDoc)
 		if err != nil {
-			log.Errorf("JobRunner unexpected job doc is nil for update shadow! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc is nil for update shadow", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 		if err := json.Unmarshal(jBuf, &req); err != nil {
 			// job doc should be checked before job created
-			log.Errorf("JobRunner unexpected job doc for update shadow! jobId=%q, jobDoc=%v",
-				jc.JobId, jc.JobDoc)
+			slog.Error("JobRunner unexpected job doc for update shadow", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
 		re := r.doUpdateShadow(*t, req)
 		if re.Err != nil {
-			log.Errorf("JobRunner do update shadow, jobId=%q taskId=%d thingId=%s : %v",
-				jc.JobId, t.TaskId, t.ThingId, re.Err)
+			slog.Error("JobRunner do update shadow", "jobId", jc.JobId, "taskId", t.TaskId, "thingId", t.ThingId, "error", re.Err)
 		}
 		// notify result
 		r.innerTaskChangeCh <- re

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,7 +15,6 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
-	"ruff.io/tio/pkg/log"
 	rest "ruff.io/tio/pkg/restapi"
 )
 
@@ -103,7 +103,7 @@ func GetDesiredStateHandler(ctx context.Context, svc shadow.Service) restful.Rou
 			if errors.Is(err, model.ErrNotFound) {
 				rest.SendResp(w, 404, rest.Resp[any]{Code: 404, Message: err.Error()})
 			} else {
-				log.Errorf("Error getting shadow: %v ", err)
+				slog.Error("Error getting shadow", "error", err)
 				rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
 			}
 		} else {
@@ -126,6 +126,7 @@ func QueryHandler(ctx context.Context, svc shadow.Service) restful.RouteFunction
 
 		if err != nil {
 			if !checkHttpErrAndSend(err, w) {
+				slog.Error("Error querying shadows", "error", err)
 				rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
 			}
 		} else {
@@ -140,12 +141,12 @@ func getPageQuery(r *restful.Request) model.PageQuery {
 	q.PageIndex, err = strconv.Atoi(r.QueryParameter("pageIndex"))
 	if err != nil {
 		q.PageIndex = 1
-		log.Infof("No valid query param withAuthValue use default value %d", q.PageIndex)
+		slog.Info("No valid query param withAuthValue use default value", "pageIndex", q.PageIndex)
 	}
 	q.PageSize, err = strconv.Atoi(r.QueryParameter("pageSize"))
 	if err != nil {
 		q.PageSize = 10
-		log.Infof("No valid query param withAuthValue use default value %d", q.PageSize)
+		slog.Info("No valid query param withAuthValue use default value", "pageSize", q.PageSize)
 	}
 
 	return q
@@ -157,18 +158,18 @@ func PatchDesiredStateHandler(ctx context.Context, svc shadow.Service) restful.R
 		var stateReq shadow.StateReq
 		err := r.ReadEntity(&stateReq)
 		if err != nil {
-			log.Infof("Bad request to set desired: %v", err)
+			slog.Info("Bad request to set desired", "error", err)
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: err.Error()})
 			return
 		}
 		if stateReq.ClientToken == "" || stateReq.State.Desired == nil || stateReq.State.Reported != nil {
-			log.Infof("Bad request to set desired: %v, body: %#v", err, stateReq)
+			slog.Info("Bad request to set desired", "error", err, "body", stateReq)
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: "Invalid request body"})
 			return
 		}
 		_, err = svc.SetDesired(ctx, thingId, stateReq)
 		if err != nil {
-			log.Errorf("Error setting desired: %v, body: %#v", err, stateReq)
+			slog.Error("Error setting desired", "error", err, "body", stateReq)
 			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
 			return
 		}
@@ -182,18 +183,18 @@ func SetTagsHandler(ctx context.Context, svc shadow.Service) restful.RouteFuncti
 		var tagsReq shadow.TagsReq
 		err := r.ReadEntity(&tagsReq)
 		if err != nil {
-			log.Infof("Bad request to set tags: %v", err)
+			slog.Info("Bad request to set tags", "error", err)
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: err.Error()})
 			return
 		}
 		if tagsReq.Tags == nil {
-			log.Infof("Bad request to set tags: %v, body: %#v", err, tagsReq)
+			slog.Info("Bad request to set tags", "error", err, "body", tagsReq)
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: "Invalid request body"})
 			return
 		}
 		err = svc.SetTag(ctx, thingId, tagsReq)
 		if err != nil {
-			log.Errorf("Error setting tags: %v, body: %#v", err, tagsReq)
+			slog.Error("Error setting tags", "error", err, "body", tagsReq)
 			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
 			return
 		}
@@ -224,7 +225,7 @@ func InvokeMethodHandler(
 		var req MethodInvokeReq
 		err := r.ReadEntity(&req)
 		if err != nil {
-			log.Infof("Bad request for invoking thing %s method %s : %v", thingId, name, err)
+			slog.Info("Bad request for invoking thing", "thingId", thingId, "name", name, "error", err)
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: err.Error()})
 			return
 		}
@@ -250,13 +251,13 @@ func InvokeMethodHandler(
 
 		exist, err := thingSvc.Exist(ctx, thingId)
 		if err != nil {
+			slog.Error("Direct method request error", "error", err, "request", reqMsg)
 			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error(), Data: nil})
-			log.Errorf("Direct method request error: %v , request: %#v", err, reqMsg)
 			return
 		}
 		if !exist {
+			slog.Warn("Direct method request error", "thingId", thingId, "request", reqMsg)
 			rest.SendResp(w, 404, rest.Resp[any]{Code: 404, Message: "thing not found"})
-			log.Warnf("Direct method request error: thing not exist , request: %#v", reqMsg)
 			return
 		}
 
@@ -266,8 +267,9 @@ func InvokeMethodHandler(
 
 		resp, err := method.InvokeMethod(ctx, reqMsg)
 		if err != nil {
-			log.Errorf("Direct method request: %#v , error: %v", reqMsg, err)
+			slog.Error("Direct method request", "request", reqMsg, "error", err)
 			if !checkHttpErrAndSend(err, w) {
+				slog.Error("Direct method request error", "request", reqMsg, "error", err)
 				rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error(), Data: nil})
 			}
 		} else {
@@ -277,7 +279,7 @@ func InvokeMethodHandler(
 				Data:    resp.Data,
 			}
 			rest.SendResp(w, 200, rest.RespOK(res))
-			log.Debugf("Direct method request: %#v response: %#v", reqMsg, resp)
+			slog.Debug("Direct method request", "request", reqMsg, "response", resp)
 		}
 	}
 }

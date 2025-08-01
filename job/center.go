@@ -2,13 +2,14 @@ package job
 
 import (
 	"context"
+	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/shadow"
 )
 
@@ -102,10 +103,10 @@ func (c *centerImpl) Start(ctx context.Context) error {
 }
 
 func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
-	log.Infof("JobCenter received manager message: %#v", msg)
+	slog.Info("JobCenter received manager message", "message", msg)
 	submit := func(doFunc func()) {
 		if err := c.pool.Submit(doFunc); err != nil {
-			log.Errorf("JobCenter submit job for management, msg=%#v, error=%v", msg, err)
+			slog.Error("JobCenter submit job for management", "message", msg, "error", err)
 		}
 	}
 	switch msg.Typ {
@@ -113,9 +114,9 @@ func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
 		d := msg.Data.(MgrMsgCreateJob)
 		submit(func() {
 			if l, err := c.createJob(d); err != nil {
-				log.Errorf("JobCenter create tasks: %v, jobId=%q", err, d.JobContext.JobId)
+				slog.Error("JobCenter create tasks", "error", err, "jobId", d.JobContext.JobId)
 			} else {
-				log.Infof("JobCenter created tasks, jobId=%q, count=%d", d.JobContext.JobId, len(l))
+				slog.Info("JobCenter created tasks", "jobId", d.JobContext.JobId, "count", len(l))
 				c.addPendingJob(PendingJobItem{Context: d.JobContext, Tasks: l})
 			}
 		})
@@ -141,7 +142,7 @@ func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
 			"force_canceled": d.Force,
 			"completed_at":   time.Now(),
 		}); err != nil {
-			log.Errorf("JobCenter update job canceled, jobId=%q, error: %v", d.JobId, err)
+			slog.Error("JobCenter update job canceled", "jobId", d.JobId, "error", err)
 		}
 	case MgrTypeDeleteJob:
 		d := msg.Data.(MgrMsgDeleteJob)
@@ -161,7 +162,7 @@ func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
 			c.runner.DeleteTask(d.TaskId, d.Operation, d.Force)
 		})
 	default:
-		log.Errorf("unknown job manage message type: %q", msg.Typ)
+		slog.Error("unknown job manage message type", "type", msg.Typ)
 	}
 }
 
@@ -178,7 +179,7 @@ f:
 		case <-c.ctx.Done():
 			break f
 		case <-tm:
-			log.Errorf("JobCenter get pending job timeout")
+			slog.Error("JobCenter get pending job timeout")
 			break f
 		case c.getPendingReqCh <- struct{}{}:
 			continue
@@ -256,7 +257,7 @@ func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 				_ = c.pool.Submit(func() {
 					defer func() {
 						if err := recover(); err != nil { // getPendingRespCh maybe nil
-							log.Errorf("JobCenter get pending job error: %v", err)
+							slog.Error("JobCenter get pending job error", "error", err)
 						}
 					}()
 					var cp []PendingJobItem
@@ -322,8 +323,7 @@ func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 				Count int
 			}{Time: time.Now(), Count: len(rolloutTasks)})
 
-			log.Infof("JobCenter scheduled jobId=%q, taskCount=%d, rolloutCount=%d",
-				jc.JobId, len(v.Tasks), len(rolloutTasks))
+			slog.Info("JobCenter scheduled", "jobId", jc.JobId, "taskCount", len(v.Tasks), "rolloutCount", len(rolloutTasks))
 
 			// delete from pending for rollout completed job
 			// but keep it's JobContext for may be sum tasks of the job is running,
@@ -358,8 +358,7 @@ func (c *centerImpl) jobScheduleFilter(j *PendingJobItem) (next bool, remove boo
 				c.ctx, jc.JobId,
 				map[string]any{"status": StatusInProgress, "started_at": time.Now()},
 			); err != nil {
-				log.Errorf("JobCenter update job status, job=%q, status=%q, error: %v",
-					jc.JobId, StatusInProgress, err)
+				slog.Error("JobCenter update job status", "job", jc.JobId, "status", StatusInProgress, "error", err)
 			}
 			jc.Status = StatusInProgress
 		}
@@ -413,7 +412,7 @@ func (c *centerImpl) jobScheduleFilter(j *PendingJobItem) (next bool, remove boo
 	c.runner.CancelTaskOfJob(jc.JobId, jc.Operation, force)
 
 	if err := c.repo.CancelTasks(c.ctx, jc.JobId, force); err != nil {
-		log.Errorf("JobCenter cancel tasks jobId=%q, error: %v", jc.JobId, err)
+		slog.Error("JobCenter cancel tasks", "jobId", jc.JobId, "error", err)
 		next = false
 		remove = false
 	}
@@ -422,14 +421,14 @@ func (c *centerImpl) jobScheduleFilter(j *PendingJobItem) (next bool, remove boo
 		"completed_at":   time.Now(),
 		"force_canceled": force,
 	}); err != nil {
-		log.Errorf("JobCenter cancel job jobId=%q, error: %v", jc.JobId, err)
+		slog.Error("JobCenter cancel job", "jobId", jc.JobId, "error", err)
 		next = false
 		remove = false
 	}
 	if next {
 		// get tasks ongoing for job after cancel
 		if nl, err := c.repo.GetTasksOfJob(c.ctx, jc.JobId, []TaskStatus{TaskSent, TaskInProgress}); err != nil {
-			log.Errorf("JobCenter get tasks of job jobId=%q, error: %v", jc.JobId, err)
+			slog.Error("JobCenter get tasks of job", "jobId", jc.JobId, "error", err)
 			next = false
 			remove = false
 		} else {
@@ -447,7 +446,7 @@ func (c *centerImpl) preloadPendingJobs() (jobs []*PendingJobItem) {
 	}
 	for _, j := range l {
 		if len(j.Tasks) == 0 {
-			log.Warnf("JobCenter job has no pending task, to terminate it, jobId=%q", j.JobId)
+			slog.Warn("JobCenter job has no pending task, to terminate it", "jobId", j.JobId)
 			_ = c.doFinishJob(j.JobId, j.Status)
 			continue
 		}
@@ -547,10 +546,10 @@ func (c *centerImpl) watchTaskChangeLoop() {
 				}
 			}
 		case msg = <-tcCh:
-			log.Infof("JobCenter watched task change, jobId=%q, taskId=%d, thingId=%q, "+
-				"status=%q, progress=%d, statusDetails=%v",
-				msg.Task.JobId, msg.Task.TaskId, msg.Task.ThingId,
-				msg.Status, msg.Progress, msg.StatusDetails)
+			slog.Info("JobCenter watched task change", "jobId", msg.Task.JobId,
+				"taskId", msg.Task.TaskId, "thingId", msg.Task.ThingId,
+				"status", msg.Status, "progress",
+				msg.Progress, "statusDetails", msg.StatusDetails)
 		}
 		if isTaskTerminal(msg.Status) {
 			pendingCheckJobs[msg.Task.JobId] = struct{}{}
@@ -569,7 +568,7 @@ func (c *centerImpl) checkFinishJob(jobId string) (finished bool) {
 	}()
 	res, err := c.repo.CountTaskStatus(c.ctx, jobId)
 	if err != nil {
-		log.Errorf("JobCenter get task status count error: %v", err)
+		slog.Error("JobCenter get task status count error", "error", err)
 		return false
 	}
 	for _, taskStatusCount := range res {
@@ -579,12 +578,12 @@ func (c *centerImpl) checkFinishJob(jobId string) (finished bool) {
 	}
 	j, err := c.repo.GetJob(c.ctx, jobId)
 	if err != nil {
-		log.Errorf("JobCenter get job jobId=%q, %v", jobId, err)
+		slog.Error("JobCenter get job", "jobId", jobId, "error", err)
 		return false
 	}
 
 	if j == nil {
-		log.Errorf("JobCenter get job nil jobId=%q", jobId)
+		slog.Error("JobCenter get job nil", "jobId", jobId)
 		return true
 	}
 	_ = c.doFinishJob(jobId, j.Status)
@@ -600,7 +599,7 @@ func (c *centerImpl) doFinishJob(jobId string, status Status) error {
 		if _, err := c.repo.DeleteJob(c.ctx, jobId, true); err != nil {
 			return err
 		} else {
-			log.Errorf("JobCenter delete job, jobId=%q, error: %v", jobId, err)
+			slog.Error("JobCenter delete job", "jobId", jobId, "error", err)
 			return nil
 		}
 	case StatusWaiting, StatusInProgress:
@@ -610,7 +609,7 @@ func (c *centerImpl) doFinishJob(jobId string, status Status) error {
 		// job which canceled without force may have ongoing tasks
 		// so that the job may be checked for finish more than one time
 	default:
-		log.Warnf("JobCenter unexpected job status when check, jobId=%q, status=%q", jobId, status)
+		slog.Warn("JobCenter unexpected job status when check", "jobId", jobId, "status", status)
 		return nil
 	}
 	err := c.repo.UpdateJob(c.ctx, jobId, map[string]any{
@@ -618,10 +617,10 @@ func (c *centerImpl) doFinishJob(jobId string, status Status) error {
 		"completed_at": time.Now(),
 	})
 	if err != nil {
-		log.Errorf("JobCenter update job finish, jobId=%q, %v", jobId, err)
+		slog.Error("JobCenter update job finish", "jobId", jobId, "error", err)
 		return err
 	} else {
-		log.Infof("JobCenter job finished, jobId=%q, status=%q", jobId, st)
+		slog.Info("JobCenter job finished", "jobId", jobId, "status", st)
 		return nil
 	}
 }
@@ -635,14 +634,14 @@ func (c *centerImpl) setJobContext(jobId string, jobCtx JobContext) *JobContext 
 	c.jcLock.Lock()
 	defer c.jcLock.Unlock()
 	c.jobContexts[jobId] = &jobCtx
-	log.Debugf("JobCenter set job context jobId=%q", jobId)
+	slog.Debug("JobCenter set job context", "jobId", jobId)
 	return &jobCtx
 }
 func (c *centerImpl) removeJobContext(jobId string) {
 	c.jcLock.Lock()
 	defer c.jcLock.Unlock()
 	delete(c.jobContexts, jobId)
-	log.Debugf("JobCenter remove job context jobId=%q", jobId)
+	slog.Debug("JobCenter remove job context", "jobId", jobId)
 }
 
 func (c *centerImpl) createJob(m MgrMsgCreateJob) ([]Task, error) {

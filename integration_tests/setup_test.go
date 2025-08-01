@@ -3,6 +3,7 @@ package integration_tests
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,8 @@ import (
 
 	"ruff.io/tio/connector/mqtt/client"
 
+	"log"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
@@ -23,7 +26,6 @@ import (
 	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/db/mysql"
 	"ruff.io/tio/db/sqlite"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/uuid"
 	"ruff.io/tio/shadow"
 	shadowApi "ruff.io/tio/shadow/api"
@@ -53,7 +55,7 @@ func TestMain(m *testing.M) {
 func setup() {
 	cfg = ReadConfig()
 	cfgJ, _ := json.Marshal(cfg)
-	log.Infof("Config: %s", cfgJ)
+	slog.Info("Config", "config", cfgJ)
 	ctx := context.Background()
 
 	dbConn := newDb(cfg)
@@ -95,7 +97,7 @@ func setup() {
 	// http test server
 	httpSvr = httptest.NewServer(container)
 
-	log.Info("================ set environment done ================")
+	slog.Info("================ set environment done ================")
 
 }
 

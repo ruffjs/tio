@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/pkg/errors"
-	"ruff.io/tio/pkg/log"
 )
 
 type clientPage struct {
@@ -34,7 +34,7 @@ func fetchClientPage(apiPrefix, apiToken string, page, limit uint) (clientPage, 
 	}
 	if resp.StatusCode != http.StatusOK {
 		res, _ := io.ReadAll(resp.Body)
-		log.Errorf("Fetch emqx client page http status=%d body=%q", resp.StatusCode, res)
+		slog.Error("Fetch emqx client page", "status", resp.StatusCode, "body", res)
 		return clientPage{}, fmt.Errorf("fetch client page got http status %d", resp.StatusCode)
 	}
 	var c clientPage
@@ -61,7 +61,7 @@ func fetchClient(apiPrefix, apiToken, thingId string) (ClientInfo, error) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		res, _ := io.ReadAll(resp.Body)
-		log.Errorf("Fetch emqx client info http status=%d body=%q", resp.StatusCode, res)
+		slog.Error("Fetch emqx client info", "status", resp.StatusCode, "body", res)
 		return ClientInfo{}, fmt.Errorf("fetch client got http status %d", resp.StatusCode)
 	}
 	var c ClientInfo
@@ -84,15 +84,15 @@ func closeClient(apiPrefix, apiToken, thingId string) error {
 		return errors.Wrapf(err, "close mqtt client %q", thingId)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		log.Warnf("Close mqtt client %q, but got 404 status", thingId)
+		slog.Warn("Close mqtt client", "clientId", thingId, "status", resp.StatusCode)
 		return nil
 	}
 	if resp.StatusCode != http.StatusNoContent {
 		res, _ := io.ReadAll(resp.Body)
-		log.Errorf("Fetch mqtt client info http status=%d body=%q", resp.StatusCode, res)
+		slog.Error("Fetch mqtt client info", "status", resp.StatusCode, "body", res)
 		return fmt.Errorf("close client %q got http status %d", thingId, resp.StatusCode)
 	} else {
-		log.Infof("Closed mqtt client: clientId=%s", thingId)
+		slog.Info("Closed mqtt client", "clientId", thingId)
 	}
 	return nil
 }

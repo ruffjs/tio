@@ -3,12 +3,12 @@ package shadow
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
 
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -86,13 +86,13 @@ func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, err
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
-				log.Errorf("Got wrong topic msg topic for shadow get request")
+				slog.Error("Got wrong topic msg topic for shadow get request")
 				return
 			}
 			var r GetReq
 			err = json.Unmarshal(msg.Payload(), &r)
 			if err != nil {
-				log.Errorf("Invalid message payload for shadow get request")
+				slog.Error("Invalid message payload for shadow get request")
 				return
 			}
 			res := GetReqMsg{
@@ -117,13 +117,13 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
-				log.Errorf("Got wrong topic msg topic for state update request")
+				slog.Error("Got wrong topic msg topic for state update request")
 				return
 			}
 			var r StateReq
 			err = json.Unmarshal(msg.Payload(), &r)
 			if err != nil {
-				log.Errorf("Invalid message payload for state update request")
+				slog.Error("Invalid message payload for state update request")
 				return
 			}
 			res := StateReqMsg{

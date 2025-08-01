@@ -3,6 +3,7 @@ package job
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -186,7 +186,7 @@ func toDetail(e Entity, tsc []TaskStatusCount) (Detail, error) {
 		case TaskRejected:
 			pd.Rejected = sc.Count
 		default:
-			log.Errorf("unexpected task status %q", sc.Status)
+			slog.Error("unexpected task status", "status", sc.Status)
 		}
 	}
 
@@ -292,7 +292,7 @@ func toTask(e TaskEntity) Task {
 	if e.StatusDetails != nil {
 		err := json.Unmarshal(e.StatusDetails, &stDetails)
 		if err != nil {
-			log.Errorf("task entity statusDetails is invalid json, content=%s error: %v", e.StatusDetails, err)
+			slog.Error("task entity statusDetails is invalid json", "content", e.StatusDetails, "error", err)
 		}
 	}
 	t.StatusDetails = stDetails

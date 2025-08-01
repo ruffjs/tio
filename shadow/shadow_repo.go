@@ -2,11 +2,11 @@ package shadow
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"ruff.io/tio/connector"
 
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 
 	"github.com/pkg/errors"
@@ -71,7 +71,7 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 		return nil, errors.Wrap(res.Error, "update in db")
 	}
 	if res.RowsAffected != 1 {
-		log.Errorf("Update shadow %s got unexpected affected row %d", thingId, res.RowsAffected)
+		slog.Error("Update shadow got unexpected affected row", "thingId", thingId, "rowsAffected", res.RowsAffected)
 		return nil, errors.Wrap(model.ErrVersionConflict, "")
 	}
 	n, err := toShadow(en)

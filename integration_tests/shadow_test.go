@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"log"
+
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
-	"ruff.io/tio/pkg/log"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
 )
@@ -58,7 +60,7 @@ func TestShadowSetDesired(t *testing.T) {
 	var respBody rest.Resp[any]
 	err = json.NewDecoder(resp.Body).Decode(&respBody)
 	require.NoError(t, err, "can not decode shadow desired response body")
-	log.Infof("shadow desired body %#v", respBody)
+	slog.Info("shadow desired body", "body", respBody)
 	require.Equal(t, respBody.Code, http.StatusOK, "set shadow desired response code error")
 
 	thingClient.Disconnect()

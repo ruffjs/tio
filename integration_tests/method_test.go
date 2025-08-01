@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,7 +14,6 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
-	"ruff.io/tio/pkg/log"
 	rest "ruff.io/tio/pkg/restapi"
 	shadowApi "ruff.io/tio/shadow/api"
 )
@@ -40,7 +40,7 @@ func TestMethodInvoke(t *testing.T) {
 			var req shadow.MethodReq
 			err := json.Unmarshal(m.Payload(), &req)
 			require.NoError(t, err, "device unable to unmarshal method request")
-			log.Debugf("device receive method request: %#v", req)
+			slog.Debug("device receive method request", "request", req)
 			resp := shadow.MethodResp{
 				ClientToken: req.ClientToken,
 				Data:        req.Data,
@@ -70,7 +70,7 @@ func TestMethodInvoke(t *testing.T) {
 	var respBody rest.Resp[shadowApi.MethodInvokeResp]
 	err = json.NewDecoder(resp.Body).Decode(&respBody)
 	require.NoError(t, err, "can not decode method response body")
-	log.Infof("method response body %#v", respBody)
+	slog.Info("method response body", "response", respBody)
 	require.Equal(t, http.StatusOK, respBody.Code, "method invoke response status error")
 	respData := respBody.Data.Data.(map[string]interface{})
 	require.Equal(t, "world", respData["hello"])

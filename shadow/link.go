@@ -5,11 +5,12 @@ package shadow
 
 import (
 	"context"
+	"log"
+	"log/slog"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -32,14 +33,14 @@ func Link(ctx context.Context, conn StateHandler, svc Service) error {
 		if err != nil {
 			log.Fatalf("New pool for shadow get : %v", err)
 		}
-		log.Info("Link shadow get request initialized")
+		slog.Info("Link shadow get request initialized")
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case req, ok := <-ch:
 				if !ok {
-					log.Errorf("Shadow get request channel closed")
+					slog.Error("Shadow get request channel closed")
 					return
 				}
 				pool.Invoke(req)
@@ -58,16 +59,16 @@ func Link(ctx context.Context, conn StateHandler, svc Service) error {
 			handleShadowStateUpdateReq(ctx, svc, conn, req)
 		})
 		if err != nil {
-			log.Debugf("New pool for shadow update: %v", err)
+			slog.Debug("New pool for shadow update", "error", err)
 		}
-		log.Info("Link shadow update request initialized")
+		slog.Info("Link shadow update request initialized")
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case req, ok := <-ch:
 				if !ok {
-					log.Errorf("Shadow state update channel closed")
+					slog.Error("Shadow state update channel closed")
 					return
 				}
 				pool.Invoke(req)
@@ -79,9 +80,9 @@ func Link(ctx context.Context, conn StateHandler, svc Service) error {
 		msg := DeltaStateNoticeMsg{ThingId: thingId, Notice: delta}
 		err := conn.StateDeltaNotify(ctx, msg)
 		if err != nil {
-			log.Errorf("Notify state delta error: %v, msg: %#v", err, msg)
+			slog.Error("Notify state delta error", "error", err, "msg", msg)
 		} else {
-			log.Debugf("Notify state delta msg: %#v", msg)
+			slog.Debug("Notify state delta msg", "msg", msg)
 		}
 	})
 
@@ -89,26 +90,26 @@ func Link(ctx context.Context, conn StateHandler, svc Service) error {
 		msg := StateUpdatedNoticeMsg{ThingId: thingId, Notice: notice}
 		err := conn.StateUpdatedNotify(ctx, msg)
 		if err != nil {
-			log.Errorf("Notify state update error: %v, msg: %#v", err, msg)
+			slog.Error("Notify state update error", "error", err, "msg", msg)
 		} else {
-			log.Debugf("Notify state update msg: %#v", msg)
+			slog.Debug("Notify state update msg", "msg", msg)
 		}
 	})
 
 	svc.SubAccepted(func(thingId string, msg StateAcceptedRespMsg) {
 		err := conn.AcceptedResp(ctx, msg)
 		if err != nil {
-			log.Errorf("Notify state accepted error: %v, msg: %#v", err, msg)
+			slog.Error("Notify state accepted error", "error", err, "msg", msg)
 		} else {
-			log.Debugf("Notify state accepted msg: %#v", msg)
+			slog.Debug("Notify state accepted msg", "msg", msg)
 		}
 	})
 	svc.SubRejected(func(thingId string, msg ErrRespMsg) {
 		err := conn.RejectedResp(ctx, msg)
 		if err != nil {
-			log.Errorf("Notify state rejected error: %v, msg: %#v", err, msg)
+			slog.Error("Notify state rejected error", "error", err, "msg", msg)
 		} else {
-			log.Debugf("Notify state rejected msg: %#v", msg)
+			slog.Debug("Notify state rejected msg", "msg", msg)
 		}
 	})
 	return nil
@@ -135,7 +136,7 @@ func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req Ge
 		msg := ErrRespMsg{ThingId: req.ThingId, Op: OpGet, Resp: resp}
 		e := h.RejectedResp(ctx, msg)
 		if e != nil {
-			log.Errorf("Send rejected msg error %v, msg: %#v", e, msg)
+			slog.Error("Send rejected msg error", "error", e, "msg", msg)
 		}
 		return
 	}
@@ -154,6 +155,6 @@ func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req Ge
 	msg := StateAcceptedRespMsg{ThingId: req.ThingId, Op: OpGet, Resp: resp}
 	err = h.AcceptedResp(ctx, msg)
 	if err != nil {
-		log.Errorf("Send accepted msg error %v, msg: %#v", err, msg)
+		slog.Error("Send accepted msg error", "error", err, "msg", msg)
 	}
 }

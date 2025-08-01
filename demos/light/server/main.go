@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -16,7 +18,6 @@ import (
 	"github.com/manifoldco/promptui"
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector/mqtt/client"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/thing/api"
 )
 
@@ -86,7 +87,7 @@ func connectTioByMqtt() {
 func receiveThingsPresence() {
 	topic := "$iothub/things/+/presence"
 	err := mqttClient.Subscribe(context.Background(), topic, 0, func(c mqtt.Client, m mqtt.Message) {
-		log.Infof("[Receive Things presence] %s", m.Payload())
+		slog.Info("[Receive Things presence]", "payload", m.Payload())
 	})
 	if err != nil {
 		log.Fatalf("subscribe error %v", err)
@@ -96,7 +97,7 @@ func receiveThingsPresence() {
 func receiveThingsProperties() {
 	topic := "$iothub/things/+/messages/property"
 	err := mqttClient.Subscribe(context.Background(), topic, 0, func(c mqtt.Client, m mqtt.Message) {
-		log.Infof("[Receive Things Properties] %s", m.Payload())
+		slog.Info("[Receive Things Properties]", "payload", m.Payload())
 		// Do something more, eg: save properties to TSDB; trigger an alert by some rule
 		// ...
 	})
@@ -109,7 +110,7 @@ func createExampleThing() {
 	createThReq := api.CreateReq{ThingId: "example", Password: "example"}
 	b, _ := json.Marshal(createThReq)
 
-	log.Infof("%s %s Body: %v", http.MethodPost, fmt.Sprintf("%s/api/v1/things", httpUrl), bytes.NewBuffer(b))
+	slog.Info("create thing", "method", http.MethodPost, "url", fmt.Sprintf("%s/api/v1/things", httpUrl), "body", string(b))
 
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", httpUrl), bytes.NewBuffer(b))
 	req.SetBasicAuth(userName, password)
@@ -117,14 +118,14 @@ func createExampleThing() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf("create thing error: %v", err)
+		slog.Error("create thing error", "error", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	log.Info(string(body))
+	slog.Info(string(body))
 }
 
 func deleteExampleThing() {
-	log.Infof("%s %s Body: %v", http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s", httpUrl, thingId), nil)
+	slog.Info("delete thing", "method", http.MethodDelete, "url", fmt.Sprintf("%s/api/v1/things/%s", httpUrl, thingId))
 
 	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/v1/things/%s", httpUrl, thingId), bytes.NewBuffer(nil))
 	req.SetBasicAuth(userName, password)
@@ -132,10 +133,10 @@ func deleteExampleThing() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf("create thing error: %v", err)
+		slog.Error("create thing error", "error", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	log.Info(string(body))
+	slog.Info(string(body))
 }
 
 // setBrightnessByShadow Notify light to adjust brightness by set `desired` of `Shadow`
@@ -151,8 +152,7 @@ func setBrightnessByShadow() {
 		}
 	}`, time.Now().UnixMicro(), randBrt))
 
-	log.Infof("%s %s Body: %v", http.MethodPut,
-		fmt.Sprintf("%s/api/v1/things/%s/shadows/default/state/desired", httpUrl, thingId), methodBody)
+	slog.Info("set brightness", "method", http.MethodPut, "url", fmt.Sprintf("%s/api/v1/things/%s/shadows/default/state/desired", httpUrl, thingId), "body", methodBody)
 
 	req, _ := http.NewRequest(http.MethodPut,
 		fmt.Sprintf("%s/api/v1/things/%s/shadows/default/state/desired", httpUrl, thingId), methodBody)
@@ -161,10 +161,10 @@ func setBrightnessByShadow() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf("Modify Brightness error: %v", err)
+		slog.Error("Modify Brightness error", "error", err)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
-	log.Info(string(body))
+	slog.Info(string(body))
 }
 
 // flashLightByDirectMethod Flash light 2 times by invoke `Direct Method`
@@ -175,8 +175,7 @@ func flashLightByDirectMethod() {
 			"times": 2
 		}
 	}`)
-	log.Infof("%s %s Body: %v", http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/methods/%s", httpUrl, thingId, "flash"), methodBody)
+	slog.Info("flash light", "method", http.MethodPost, "url", fmt.Sprintf("%s/api/v1/things/%s/methods/%s", httpUrl, thingId, "flash"), "body", methodBody)
 	req, _ := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("%s/api/v1/things/%s/methods/%s", httpUrl, thingId, "flash"), methodBody)
 	req.SetBasicAuth(userName, password)
@@ -184,8 +183,8 @@ func flashLightByDirectMethod() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf("Flash Light error: %v", err)
+		slog.Error("Flash Light error", "error", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	log.Info(string(body))
+	slog.Info(string(body))
 }

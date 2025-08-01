@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"log"
+
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/thing"
 
 	"github.com/stretchr/testify/require"

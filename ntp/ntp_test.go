@@ -3,6 +3,7 @@ package ntp_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"math"
 	"math/rand"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	mq "ruff.io/tio/connector/mqtt"
-	"ruff.io/tio/pkg/log"
 )
 
 var ctx = context.Background()
@@ -104,7 +104,7 @@ func TestNtpHandler(t *testing.T) {
 			// mock request time
 			time.Sleep(time.Millisecond * time.Duration(c.rttMs/2))
 			mockMqtt.Publish(reqTopic, 0, false, reqJson)
-			log.Infof("Send mock ntp request")
+			slog.Info("Send mock ntp request")
 			pubReq.Unset()
 		}()
 

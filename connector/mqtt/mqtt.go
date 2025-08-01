@@ -2,17 +2,19 @@ package mqtt
 
 import (
 	"context"
+	"log"
+	"log/slog"
+	"sync"
+	"time"
+
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
-	"sync"
-	"time"
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector/mqtt/client"
 	"ruff.io/tio/connector/mqtt/embed"
 	"ruff.io/tio/connector/mqtt/emqx"
-	"ruff.io/tio/pkg/log"
 )
 
 const (
@@ -47,13 +49,14 @@ var connectorSingleton connector.Connector
 func InitConnector(cfg config.Connector, cl client.Client) connector.Connector {
 	var c connector.Connectivity
 	typ := cfg.Typ
-	if typ == config.ConnectorMqttEmbed {
+	switch typ {
+	case config.ConnectorMqttEmbed:
 		c = embed.NewEmbedAdapter()
-		log.Infof("Use embed connector")
-	} else if typ == config.ConnectorEmqx {
+		slog.Info("Use embed connector")
+	case config.ConnectorEmqx:
 		c = emqx.NewEmqxAdapter(cfg.Emqx, cl)
-		log.Infof("Use emqx connector")
-	} else {
+		slog.Info("Use emqx connector")
+	default:
 		log.Fatalf("Unsupported connector type %s", typ)
 	}
 

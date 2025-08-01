@@ -2,6 +2,7 @@ package shadow_test
 
 import (
 	"encoding/json"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"ruff.io/tio/connector"
 	mq "ruff.io/tio/connector/mqtt"
 	mockmq "ruff.io/tio/connector/mqtt/mock"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 
 	"github.com/stretchr/testify/require"
@@ -167,7 +167,7 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 			// wait for method invoking
 			time.Sleep(time.Millisecond * time.Duration(cCopy.timeoutMs))
 			mockMqtt.Publish(respTopic, 0, false, respJson)
-			log.Infof("Send mock method response")
+			slog.Info("Send mock method response")
 			pubRespCall.Unset()
 		}()
 

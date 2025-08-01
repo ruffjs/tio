@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"context"
+	"log/slog"
 
 	"ruff.io/tio/connector"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/emicklei/go-restful/v3"
 	"github.com/mochi-mqtt/server/v2/system"
 	"ruff.io/tio/connector/mqtt/embed"
-	"ruff.io/tio/pkg/log"
 	rest "ruff.io/tio/pkg/restapi"
 )
 
@@ -56,7 +56,7 @@ func CloseClientHandler(ctx context.Context, connector connector.Connectivity) r
 		ok := true
 		errMsg := "OK"
 		if err != nil {
-			log.Warnf("Close mqtt client error: %v", err)
+			slog.Warn("Close mqtt client error", slog.Any("error", err))
 			ok = false
 			errMsg = err.Error()
 		}

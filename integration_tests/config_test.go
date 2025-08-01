@@ -1,9 +1,10 @@
 package integration_tests
 
 import (
+	"log"
+
 	"github.com/spf13/viper"
 	"ruff.io/tio/config"
-	"ruff.io/tio/pkg/log"
 )
 
 func ReadConfig() config.Config {

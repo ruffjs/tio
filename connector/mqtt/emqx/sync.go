@@ -3,6 +3,8 @@ package emqx
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -10,7 +12,6 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	mq "ruff.io/tio/connector/mqtt/client"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -46,14 +47,14 @@ func syncPresence(ctx context.Context, mqCl mq.Client,
 	// wait received presence events
 	time.Sleep(maxWaitReceivePresenceTime)
 	if ctx.Err() != nil {
-		log.Debug("Give up sync presence cause context done")
+		slog.Debug("Give up sync presence cause context done")
 		return
 	}
-	log.Infof("Starting presence sync, presence events length: %d", len(syncInstance.presenceEvents))
+	slog.Info("Starting presence sync", "presenceEventsLength", len(syncInstance.presenceEvents))
 	syncInstance.diffAndPub(ctx, startTime, getClient, mqCl)
 	clients := getAllClients()
 	syncInstance.pubNewEvents(ctx, startTime, mqCl, clients, getClient)
-	log.Infof("Synced client connect state to presence")
+	slog.Info("Synced client connect state to presence")
 }
 
 func receivePresence(ctx context.Context, mqCl mq.Client) {
@@ -63,12 +64,12 @@ func receivePresence(ctx context.Context, mqCl mq.Client) {
 		// log.Debugf("Got presence event: %s %s", m.Topic(), m.Payload())
 		err := json.Unmarshal(m.Payload(), &e)
 		if err != nil {
-			log.Errorf("Unmarshal presence event %s error: %v", m.Payload(), err)
+			slog.Error("Unmarshal presence event", "payload", m.Payload(), "error", err)
 			return
 		}
 		thingId, err := model.GetThingIdFromTopic(m.Topic())
 		if err != nil {
-			log.Errorf("Can't get thing id from topic %s: %v", m.Topic(), err)
+			slog.Error("Can't get thing id from topic", "topic", m.Topic(), "error", err)
 			return
 		}
 		syncInstance.updateLocalPresence(thingId, e)
@@ -140,7 +141,7 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 				RemoteAddr: n.info.IpAddress,
 			}
 			notifyEvent(ctx, mqCl, thingId, evt)
-			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
+			slog.Debug("Sync presence: republish thing", "thingId", thingId, "event", evt)
 		} else if !n.info.Connected && n.info.DisconnectedAt.UnixMilli() > retainedEvent.Timestamp {
 			evt := connector.PresenceEvent{
 				EventType:  connector.EventDisconnected,
@@ -150,7 +151,7 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 				RemoteAddr: n.info.IpAddress,
 			}
 			notifyEvent(ctx, mqCl, thingId, evt)
-			log.Debugf("Sync presence: republish thing %q event: %#v", thingId, evt)
+			slog.Debug("Sync presence: republish thing", "thingId", thingId, "event", evt)
 		}
 	} else {
 		if retainedEvent.EventType == connector.EventDisconnected {
@@ -166,9 +167,7 @@ func (s *presenceSyncImpl) diffAndPubForThing(
 			ClientId:         n.info.ClientId,
 			DisconnectReason: "disconnected during tio downtime",
 		}
-		log.Debugf(
-			"Sync presence: to publish thing %q disconnected: %#v, it is disconnected when server is down",
-			thingId, evt)
+		slog.Debug("Sync presence: to publish thing disconnected", "thingId", thingId, "event", evt)
 		notifyEvent(ctx, mqCl, thingId, evt)
 	}
 }
@@ -205,7 +204,7 @@ func (s *presenceSyncImpl) pubNewEvents(
 						RemoteAddr: n.info.IpAddress,
 					}
 				}
-				log.Debugf("Sync presence: to publish thing %q new event: %#v", c.info.ClientId, evt)
+				slog.Debug("Sync presence: to publish thing new event", "thingId", c.info.ClientId, "event", evt)
 				notifyEvent(ctx, mqCl, c.info.ClientId, evt)
 			}
 		}

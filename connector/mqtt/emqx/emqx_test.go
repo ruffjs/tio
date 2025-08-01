@@ -22,7 +22,6 @@ import (
 	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/connector/mqtt/emqx"
 	mockmq "ruff.io/tio/connector/mqtt/mock"
-	"ruff.io/tio/pkg/log"
 )
 
 const (
@@ -94,7 +93,7 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 			// Only connection messages for this test are collected
 			return
 		}
-		log.Debugf("====PUB==== topic=%q payload=%q", topic, payload)
+		slog.Debug("====PUB====", "topic", topic, "payload", payload)
 		e := struct {
 			topic string
 			event connector.PresenceEvent
@@ -106,7 +105,7 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 		latestPub = append(latestPub, e)
 	}
 	subCallback := func(ctx context.Context, topic string, qos byte, callback mqtt.MessageHandler) {
-		log.Debugf("====SUB==== topic=%q", topic)
+		slog.Debug("====SUB====", "topic", topic)
 	}
 	mockMqtt := mockMqClient("test", pubCallback, subCallback)
 
@@ -122,7 +121,7 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 	pubCall := mockMqtt.On("Publish", mock.Anything, mq.DefaultQos, mock.Anything, mock.Anything).Return(token)
 
 	for _, c := range cases {
-		log.Debugf("====== thing %v ", c.thingId)
+		slog.Debug("====== thing", "thingId", c.thingId)
 		var pubData []byte
 		if c.typ == connector.EventConnected {
 			pubData = genMqttConnectedMsg(c.thingId)
@@ -133,13 +132,13 @@ func TestEmqxAdapter_RepublishPresence(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond * 5)
 
-		slog.Info("====", "vv", latestPub)
+		slog.Info("====", "latestPub", latestPub)
 		require.Equal(t, 2, len(latestPub), "event length should be equal to 2")
 
 		topicPre := connector.TopicPresence(c.thingId)
 		topicPreEvt := connector.TopicPresenceEvent(c.thingId)
 		for _, l := range latestPub {
-			slog.Info("topic presence", "evt", l)
+			slog.Info("topic presence", "event", l)
 			require.True(t, topicPre == l.topic || topicPreEvt == l.topic, "topic")
 			d := time.Now().UnixMilli() - l.event.Timestamp
 			require.True(t, d > 0 && d < 20, "presence time")
@@ -249,11 +248,11 @@ func mockEmqxApiSvr() *httptest.Server {
 			d := genHttpConnectedMsg(thingIdConnected)
 			_, _ = w.Write(d)
 		} else if strings.Contains(r.RequestURI, "/api/v5/clients?") {
-			log.Debugf("fetch emqx clients %s", r.RequestURI)
+			slog.Debug("fetch emqx clients", "uri", r.RequestURI)
 			d := genHttpConnectedClientsMsg(thingIdConnected)
 			_, _ = w.Write(d)
 		} else {
-			log.Fatalf("Should never reach here: method=%s path=%s", r.Method, r.RequestURI)
+			slog.Error("Should never reach here", "method", r.Method, "path", r.RequestURI)
 		}
 	})
 	return ts

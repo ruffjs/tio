@@ -2,6 +2,7 @@ package ntp
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 
 	"encoding/json"
 
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -70,13 +70,13 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 			serverRecvTime := time.Now().UnixMilli()
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
-				log.Errorf("Got wrong topic msg topic for ntp request: %s, topic=%q", err, msg.Topic())
+				slog.Error("Got wrong topic msg topic for ntp request", "error", err, "topic", msg.Topic())
 				return
 			}
 			var r Req
 			err = json.Unmarshal(msg.Payload(), &r)
 			if err != nil {
-				log.Errorf("Invalid message payload for ntp request: %s, topic=%q", msg.Payload(), msg.Topic())
+				slog.Error("Invalid message payload for ntp request", "payload", msg.Payload(), "topic", msg.Topic())
 				return
 			}
 			serverSendTime := time.Now().UnixMilli()
@@ -87,10 +87,10 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 			}
 			j, err := json.Marshal(res)
 			if err != nil {
-				log.Errorf("Marshal ntp response %#v error: %s, topic=%q", res, err, msg.Topic())
+				slog.Error("Marshal ntp response", "response", res, "error", err, "topic", msg.Topic())
 			}
 			if err := h.client.Publish(TopicResp(thingId), 0, false, j); err != nil {
-				log.Errorf("Ntp handler publish result error: %v, topic=%q", err, msg.Topic())
+				slog.Error("Ntp handler publish result error", "error", err, "topic", msg.Topic())
 			}
 		}()
 	})

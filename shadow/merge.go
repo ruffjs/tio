@@ -3,11 +3,12 @@ package shadow
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"time"
 
-	"ruff.io/tio/pkg/log"
+	"log"
 )
 
 const (
@@ -239,7 +240,7 @@ func deltaDiff(key string, target, source any, meta map[string]any) (delta any, 
 			}
 		}
 	default:
-		log.Errorf("unexpected value for shadow, key %q value %v", key, target)
+		slog.Error("unexpected value for shadow", "key", key, "value", target)
 	}
 	return
 }

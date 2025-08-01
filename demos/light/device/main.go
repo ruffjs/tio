@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"log/slog"
 	"math/rand"
 	"strings"
 	"time"
 
 	"ruff.io/tio/config"
-	"ruff.io/tio/pkg/log"
 	"ruff.io/tio/shadow"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -63,12 +64,12 @@ func connectTioByMqtt() {
 	mqttClient = client.NewClient(cfg)
 	err := mqttClient.Connect(ctx)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatalf("mqtt connect error: %v", err)
 	}
 }
 
 func receiveShadowGetResp() {
-	log.Info("[Receive Shadow Get Response] subscribe")
+	slog.Info("[Receive Shadow Get Response] subscribe")
 
 	topicReq := fmt.Sprintf("$iothub/things/%s/shadows/name/default/get/+", thingId)
 	accepted := "accepted"
@@ -82,7 +83,7 @@ func receiveShadowGetResp() {
 			// Server accepted shadow get request
 			if strings.HasSuffix(m.Topic(), accepted) {
 				_ = json.Unmarshal(m.Payload(), &acceptedResp)
-				log.Infof("[Receive Shadow Get Response] get accepted: \n%s", toJsonStr(acceptedResp))
+				slog.Info("[Receive Shadow Get Response] get accepted", "response", toJsonStr(acceptedResp))
 				if len(acceptedResp.State.Delta) > 0 {
 					doControlOrConfigByDelta(acceptedResp.State.Delta)
 					updateShadowReported(lightState)
@@ -91,8 +92,7 @@ func receiveShadowGetResp() {
 
 			if strings.HasSuffix(m.Topic(), rejected) {
 				_ = json.Unmarshal(m.Payload(), &rejectedResp)
-				log.Errorf("[Receive Shadow Get Response] get rejected, code: %d , msg: %s",
-					rejectedResp.Code, rejectedResp.Message)
+				slog.Error("[Receive Shadow Get Response] get rejected", "code", rejectedResp.Code, "message", rejectedResp.Message)
 				// Do something when get shadow rejected by code of the response, eg: try agin
 				// ...
 			}
@@ -106,7 +106,7 @@ func receiveShadowGetResp() {
 }
 
 func receiveShadowUpdateResp() {
-	log.Info("[Receive Shadow Update Response] subscribe")
+	slog.Info("[Receive Shadow Update Response] subscribe")
 
 	topicReq := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update/+", thingId)
 	accepted := "accepted"
@@ -120,12 +120,12 @@ func receiveShadowUpdateResp() {
 			// Server accepted shadow get request
 			if strings.HasSuffix(m.Topic(), accepted) {
 				_ = json.Unmarshal(m.Payload(), &acceptedResp)
-				log.Infof("[Receive Shadow Update Response] update accepted: \n%s", toJsonStr(acceptedResp))
+				slog.Info("[Receive Shadow Update Response] update accepted: \n%s", toJsonStr(acceptedResp))
 			}
 
 			if strings.HasSuffix(m.Topic(), rejected) {
 				_ = json.Unmarshal(m.Payload(), &rejectedResp)
-				log.Errorf("[Receive Shadow Update Response] update rejected, code: %d , msg: %s",
+				slog.Error("[Receive Shadow Update Response] update rejected, code: %d , msg: %s",
 					rejectedResp.Code, rejectedResp.Message)
 				// Do something when update shadow rejected by code of the response, eg: try agin
 				// ...
@@ -141,7 +141,7 @@ func receiveShadowUpdateResp() {
 
 // updateShadowReported Report device state by update `Shadow desired`
 func updateShadowReported(payload map[string]any) {
-	log.Infof("[LightState] Report shadow desired: power: %s, brightness: %v",
+	slog.Info("[LightState] Report shadow desired: power: %s, brightness: %v",
 		lightState["power"], lightState["brightness"])
 
 	r := shadow.StateReq{
@@ -149,7 +149,7 @@ func updateShadowReported(payload map[string]any) {
 		State:       shadow.StateDR{Reported: payload},
 	}
 	reqJson, _ := json.Marshal(r)
-	log.Infof("[Set Shadow Reported] \n%s", toJsonStr(r))
+	slog.Info("[Set Shadow Reported] \n%s", toJsonStr(r))
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update", thingId)
 	mqttClient.Publish(topic, mq.DefaultQos, false, reqJson)
 }
@@ -163,10 +163,10 @@ func receiveShadowDeltaNotice() {
 			var deltaNotice shadow.DeltaStateNotice
 			err := json.Unmarshal(m.Payload(), &deltaNotice)
 			if err != nil {
-				log.Errorf("Invalid message payload for method response")
+				slog.Error("Invalid message payload for method response")
 				return
 			}
-			log.Infof("[Receive Shadow Delta] receive: %+v", toJsonStr(deltaNotice))
+			slog.Info("[Receive Shadow Delta] receive: %+v", toJsonStr(deltaNotice))
 			doControlOrConfigByDelta(deltaNotice.State)
 			updateShadowReported(lightState)
 		}()
@@ -182,12 +182,12 @@ func receiveShadowDeltaNotice() {
 //  2. do the method action when receive method request
 //  3. send response like a http response
 func receiveDirectMethodInvoke() {
-	log.Info("[Receive Method Request] subscribe method request: make the light flash once")
+	slog.Info("[Receive Method Request] subscribe method request: make the light flash once")
 
 	topicReq := fmt.Sprintf("$iothub/things/%s/methods/%s/req", thingId, "flash")
 	topicResp := fmt.Sprintf("$iothub/things/%s/methods/%s/resp", thingId, "flash")
 
-	log.Infof("=== %s \n%s", topicReq, topicResp)
+	slog.Info("=== %s \n%s", topicReq, topicResp)
 
 	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
@@ -198,8 +198,8 @@ func receiveDirectMethodInvoke() {
 				if m, ok := req.Data.(map[string]any); ok {
 					if times, ok := m["times"]; ok {
 						c := int(times.(float64))
-						log.Infof("[Receive Method Request] \n%s", toJsonStr(req))
-						log.Infof("[Receive Method Request] flash light %d times", c)
+						slog.Info("[Receive Method Request] \n%s", toJsonStr(req))
+						slog.Info("[Receive Method Request] flash light %d times", c)
 
 						// Do the flash light action
 						flashLight(c)
@@ -219,7 +219,7 @@ func receiveDirectMethodInvoke() {
 					}
 				}
 			} else {
-				log.Errorf("[Receive Method Request] device unable to unmarshal method request body %s", m.Payload())
+				slog.Error("[Receive Method Request] device unable to unmarshal method request body %s", m.Payload())
 				resp = shadow.MethodResp{
 					ClientToken: req.ClientToken,
 					Data:        nil,
@@ -252,9 +252,9 @@ func regularlyReportState() {
 			tk := mqttClient.Publish(topic, mq.DefaultQos, false, data)
 			tk.Wait()
 			if tk.Error() != nil {
-				log.Errorf("[Report Property] error: %v", tk.Error())
+				slog.Error("[Report Property] error: %v", tk.Error())
 			} else {
-				log.Infof("[Report Property] %s %s", topic, data)
+				slog.Info("[Report Property] %s %s", topic, data)
 			}
 		}
 	}()
@@ -268,15 +268,15 @@ func doControlOrConfigByDelta(shadowDelta map[string]any) {
 			// Control light
 			case "brightness":
 				// Adjust the brightness of the light
-				log.Infof("[Receive Shadow Delta] adjust brightness to %v", v)
+				slog.Info("[Receive Shadow Delta] adjust brightness to %v", v)
 				// Record the state of the light
 				lightState[k] = v
 			case "power":
 				// Control light on/off
 				if v == "on" {
-					log.Info("[Receive Shadow Delta] turn on light")
+					slog.Info("[Receive Shadow Delta] turn on light")
 				} else {
-					log.Info("[Receive Shadow Delta] turn off light")
+					slog.Info("[Receive Shadow Delta] turn off light")
 				}
 				// Record the state of the light
 				lightState[k] = v
@@ -303,10 +303,10 @@ func doControlOrConfigByDelta(shadowDelta map[string]any) {
 			//     the current status and results of the OTA task through Shadow
 
 			default:
-				log.Infof("[Receive Shadow Delta] shadow delta field %q", k)
+				slog.Info("[Receive Shadow Delta] shadow delta field %q", k)
 			}
 		} else {
-			log.Errorf("[Receive Shadow Delta] unkown shadow delta field %q", k)
+			slog.Error("[Receive Shadow Delta] unkown shadow delta field %q", k)
 		}
 	}
 }
@@ -318,10 +318,10 @@ func flashLight(times int) {
 
 	toggle := func() {
 		if lightState["power"] == "off" {
-			log.Infof("[Light State] on")
+			slog.Info("[Light State] on")
 			lightState["power"] = "on"
 		} else {
-			log.Infof("[Light State] off")
+			slog.Info("[Light State] off")
 			lightState["power"] = "off"
 		}
 	}
