@@ -24,6 +24,7 @@ type Service interface {
 	Query(ctx context.Context, pq PageQuery) (Page, error)
 	Get(ctx context.Context, id string) (*Thing, error)
 	Exist(ctx context.Context, id string) (bool, error)
+	UpdateAuthValue(ctx context.Context, id string, authValue string) error
 
 	// Binding a thing to a gateway thing means that the gateway has full authority
 	// to communicate with the tio on behalf of the device
@@ -308,6 +309,17 @@ func (t *thingSvc) IsBoundGateway(ctx context.Context, thingId, gatewayThingId s
 
 func (t *thingSvc) delBoundCache(thingId string) {
 	gatewayBindCache.Delete(thingId)
+}
+
+func (t *thingSvc) UpdateAuthValue(ctx context.Context, id string, authValue string) error {
+	if ok, err := t.repo.Exist(ctx, id); err != nil {
+		return err
+	} else if !ok {
+		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
+	}
+
+	patch := thingPatch{AuthValue: &authValue}
+	return t.repo.Update(ctx, id, patch)
 }
 
 var idRegexp = regexp.MustCompile("^[0-9a-zA-Z_-]+$")

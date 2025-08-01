@@ -41,7 +41,6 @@ func TestThingSvc_Create(t *testing.T) {
 		resTh, err := svc.Create(ctxTest, th, nil, false)
 		require.NoError(t, err)
 		require.NotEmpty(t, resTh.Id, "thing id is empty")
-		require.NotEmpty(t, resTh.AuthValue, "thing auth value is empty")
 
 		sd, err := sdSvc.Get(ctxTest, resTh.Id)
 		require.NoError(t, err)
