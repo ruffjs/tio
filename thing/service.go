@@ -84,13 +84,6 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, 
 	if th.AuthType == "" {
 		th.AuthType = AuthTypePassword
 	}
-	if th.AuthType == AuthTypePassword && th.AuthValue == "" {
-		s, err := t.idProvider.ID()
-		if err != nil {
-			return Thing{}, errors.Wrap(err, "secret generate")
-		}
-		th.AuthValue = s
-	}
 
 	var res Thing
 	var err error
