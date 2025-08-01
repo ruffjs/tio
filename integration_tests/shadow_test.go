@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"log"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
 	rest "ruff.io/tio/pkg/restapi"
@@ -36,7 +34,7 @@ func TestShadowSetDesired(t *testing.T) {
 		var req shadow.DeltaStateNotice
 		err := json.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal delta state")
-		log.Debugf("device receive delta state: %#v", req)
+		slog.Debug("device receive delta state", "req", req)
 		require.Equal(t, req.State["color"], "red-for-set-desired", "delta state is not valid")
 	})
 	require.NoError(t, err)
@@ -44,7 +42,7 @@ func TestShadowSetDesired(t *testing.T) {
 		var req shadow.StateUpdatedNotice
 		err := json.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
-		log.Debugf("device receive state update notice: %#v", req)
+		slog.Debug("device receive state update notice", "req", req)
 		require.Equal(t, req.Current.State.Desired["color"], "red-for-set-desired", "state update notice is not valid")
 		require.Equal(t, req.Previous.State.Desired["color"], nil, "state update notice is not valid")
 	})
@@ -85,14 +83,14 @@ func TestShadowSetReported(t *testing.T) {
 		var n shadow.DeltaStateNotice
 		err := json.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal delta state")
-		log.Debugf("device receive delta state: %#v", n)
+		slog.Debug("device receive delta state", "n", n)
 	})
 	require.NoError(t, err)
 	err = thingClient.Subscribe(ctx, shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var n shadow.StateUpdatedNotice
 		err := json.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
-		log.Debugf("device received state update notice: %#v, %s", n, string(m.Payload()))
+		slog.Debug("device received state update notice", "n", n, "payload", string(m.Payload()))
 		require.Equal(t, stateReq.State.Reported["color"], n.Current.State.Reported["color"],
 			"state update notice is not valid")
 		require.Equal(t, nil, n.Previous.State.Reported["color"],
@@ -104,7 +102,7 @@ func TestShadowSetReported(t *testing.T) {
 		var resp shadow.StateAcceptedResp
 		err := json.Unmarshal(m.Payload(), &resp)
 		require.NoError(t, err, "device unable to unmarshal accepted message")
-		log.Debugf("device received state update accepted message: %#v", resp)
+		slog.Debug("device received state update accepted message", "resp", resp)
 		require.Equal(t, stateReq.ClientToken, resp.ClientToken, "client token mismatch")
 	})
 	require.NoError(t, err)

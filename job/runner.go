@@ -285,7 +285,7 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 					for _, t := range l {
 						curQ.Push(&t)
 					}
-					slog.Debug("JobRunner got thing online", "thingId", e.ThingId, "taskCount", len(l), "put back tasks done")
+					slog.Debug("JobRunner got thing online, put back tasks done", "thingId", e.ThingId, "taskCount", len(l))
 				}
 			}
 		case <-r.getPendingTasksOfSysReqCh:

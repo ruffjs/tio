@@ -120,13 +120,12 @@ func receiveShadowUpdateResp() {
 			// Server accepted shadow get request
 			if strings.HasSuffix(m.Topic(), accepted) {
 				_ = json.Unmarshal(m.Payload(), &acceptedResp)
-				slog.Info("[Receive Shadow Update Response] update accepted: \n%s", toJsonStr(acceptedResp))
+				slog.Info("[Receive Shadow Update Response] update accepted", "response", toJsonStr(acceptedResp))
 			}
 
 			if strings.HasSuffix(m.Topic(), rejected) {
 				_ = json.Unmarshal(m.Payload(), &rejectedResp)
-				slog.Error("[Receive Shadow Update Response] update rejected, code: %d , msg: %s",
-					rejectedResp.Code, rejectedResp.Message)
+				slog.Error("[Receive Shadow Update Response] update rejected", "code", rejectedResp.Code, "message", rejectedResp.Message)
 				// Do something when update shadow rejected by code of the response, eg: try agin
 				// ...
 			}
@@ -149,7 +148,7 @@ func updateShadowReported(payload map[string]any) {
 		State:       shadow.StateDR{Reported: payload},
 	}
 	reqJson, _ := json.Marshal(r)
-	slog.Info("[Set Shadow Reported] \n%s", toJsonStr(r))
+	slog.Info("[Set Shadow Reported]", "request", toJsonStr(r))
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update", thingId)
 	mqttClient.Publish(topic, mq.DefaultQos, false, reqJson)
 }
@@ -166,7 +165,7 @@ func receiveShadowDeltaNotice() {
 				slog.Error("Invalid message payload for method response")
 				return
 			}
-			slog.Info("[Receive Shadow Delta] receive: %+v", toJsonStr(deltaNotice))
+			slog.Info("[Receive Shadow Delta] receive", "deltaNotice", toJsonStr(deltaNotice))
 			doControlOrConfigByDelta(deltaNotice.State)
 			updateShadowReported(lightState)
 		}()
@@ -187,7 +186,7 @@ func receiveDirectMethodInvoke() {
 	topicReq := fmt.Sprintf("$iothub/things/%s/methods/%s/req", thingId, "flash")
 	topicResp := fmt.Sprintf("$iothub/things/%s/methods/%s/resp", thingId, "flash")
 
-	slog.Info("=== %s \n%s", topicReq, topicResp)
+	slog.Info("=== subscribe", "topicReq", topicReq, "topicResp", topicResp)
 
 	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
@@ -198,8 +197,8 @@ func receiveDirectMethodInvoke() {
 				if m, ok := req.Data.(map[string]any); ok {
 					if times, ok := m["times"]; ok {
 						c := int(times.(float64))
-						slog.Info("[Receive Method Request] \n%s", toJsonStr(req))
-						slog.Info("[Receive Method Request] flash light %d times", c)
+						slog.Info("[Receive Method Request]", "req", toJsonStr(req))
+						slog.Info("[Receive Method Request] flash light", "times", c)
 
 						// Do the flash light action
 						flashLight(c)
@@ -219,7 +218,7 @@ func receiveDirectMethodInvoke() {
 					}
 				}
 			} else {
-				slog.Error("[Receive Method Request] device unable to unmarshal method request body %s", m.Payload())
+				slog.Error("[Receive Method Request] device unable to unmarshal method request body", "payload", m.Payload())
 				resp = shadow.MethodResp{
 					ClientToken: req.ClientToken,
 					Data:        nil,
@@ -252,9 +251,9 @@ func regularlyReportState() {
 			tk := mqttClient.Publish(topic, mq.DefaultQos, false, data)
 			tk.Wait()
 			if tk.Error() != nil {
-				slog.Error("[Report Property] error: %v", tk.Error())
+				slog.Error("[Report Property] error", "error", tk.Error())
 			} else {
-				slog.Info("[Report Property] %s %s", topic, data)
+				slog.Info("[Report Property]", "topic", topic, "data", data)
 			}
 		}
 	}()
@@ -268,7 +267,7 @@ func doControlOrConfigByDelta(shadowDelta map[string]any) {
 			// Control light
 			case "brightness":
 				// Adjust the brightness of the light
-				slog.Info("[Receive Shadow Delta] adjust brightness to %v", v)
+				slog.Info("[Receive Shadow Delta] adjust brightness to", "value", v)
 				// Record the state of the light
 				lightState[k] = v
 			case "power":
@@ -303,10 +302,10 @@ func doControlOrConfigByDelta(shadowDelta map[string]any) {
 			//     the current status and results of the OTA task through Shadow
 
 			default:
-				slog.Info("[Receive Shadow Delta] shadow delta field %q", k)
+				slog.Info("[Receive Shadow Delta] shadow delta field", "field", k)
 			}
 		} else {
-			slog.Error("[Receive Shadow Delta] unkown shadow delta field %q", k)
+			slog.Error("[Receive Shadow Delta] unkown shadow delta field", "field", k)
 		}
 	}
 }

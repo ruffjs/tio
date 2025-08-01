@@ -61,7 +61,7 @@ func receivePresence(ctx context.Context, mqCl mq.Client) {
 	topic := connector.TopicPresenceAll
 	err := mqCl.Subscribe(ctx, connector.TopicPresenceAll, 1, func(c mqtt.Client, m mqtt.Message) {
 		var e connector.PresenceEvent
-		// log.Debugf("Got presence event: %s %s", m.Topic(), m.Payload())
+		// slog.Debug("Got presence event", "topic", m.Topic(), "payload", m.Payload())
 		err := json.Unmarshal(m.Payload(), &e)
 		if err != nil {
 			slog.Error("Unmarshal presence event", "payload", m.Payload(), "error", err)
