@@ -57,7 +57,7 @@ func checkSuperUser(user, password string, superUsers []config.UserPassword) boo
 
 // handleGetThingError handles errors when getting thing from service
 func handleGetThingError(ctx context.Context, user, password, clientId string, err error, provision thing.Provision) bool {
-	if errors.Is(err, model.ErrNotFound) && provision != nil {
+	if provision != nil && errors.Is(err, model.ErrNotFound) {
 		if pass, _, err := provision.AutoRegisterViaHmac(ctx, user, password); pass && err == nil {
 			return true
 		}

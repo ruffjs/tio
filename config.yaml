@@ -96,7 +96,7 @@ connector:
 # Thing's password should comply the generative rule:
 #   echo -n "thingId" | openssl dgst -md5 -hmac "provisionSecret" | xargs -I {} echo H{}
 # If provisionSecret is an empty string, disable automatic thing creation
-provisionSecret: public
+provisionSecret:
 
 log:
   level: debug # debug info warn error
