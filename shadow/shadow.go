@@ -120,6 +120,8 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 				slog.Error("Got wrong topic msg topic for state update request")
 				return
 			}
+			slog.Debug("Got shadow update msg", "thingId", thingId, "payload", string(msg.Payload()))
+
 			var r StateReq
 			err = json.Unmarshal(msg.Payload(), &r)
 			if err != nil {
