@@ -2,21 +2,21 @@
   <el-card class="shadow-state-card" shadow="never">
     <template #header>
       <div class="shadow-state-card-header">
-        <span>Shadow Data </span>
+        <span>{{ $t('things.shadowData') }}</span>
         <div class="shadow-state-card-buttons">
           <el-switch
             v-model="isJSONViewTreeMode"
             size="small"
             inline-prompt
-            active-text="Tree"
-            inactive-text="Text"
+            :active-text="$t('common.tree')"
+            :inactive-text="$t('common.text')"
           />
           <el-divider direction="vertical" />
-          <el-button size="small" @click="handleCompareState">Compare State</el-button>
-          <el-button size="small" @click="handleCheckDelta">Check Delta</el-button>
+          <el-button size="small" @click="handleCompareState">{{ $t('things.compareState') }}</el-button>
+          <el-button size="small" @click="handleCheckDelta">{{ $t('things.checkDelta') }}</el-button>
           <el-divider direction="vertical" />
-          <el-button size="small" @click="emit('call', 'desire')">Set Desired</el-button>
-          <el-button size="small" @click="handleSetReported">Set Reported</el-button>
+          <el-button size="small" @click="emit('call', 'desire')">{{ $t('things.setDesired') }}</el-button>
+          <el-button size="small" @click="handleSetReported">{{ $t('things.setReported') }}</el-button>
         </div>
       </div>
     </template>

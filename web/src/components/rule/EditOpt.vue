@@ -16,28 +16,28 @@
           </el-form-item> -->
 
           <!-- <el-form-item v-else-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label" -->
-          <el-form-item v-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="s.label"
+          <el-form-item v-if="['text', 'number', 'checkbox', 'select'].includes(s.type)" :label="getLabel(s)"
             :rules="s.rules" :prop="name">
             <el-input v-if="s.type == 'text'" v-model="model[name]" :placeholder="s.placeholder" :disabled="!isNew" />
             <el-input type="password" show-password v-if="s.type == 'password'" v-model="model[name]"
               :placeholder="s.placeholder" />
             <el-input-number v-if="s.type == 'number'" v-model="model[name]" :placeholder="s.placeholder" />
             <el-select v-if="s.type == 'select'" v-model="model[name]" :placeholder="s.placeholder">
-              <el-option v-for="o in s.options" :label="o.label" :value="o.value" />
+              <el-option v-for="o in s.options" :label="getLabel(o)" :value="o.value" />
             </el-select>
           </el-form-item>
 
           <template v-if="s.type == 'object'">
             <el-divider />
-            <label>{{ s.label }}</label>
-            <el-form-item v-for="(t, tname) in s.items" :label="t.label" :rules="t.rules" :prop="name + '.' + tname">
+            <label>{{ getLabel(s) }}</label>
+            <el-form-item v-for="(t, tname) in s.items" :label="getLabel(t)" :rules="t.rules" :prop="name + '.' + tname">
               <el-input v-if="t.type == 'text'" v-model="model[name][tname]" :placeholder="t.placeholder" />
               <el-input type="password" show-password v-if="t.type == 'password'" v-model="model[name][tname]"
                 :placeholder="t.placeholder" />
               <el-input-number v-if="t.type == 'number'" v-model="model[name][tname]" :placeholder="t.placeholder" />
               <el-checkbox v-if="t.type == 'checkbox'" v-model="model[name][tname]" :title="t.placeholder" />
               <el-select v-if="t.type == 'select'" v-model="model[name][tname]" :placeholder="t.placeholder">
-                <el-option v-for="o in t.options" :label="o.label" :value="o.value" />
+                <el-option v-for="o in t.options" :label="getLabel(o)" :value="o.value" />
               </el-select>
               <KeyValueEditor v-if="t.type == 'kv'" title="" :disabled="false" v-model="model[name][tname]" />
             </el-form-item>
@@ -48,8 +48,8 @@
     <div v-if="type == 'sink' && sinkTip">
       <el-divider />
       <h4>Tip</h4>
-      <div v-html="sinkTip.note"></div>
-      <label>Example: </label>
+      <div v-html="getLabel(sinkTip)"></div>
+      <label>{{ $t('common.example') }}: </label>
       <br />
       <template v-for="c in sinkTip.formatExamples">
         <code>{{ c }} </code> <br />
@@ -62,6 +62,9 @@
 import { onMounted, reactive, ref, watch } from 'vue';
 import * as ruleSchema from '@/components/rule/rule-schema'
 import KeyValueEditor from '@/components/common/KeyValueEditor.vue'
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const model = defineModel()
 const props = defineProps({
@@ -116,6 +119,10 @@ const fillOptions = () => {
   if (typeChanged) {
     model.value.options = {}
   }
+}
+
+const getLabel = (item) => {
+  return item.labelLocale ? t(item.labelLocale) : item.label
 }
 
 onMounted(() => {

@@ -3,20 +3,18 @@
     <template #header>
       <div class="shadow-tags-card-header">
         <span
-          >Shadow Tags
-          <el-tag type="info" size="small" class="shadow-tags-card-header-tag"
-            >Tag color show as blue while the value is not a string, or as gray.</el-tag
-          ></span
+          >{{ $t('things.shadowTags') }}
+          </span
         >
         <div class="shadow-tags-card-buttons">
           <el-button
             v-if="data"
             icon="View"
             size="small"
-            @click="viewObject(data, 'Tags Raw')"
-            >View Raw</el-button
+            @click="viewObject(data, $t('things.tagsRaw'))"
+            >{{ $t('things.viewRaw') }}</el-button
           >
-          <el-button icon="Plus" size="small" @click="emit('update')">Set Tags</el-button>
+          <el-button icon="Plus" size="small" @click="emit('update')">{{ $t('things.setTags') }}</el-button>
         </div>
       </div>
     </template>
@@ -50,9 +48,9 @@
       </el-tag>
     </div>
     <div v-else class="shadow-tags-empty">
-      <p>No tags right now.</p>
+      <p>{{ $t('things.noTagsRightNow') }}</p>
       <el-button type="default" icon="Plus" size="small" @click="emit('update')"
-        >Add Some Now</el-button
+        >{{ $t('things.addSomeNow') }}</el-button
       >
     </div>
   </el-card>

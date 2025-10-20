@@ -2,7 +2,7 @@
   <div class="shadow-props">
     <div class="shadow-prop">
       <el-alert
-        title="Updated At"
+        :title="$t('things.updatedAt')"
         :description="dayjs(shadow.updatedAt).format('MMM DD, YYYY HH:mm:ss')"
         :type="shadow.connected ? 'success' : 'info'"
         :closable="false"
@@ -10,7 +10,7 @@
     </div>
     <div class="shadow-prop">
       <el-alert
-        title="Version"
+        :title="$t('things.version')"
         :description="String(shadow.version)"
         :type="shadow.connected ? 'success' : 'info'"
         :closable="false"
@@ -18,7 +18,7 @@
     </div>
     <div v-if="shadow.remoteAddr" class="shadow-prop">
       <el-alert
-        title="Remote Address"
+        :title="$t('things.remoteAddress')"
         :description="shadow.remoteAddr"
         :type="shadow.connected ? 'success' : 'info'"
         :closable="false"
@@ -27,16 +27,16 @@
     <div class="shadow-prop">
       <el-alert
         v-if="shadow.connected"
-        title="Conn"
-        description="Connected"
+        :title="$t('things.connected')"
+        :description="$t('mqtt.connected')"
         type="success"
         show-icon
         :closable="false"
       />
       <el-alert
         v-else
-        title="Conn"
-        description="Disconnected"
+        :title="$t('things.connected')"
+        :description="$t('mqtt.disconnected')"
         type="info"
         :closable="false"
       />

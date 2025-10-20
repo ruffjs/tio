@@ -4,24 +4,25 @@
       <span>{{ thingId }}</span>
     </div>
     <div class="nav-buttons">
+      <LanguageSwitcher />
       <div class="nav-button" @click="handleLogOut">
-        <el-icon><Avatar /></el-icon>{{ hasAuth ? "Log Out" : "" }}
+        <el-icon><Avatar /></el-icon>{{ hasAuth ? $t('nav.logOut') : "" }}
       </div>
       <div v-if="isList" class="nav-button" @click="handleShowAddingForm">
-        <el-icon><CirclePlusFilled /></el-icon>Add Thing
+        <el-icon><CirclePlusFilled /></el-icon>{{ $t('nav.addThing') }}
       </div>
       <div v-if="isList" class="nav-button" @click="requestUpdateShadowList">
-        <el-icon><Refresh /></el-icon>Refresh List
+        <el-icon><Refresh /></el-icon>{{ $t('nav.refreshList') }}
       </div>
       <div
         v-if="isThing && currentShadow.connected"
         class="nav-button danger"
         @click="handleKickOutSelected"
       >
-        <el-icon><Scissor /></el-icon>Kick Out
+        <el-icon><Scissor /></el-icon>{{ $t('nav.kickOut') }}
       </div>
       <div v-if="isThing" class="nav-button" @click="updateCurrentShadow">
-        <el-icon><Refresh /></el-icon>Refresh Shadow
+        <el-icon><Refresh /></el-icon>{{ $t('nav.refreshShadow') }}
       </div>
       <!-- <div v-if="isThing" class="nav-button" @click="handleReturnList">
         <el-icon><Menu /></el-icon>Back List
@@ -38,6 +39,7 @@ import { useRouter } from "vue-router";
 import List from "@/components/views/List.vue";
 import Thing from "@/components/views/Thing.vue";
 import AddThingForm from "./AddThingForm.vue";
+import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { kickOutClient } from "@/apis";
 
@@ -117,6 +119,7 @@ const handleLogOut = () => {
     align-items: center;
     height: 50px;
     padding: 10px 20px;
+    gap: 12px;
 
     .nav-button {
       display: flex;
@@ -124,7 +127,6 @@ const handleLogOut = () => {
       justify-content: center;
       align-items: center;
 
-      margin-left: 20px;
       font-size: 12px;
       cursor: pointer;
       &:hover {

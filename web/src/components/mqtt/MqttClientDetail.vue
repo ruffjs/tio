@@ -22,7 +22,7 @@
         <el-row :gutter="10">
           <el-col :span="16">
             <el-button :disabled="true" type="success" class="subscription-stats" plain
-              ><span>Subscription</span
+              ><span>{{ $t('mqtt.subscription') }}</span
               ><span>
                 {{ getSubscribedSubs(subscribed).length }} /
                 {{ selectedConn.subscriptions.length }}</span
@@ -36,7 +36,7 @@
               icon="Plus"
               plain
               @click="handleCreateSubscription"
-              >Add</el-button
+              >{{ $t('mqtt.addSubscription') }}</el-button
             >
           </el-col>
           <el-col :span="12">
@@ -45,7 +45,7 @@
               type="primary"
               plain
               @click="handleSubscribeAll"
-              >Subscribe All</el-button
+              >{{ $t('mqtt.subsAll') }}</el-button
             >
           </el-col>
           <el-col :span="12">
@@ -54,7 +54,7 @@
               type="warning"
               plain
               @click="handleUnsubscribeAll"
-              >Unsubscribe All</el-button
+              >{{ $t('mqtt.unsubAll') }}</el-button
             >
           </el-col>
         </el-row>

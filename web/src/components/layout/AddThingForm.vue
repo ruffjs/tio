@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="true"
     width="480"
-    title="Add Thing"
+    :title="t('things.addThing')"
     append-to-body
     @close="emit('close')"
   >
@@ -12,18 +12,18 @@
       ref="formRef"
       @keyup.enter.native="handleConfirm"
     >
-      <el-form-item label="Thing Id" prop="thingId" :label-width="formLabelWidth">
+      <el-form-item :label="t('things.thingId')" prop="thingId" :label-width="formLabelWidth">
         <el-input
           v-model="form.thingId"
           autocomplete="off"
-          placeholder="it can contain number,letter, - and _"
+          :placeholder="t('things.thingIdPlaceholder')"
         />
       </el-form-item>
-      <el-form-item label="Password" prop="password" :label-width="formLabelWidth">
+      <el-form-item :label="t('login.password')" prop="password" :label-width="formLabelWidth">
         <el-input
           v-model="form.password"
           type="password"
-          placeholder="input or it will be automatically generated"
+          :placeholder="t('things.passwordPlaceholder')"
           show-password
           autocomplete="off"
         />
@@ -31,8 +31,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="emit('close')">Cancel</el-button>
-        <el-button type="primary" @click="handleConfirm"> Confirm </el-button>
+        <el-button @click="emit('close')">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleConfirm">{{ t('common.confirm') }}</el-button>
       </span>
     </template>
   </el-dialog>
@@ -40,7 +40,10 @@
 
 <script lang="ts" setup>
 import { reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
+
+const { t } = useI18n();
 
 const formLabelWidth = "100px";
 const rules = {

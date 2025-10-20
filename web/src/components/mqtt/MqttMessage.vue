@@ -9,11 +9,11 @@
         >
           <div class="mqtt-message-box">
             <div class="mqtt-message-meta">
-              <span class="mqtt-message-meta-label">Topic:</span>
+              <span class="mqtt-message-meta-label">{{ $t('mqtt.topic') }}:</span>
               <span class="mqtt-message-meta-value">{{ message.topic }}</span>
-              <span class="mqtt-message-meta-label qos">QoS:</span>
+              <span class="mqtt-message-meta-label qos">{{ $t('mqtt.qos') }}:</span>
               <span class="mqtt-message-meta-value retain">{{ message.qos }}</span>
-              <span v-if="message.retain" class="mqtt-message-meta-label retain">Retained</span>
+              <span v-if="message.retain" class="mqtt-message-meta-label retain">{{ $t('mqtt.retained') }}</span>
             </div>
             <div class="mqtt-message-data">{{ String(message.payload) }}</div>
           </div>
@@ -47,24 +47,27 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import useMqtt from "@/reactives/useMqtt";
 import { teleports } from "@/reactives/useLayout";
 import { matchTopicMethod } from "@/utils/subs";
 
-const typeOptions = [
+const { t } = useI18n();
+
+const typeOptions = computed(() => [
   {
     value: "all",
-    label: "All",
+    label: t('mqtt.all'),
   },
   {
     value: "in",
-    label: "Received",
+    label: t('mqtt.received'),
   },
   {
     value: "out",
-    label: "Published",
+    label: t('mqtt.published'),
   },
-];
+]);
 
 const props = defineProps({
   filterTopic: {

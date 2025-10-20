@@ -273,6 +273,27 @@
   dependencies:
     "@fortawesome/fontawesome-common-types" "6.5.1"
 
+"@intlify/core-base@9.14.5":
+  version "9.14.5"
+  resolved "https://registry.npmmirror.com/@intlify/core-base/-/core-base-9.14.5.tgz#cfed631e98b34f4f6fe1312e6c02dd8ace180197"
+  integrity sha512-5ah5FqZG4pOoHjkvs8mjtv+gPKYU0zCISaYNjBNNqYiaITxW8ZtVih3GS/oTOqN8d9/mDLyrjD46GBApNxmlsA==
+  dependencies:
+    "@intlify/message-compiler" "9.14.5"
+    "@intlify/shared" "9.14.5"
+
+"@intlify/message-compiler@9.14.5":
+  version "9.14.5"
+  resolved "https://registry.npmmirror.com/@intlify/message-compiler/-/message-compiler-9.14.5.tgz#03b0a358c93cb2eed95936531c8a5871fd3841b0"
+  integrity sha512-IHzgEu61/YIpQV5Pc3aRWScDcnFKWvQA9kigcINcCBXN8mbW+vk9SK+lDxA6STzKQsVJxUPg9ACC52pKKo3SVQ==
+  dependencies:
+    "@intlify/shared" "9.14.5"
+    source-map-js "^1.0.2"
+
+"@intlify/shared@9.14.5":
+  version "9.14.5"
+  resolved "https://registry.npmmirror.com/@intlify/shared/-/shared-9.14.5.tgz#2e42193b8356db20ee28c15d1ee6c8f0fda6c0b9"
+  integrity sha512-9gB+E53BYuAEMhbCAxVgG38EZrk59sxBtv3jSizNL2hEWlgjBjAw1AwpLHtNaeda12pe6W20OGEa0TwuMSRbyQ==
+
 "@jridgewell/gen-mapping@^0.3.0":
   version "0.3.3"
   resolved "https://registry.npmmirror.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.3.tgz#7e02e6eb5df901aaedb08514203b096614024098"
@@ -575,6 +596,11 @@
   version "6.6.1"
   resolved "https://registry.npmmirror.com/@vue/devtools-api/-/devtools-api-6.6.1.tgz#7c14346383751d9f6ad4bea0963245b30220ef83"
   integrity sha512-LgPscpE3Vs0x96PzSSB4IGVSZXZBZHpfxs+ZA1d+VEPwHdOXowy/Y2CsvCAIFrf+ssVU1pD1jidj505EpUnfbA==
+
+"@vue/devtools-api@^6.5.0":
+  version "6.6.4"
+  resolved "https://registry.npmmirror.com/@vue/devtools-api/-/devtools-api-6.6.4.tgz#cbe97fe0162b365edc1dba80e173f90492535343"
+  integrity sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==
 
 "@vue/language-core@1.8.27":
   version "1.8.27"
@@ -1871,6 +1897,15 @@ vue-demi@*, vue-demi@^0.14.6:
   version "0.14.7"
   resolved "https://registry.npmmirror.com/vue-demi/-/vue-demi-0.14.7.tgz#8317536b3ef74c5b09f268f7782e70194567d8f2"
   integrity sha512-EOG8KXDQNwkJILkx/gPcoL/7vH+hORoBaKgGe+6W7VFMvCYJfmF2dGbvgDroVnI8LU7/kTu8mbjRZGBU1z9NTA==
+
+vue-i18n@9:
+  version "9.14.5"
+  resolved "https://registry.npmmirror.com/vue-i18n/-/vue-i18n-9.14.5.tgz#72fbf4384b83a1c59ec9e01ff5d30224bd9150cf"
+  integrity sha512-0jQ9Em3ymWngyiIkj0+c/k7WgaPO+TNzjKSNq9BvBQaKJECqn9cd9fL4tkDhB5G1QBskGl9YxxbDAhgbFtpe2g==
+  dependencies:
+    "@intlify/core-base" "9.14.5"
+    "@intlify/shared" "9.14.5"
+    "@vue/devtools-api" "^6.5.0"
 
 vue-router@^4.3.0:
   version "4.3.0"

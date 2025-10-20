@@ -2,7 +2,7 @@
 
   <el-row :gutter="10" class="con">
     <el-col :span="20" style="margin-bottom: 10px;">
-      <el-button icon="ArrowLeft" link @click="emit('cancel')">Back</el-button>
+      <el-button icon="ArrowLeft" link @click="emit('cancel')">{{ $t('nav.backList') }}</el-button>
     </el-col>
 
     <el-col :span="14" class="part left">
@@ -16,7 +16,7 @@
           </el-col>
         </el-form-item>
 
-        <div>Process
+        <div>{{ $t('rules.process') }}
           <el-popover placement="top-start" title="Help" :width="400" trigger="hover">
             <template #default>
               Input data for script is a json object like:
@@ -76,7 +76,7 @@
           </el-col>
         </el-form-item>
 
-        <div>Debug</div>
+        <div>{{ $t('rules.debug') }}</div>
         <br />
         <el-form-item>
           <el-col :span="12">
@@ -86,15 +86,15 @@
             <el-input v-model="form.testData.topic" placeholder="Topic" />
           </el-col>
           <el-col :span="24">
-            <label>Payload</label>
+            <label>{{ $t('rules.payload') }}</label>
             <JSONEditor v-model="form.testData.payload" class="json-editor" />
           </el-col>
           <el-col :span="24">
-            <el-button type="primary" @click="test">Test</el-button>
+            <el-button type="primary" @click="test">{{ $t('rules.test') }}</el-button>
           </el-col>
 
           <el-col :span="24" v-if="testResult.success != undefined">
-            <label>Result</label>
+            <label>{{ $t('rules.result') }}</label>
             <el-input v-if="testResult.success" v-model="testResult.output" type="textarea" placeholder="Result"
               :autosize="{ minRow: 2, maxRow: 8 }" />
             <div v-if="testResult.success == false" class="test-result">
@@ -109,8 +109,8 @@
         <br />
         <el-form-item>
           <el-col :span="24">
-            <el-button type="primary" @click="save">Save</el-button>
-            <el-button @click="emit('cancel')">Cancel</el-button>
+            <el-button type="primary" @click="save">{{ $t('common.save') }}</el-button>
+            <el-button @click="emit('cancel')">{{ $t('common.cancel') }}</el-button>
           </el-col>
         </el-form-item>
 
@@ -119,7 +119,7 @@
 
     <el-col :span="10" class="part right">
       <el-form :model="form" label-width="auto" label-position="top" style="width: 100%; ">
-        <div>Sources</div>
+        <div>{{ $t('rules.source') }}</div>
         <br />
         <div class="io">
           <div v-for="s in form.sources" class="io-item">
@@ -159,9 +159,9 @@
               <el-select v-model="ioAdd.source.selected">
                 <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s.name" />
               </el-select>
-              <el-button type="primary" @click="addIo('source')">Confirm</el-button>
-              <el-button type="success" @click="createNewSource">New</el-button>
-              <el-button @click="ioAdd.source.show = false">Cancel</el-button>
+              <el-button type="primary" @click="addIo('source')">{{ $t('common.confirm') }}</el-button>
+              <el-button type="success" @click="createNewSource">{{ $t('common.new') }}</el-button>
+              <el-button @click="ioAdd.source.show = false">{{ $t('common.cancel') }}</el-button>
             </div>
             <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
               @click="toAddIo('source')"></el-button>
@@ -170,7 +170,7 @@
 
 
         <el-divider></el-divider>
-        <div>Sinks</div>
+        <div>{{ $t('rules.sink') }}</div>
         <br />
 
         <div class="io">
@@ -226,9 +226,9 @@
               <el-select v-model="ioAdd.sink.selected">
                 <el-option v-for="s in ioAdd.sink.availabe" :label="s.name" :value="s.name" />
               </el-select>
-              <el-button type="primary" @click="addIo('sink')">Confirm</el-button>
-              <el-button type="success" @click="createNewSink">New</el-button>
-              <el-button @click="ioAdd.sink.show = false">Cancel</el-button>
+              <el-button type="primary" @click="addIo('sink')">{{ $t('common.confirm') }}</el-button>
+              <el-button type="success" @click="createNewSink">{{ $t('common.new') }}</el-button>
+              <el-button @click="ioAdd.sink.show = false">{{ $t('common.cancel') }}</el-button>
             </div>
             <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
               @click="toAddIo('sink')"></el-button>
@@ -252,8 +252,8 @@
       @create-connector="createNewConnector" />
     <template #footer>
       <div style="flex: auto">
-        <el-button type="primary" @click="confirmComponentEdit">Confirm</el-button>
-        <el-button @click="cancelComponentEdit">Cancel</el-button>
+        <el-button type="primary" @click="confirmComponentEdit">{{ $t('common.confirm') }}</el-button>
+        <el-button @click="cancelComponentEdit">{{ $t('common.cancel') }}</el-button>
       </div>
     </template>
   </el-drawer>

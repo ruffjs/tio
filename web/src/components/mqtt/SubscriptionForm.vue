@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="isCreate ? 'Add Subcription' : 'Edit Subcription'"
+    :title="isCreate ? $t('mqtt.addSubscription') : $t('mqtt.editSubscription')"
     width="50vw"
     class="subscriptions-form"
     append-to-body
@@ -9,21 +9,21 @@
   >
     <template #footer>
       <span class="subscriptions-form-footer">
-        <el-button @click="hideMqttSubsForm">Cancel</el-button>
-        <el-button type="primary" @click="handleSubscribe">Subscribe</el-button>
+        <el-button @click="hideMqttSubsForm">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubscribe">{{ $t('mqtt.subscribe') }}</el-button>
       </span>
     </template>
     <el-form ref="formRef" :model="form" :rules="rules" class="subscriptions-form-main">
       <el-row :gutter="20">
         <el-col :span="24">
-          <el-form-item :label-width="formLabelWidth" label="Alias" prop="name">
+          <el-form-item :label-width="formLabelWidth" :label="$t('mqtt.alias')" prop="name">
             <el-input v-model.trim="form.name" :disabled="form.keep" size="small" />
           </el-form-item>
         </el-col>
         <el-col :span="24">
           <el-form-item
             :label-width="formLabelWidth"
-            label="Topic"
+            :label="$t('mqtt.topic')"
             prop="topic"
             :class="['subscriptions-form-topic', form.keep ? 'for-keep-subs' : '']"
           >
@@ -62,12 +62,12 @@
               <el-option
                 v-for="qos in qosOptions"
                 :key="qos.value"
-                :label="qos.label"
+                :label="getLabel(qos)"
                 :value="qos.value"
               >
                 <span style="float: left">{{ qos.value }}</span>
                 <span style="float: right; color: #8492a6; margin-left: 12px">{{
-                  qos.label
+                  getLabel(qos)
                 }}</span>
               </el-option>
             </el-select>
@@ -142,6 +142,9 @@ import { computed, ref, reactive, watch } from "vue";
 import { qosOptions } from "@/configs/tool";
 import { serverSubTopics, thingSubTopics } from "@/utils/subs";
 import useLayout from "@/reactives/useLayout";
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const formLabelWidth = "80px";
 const formLabelWidthMqtt5 = "180px";
@@ -197,6 +200,10 @@ const handleSelectTopic = (t) => {
   form.name = t.name;
   form.topic = t.topic;
 };
+
+const getLabel = (item) => {
+  return item.labelLocale ? t(item.labelLocale) : item.label
+}
 
 const handleSubscribe = async () => {
   if (!formRef.value) return;

@@ -25,13 +25,13 @@
           <el-icon>
             <Grid />
           </el-icon>
-          <span>Things</span>
+          <span>{{ $t('things.navTitle') }}</span>
         </el-menu-item>
         <el-menu-item index="/rules" route="/rules">
           <el-icon>
             <Operation />
           </el-icon>
-          <span>Rules</span>
+          <span>{{ $t('rules.navTitle') }}</span>
         </el-menu-item>
       </el-menu>
 

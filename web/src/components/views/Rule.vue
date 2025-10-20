@@ -7,19 +7,12 @@
     <div v-show="!showEditRule">
       <el-card>
         <div>
-          <label class="segment-title">Rules
-            <el-popover placement="top-start" title="Help" :width="550" trigger="hover">
+          <label class="segment-title">{{ $t('rules.title') }}
+            <el-popover placement="top-start" :title="$t('rules.help')" :width="550" trigger="hover">
               <template #default>
-                Rules are used to control the flow of data for integration.
-                <br />
-                <br />
-                A rule consists of : Sources --> Process(filter/transform chain) --> Sinks .
-                <br />
-                <br />
-                Connectors are used by sources or sinks.
-                <br />
-                <br />
-                Add or upate rule, connector, source or sink will reload whole rules and reset the metircs
+                <p>
+                  {{ $t('rules.helpContent') }}
+                </p>
               </template>
               <template #reference>
 
@@ -29,17 +22,17 @@
               </template>
             </el-popover>
           </label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddRule">Add</el-button>
+          <el-button type="primary" icon="Plus" size="small" @click="showAddRule">{{ $t('common.add') }}</el-button>
         </div>
         <el-table :data="data.config.rules" height="100%">
-          <el-table-column prop="name" label="Name">
+          <el-table-column prop="name" :label="$t('rules.name')">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
                 {{ scope.row.name }}
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="sources" label="Source">
+          <el-table-column prop="sources" :label="$t('rules.source')">
             <template #default="scope">
               <template v-for="(d, i) in scope.row.sources.map(n => getSrcDesp(n))">
                 <br v-if="i > 0" />
@@ -47,7 +40,7 @@
               </template>
             </template>
           </el-table-column>
-          <el-table-column prop="sinks" label="Sink">
+          <el-table-column prop="sinks" :label="$t('rules.sink')">
             <template #default="scope">
               <template v-for="(d, i) in scope.row.sinks.map(n => getSinkDesp(n))">
                 <br v-if="i > 0" />
@@ -55,10 +48,10 @@
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="Status">
+          <el-table-column :label="$t('rules.status')">
             <template #header>
-              Status
-              <el-tooltip content="Mouse over the status to see details">
+              {{ $t('rules.status') }}
+              <el-tooltip :content="$t('common.info')">
                 <el-icon>
                   <InfoFilled />
                 </el-icon>
@@ -70,21 +63,21 @@
           </el-table-column>
           <el-table-column prop="note" label="Note">
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable" width="70">
+          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('rule', scope.row, v)">Enabled</el-switch>
+                @change="v => toggleEnable('rule', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations" width="190">
+          <el-table-column :label="$t('rules.actions')" width="190">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editRule(scope.row)">
-                Edit
+                {{ $t('common.edit') }}
               </el-button>
               <el-button link type="primary" @click.prevent="duplicateRule(scope.row)">
-                Duplicate
+                {{ $t('common.duplicate') }}
               </el-button>
-              <DeleteButton title="Confimr delete?" @confirm="delRule(scope.row)" />
+              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delRule(scope.row)" />
             </template>
 
           </el-table-column>
@@ -94,70 +87,70 @@
       <br />
       <el-card>
         <div>
-          <label class="segment-title">Connectors</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddConnector">Add</el-button>
+          <label class="segment-title">{{ $t('rules.connector') }}</label>
+          <el-button type="primary" icon="Plus" size="small" @click="showAddConnector">{{ $t('common.add') }}</el-button>
         </div>
 
         <el-table :data="data.config.connectors" height="100%">
-          <el-table-column prop="name" label="name">
+          <el-table-column prop="name" :label="$t('rules.name')">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editConn(scope.row)">
                 {{ scope.row.name }}
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type">
+          <el-table-column prop="type" :label="$t('rules.type')">
           </el-table-column>
-          <el-table-column label="Status">
+          <el-table-column :label="$t('rules.status')">
             <template #default="scope">
               <component :is="getStatus('connector', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable" width="70">
+          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('connector', scope.row, v)">Enabled</el-switch>
+                @change="v => toggleEnable('connector', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations" width="120">
+          <el-table-column :label="$t('rules.actions')" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editConn(scope.row)">
-                Edit
+                {{ $t('common.edit') }}
               </el-button>
-              <DeleteButton title="Confimr delete?" @confirm="delConn(scope.row)" />
+              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delConn(scope.row)" />
             </template>
           </el-table-column>
         </el-table>
         <br />
 
         <div>
-          <label class="segment-title">Sources</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddSrc">Add</el-button>
+          <label class="segment-title">{{ $t('rules.source') }}</label>
+          <el-button type="primary" icon="Plus" size="small" @click="showAddSrc">{{ $t('common.add') }}</el-button>
         </div>
         <el-table :data="data.config.sources" height="100%">
-          <el-table-column prop="name" label="name">
+          <el-table-column prop="name" :label="$t('rules.name')">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSrc(scope.row)">
                 {{ scope.row.name }}
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type" />
-          <el-table-column label="Status">
+          <el-table-column prop="type" :label="$t('rules.type')" />
+          <el-table-column :label="$t('rules.status')">
             <template #default="scope">
               <component :is="getStatus('source', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable" width="70">
+          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('source', scope.row, v)">Enabled</el-switch>
+                @change="v => toggleEnable('source', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations" width="120">
+          <el-table-column :label="$t('rules.actions')" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSrc(scope.row)">
-                Edit
+                {{ $t('common.edit') }}
               </el-button>
               <DeleteButton title="Confimr delete?" @confirm="delSrc(scope.row)" />
             </template>
@@ -166,35 +159,35 @@
         <br />
 
         <div>
-          <label class="segment-title">Sinks</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddSink">Add</el-button>
+          <label class="segment-title">{{ $t('rules.sink') }}</label>
+          <el-button type="primary" icon="Plus" size="small" @click="showAddSink">{{ $t('common.add') }}</el-button>
         </div>
         <el-table :data="data.config.sinks" height="100%">
-          <el-table-column prop="name" label="name">
+          <el-table-column prop="name" :label="$t('rules.name')">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSink(scope.row)">
                 {{ scope.row.name }}
               </el-button>
             </template>
           </el-table-column>
-          <el-table-column prop="type" label="type" />
-          <el-table-column label="Status">
+          <el-table-column prop="type" :label="$t('rules.type')" />
+          <el-table-column :label="$t('rules.status')">
             <template #default="scope">
               <component :is="getStatus('sink', scope.row.name)" />
             </template>
           </el-table-column>
-          <el-table-column prop="eanbled" label="Enable" width="70">
+          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
             <template #default="scope">
               <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('sink', scope.row, v)">Enabled</el-switch>
+                @change="v => toggleEnable('sink', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="Operations" width="120">
+          <el-table-column :label="$t('rules.actions')" width="120">
             <template #default="scope">
               <el-button link type="primary" @click.prevent="editSink(scope.row)">
-                Edit
+                {{ $t('common.edit') }}
               </el-button>
-              <DeleteButton title="Confimr delete?" @confirm="delSink(scope.row)" />
+              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delSink(scope.row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -208,8 +201,8 @@
       :optionsSchema="drawerEdit.optionsSchema" :config="data.config" :type="drawerEdit.type" :isNew="drawerEdit.new" />
     <template #footer>
       <div style="flex: auto">
-        <el-button type="primary" @click="confirmEdit">Confirm</el-button>
-        <el-button @click="cancelEdit">Cancel</el-button>
+        <el-button type="primary" @click="confirmEdit">{{ $t('common.confirm') }}</el-button>
+        <el-button @click="cancelEdit">{{ $t('common.cancel') }}</el-button>
       </div>
     </template>
   </el-drawer>

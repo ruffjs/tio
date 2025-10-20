@@ -11,9 +11,9 @@
   >
     <div class="mqtt-clients-conns">
       <div class="mqtt-clients-conns-header">
-        <div class="mqtt-clients-title">Connections</div>
+        <div class="mqtt-clients-title">{{ $t('mqtt.clientConnections') }}</div>
         <div class="mqtt-clients-add">
-          <el-tooltip content="Click to create a mqtt client" placement="top">
+          <el-tooltip :content="$t('mqtt.clickToCreateMqttClient')" placement="top">
             <el-button
               type="default"
               icon="Plus"
@@ -21,7 +21,7 @@
               @click="showMqttConnForm()"
             />
           </el-tooltip>
-          <el-tooltip content="Click to view stats of default Broker" placement="top">
+          <el-tooltip :content="$t('mqtt.viewBrokerStatsTip')" placement="top">
             <el-button
               type="default"
               icon="Odometer"
@@ -58,23 +58,18 @@
           </div>
           <div class="mqtt-clients-curr-opts">
             <SwitchSizeButton />
-            <el-tooltip
+            <el-button
               v-for="op in opts"
               :content="op.tip"
+              :key="op.key"
+              :type="op.type"
+              :icon="op.icon"
               :disabled="op.disabled"
-              placement="top"
+              size="small"
+              plain
+              @click="handleOpt(op.key)"
+              >{{ op.label }}</el-button
             >
-              <el-button
-                :key="op.key"
-                :type="op.type"
-                :icon="op.icon"
-                :disabled="op.disabled"
-                size="small"
-                plain
-                @click="handleOpt(op.key)"
-                >{{ op.label }}</el-button
-              >
-            </el-tooltip>
           </div>
         </template>
         <div v-else class="mqtt-clients-curr-name">No Selected Connection</div>
@@ -104,7 +99,9 @@ import useObjectViewer from "@/reactives/useObjectViewer";
 import useLayout from "@/reactives/useLayout";
 import { getBrokerStats } from "@/apis";
 import { getSuggestedTopicsForThing } from "@/utils/subs";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const {
   connecting,
   retryTimes,
@@ -125,36 +122,32 @@ const opts = computed(() => {
   const ops = [
     {
       key: "delete",
-      label: "Delete",
+      label: t('common.delete'),
       icon: "Delete",
       type: "danger",
-      tip: "Click to delete this client.",
       disabled: isCurrentConnected.value,
     },
     {
       key: "edit",
-      label: "Edit",
+      label: t('common.edit'),
       icon: "EditPen",
       type: "info",
-      tip: "Click to edit this client.",
       disabled: isCurrentConnected.value,
     },
   ];
   if (isCurrentConnected.value) {
     ops.push({
       key: "disconn",
-      label: "Disconnect",
+      label: t('mqtt.disconnect'),
       icon: "SwitchButton",
       type: "warning",
-      tip: "Click to disconnect this client.",
     });
   } else {
     ops.push({
       key: "connect",
-      label: "Connect",
+      label: t('mqtt.connect'),
       icon: "SwitchButton",
       type: "success",
-      tip: "Click to connect this client.",
     });
   }
   return ops;

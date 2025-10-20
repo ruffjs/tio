@@ -3,21 +3,21 @@
     <div class="thing-view-left">
       <div class="thing-view-back">
         <el-button type="info" icon="Back" @click="handleBack2List"
-          >Back to List</el-button
+          >{{ $t('things.backToList') }}</el-button
         >
       </div>
       <div class="thing-view-left-main">
         <div class="thing-view-meta">
-          <KeyValueDisplayer :data="thing" :fields="metaFields" />
+          <KeyValueDisplayer :data="thing" :fields="createMetaFields(t)" />
         </div>
         <div class="thing-update-btn">
           <el-button icon="Aim" @click="(posterCode = 'invoke'), (posterData = null)"
-            >Request Direct Method</el-button
+            >{{ $t('things.requestDirectMethod') }}</el-button
           >
         </div>
         <div class="thing-update-btn">
           <el-button icon="RefreshRight" @click="getBasicInfo"
-            >Reload Thing's Data</el-button
+            >{{ $t('things.reloadData') }}</el-button
           >
         </div>
         <MqttClients />
@@ -59,9 +59,10 @@ export default {
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { getThing } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
-import { metaFields } from "@/configs/thing";
+import { metaFields, createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
 import ShadowProps from "@/components/thing/ShadowProps.vue";
 import ShadowTags from "@/components/thing/ShadowTags.vue";
@@ -79,6 +80,7 @@ import {
 import useThingEvent from "@/reactives/useThingEvent";
 
 const router = useRouter();
+const { t } = useI18n();
 const {
   route,
   selectedThingId: thingId,

@@ -16,7 +16,7 @@
           size="small"
           class="subscriptions-list-btns-left"
           @click="handleUnsubscribe(sub)"
-          >Unsubscribe</el-button
+          >{{ $t('mqtt.unsubscribe') }}</el-button
         >
         <el-button
           v-else
@@ -26,11 +26,11 @@
           class="subscriptions-list-btns-left"
           plain
           @click="handleSubscribe(sub)"
-          >Subscribe</el-button
+          >{{ $t('mqtt.subscribe') }}</el-button
         >
         <div class="subscriptions-list-btns-right">
           <el-tooltip
-            content="Click to read messages of this subscription only"
+            :content="$t('mqtt.clickToReadMessagesOfThisSubscriptionOnly')"
             placement="left"
             ><el-button
               :type="filterTopic === sub.topic ? 'primary' : ''"

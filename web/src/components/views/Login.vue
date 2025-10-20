@@ -12,13 +12,13 @@
         class="demo-form"
         @keyup.enter.native="submitForm"
       >
-        <el-form-item label="TIO Host" prop="host">
+        <el-form-item :label="$t('login.host')" prop="host">
           <el-input v-model.number="form.host" autocomplete="off" />
         </el-form-item>
-        <el-form-item label="Username" prop="user">
+        <el-form-item :label="$t('login.username')" prop="user">
           <el-input v-model.number="form.user" autocomplete="off" />
         </el-form-item>
-        <el-form-item label="Password" prop="pass">
+        <el-form-item :label="$t('login.password')" prop="pass">
           <el-input
             v-model="form.pass"
             type="password"
@@ -27,7 +27,7 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="submitForm">Authorize</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('login.login') }}</el-button>
         </el-form-item>
       </el-form>
     </dialog>
@@ -46,21 +46,24 @@ export default {
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
+import { useI18n } from "vue-i18n";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { ElNotification } from "element-plus";
 import { getUri, recreateClient } from "@/apis";
 
+const { t } = useI18n();
+
 const loading = ref(false);
 const checkName = (_rule, value, callback) => {
   if (!value) {
-    return callback(new Error("Please input the username"));
+    return callback(new Error(t('login.usernameRequired')));
   } else {
     callback();
   }
 };
 const validatePass = (_rule, value, callback) => {
   if (value === "") {
-    callback(new Error("Please input the password"));
+    callback(new Error(t('login.passwordRequired')));
   } else {
     callback();
   }

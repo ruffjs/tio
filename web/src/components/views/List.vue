@@ -14,8 +14,8 @@
           </div>
         </div>
         <div class="list-view-search-right">
-          <el-button v-if="active" @click="handleClear">RESET</el-button>
-          <el-button v-if="active" @click="handleSearch" title="Ctrl/Cmd/Win + Enter">QUERY</el-button>
+          <el-button v-if="active" @click="handleClear">{{ $t('common.reset') }}</el-button>
+          <el-button v-if="active" @click="handleSearch" :title="$t('things.queryShortcut')">{{ $t('things.query') }}</el-button>
           <el-button v-else icon="Search" @click="handleSearch" />
         </div>
       </div>
@@ -34,7 +34,7 @@
               size="small"
               style="float: left; margin-right: 10px"
             >
-              AUTO
+              {{ $t('things.auto') }}
             </el-tag>
             <span>{{ suggestion.value }}</span>
           </div>
@@ -61,7 +61,7 @@
           />
         </div>
         <div v-else class="list-view-tips">
-          Type in or select the SQL statement to query Things
+          {{ $t('things.queryTips') }}
         </div>
       </div>
     </div>

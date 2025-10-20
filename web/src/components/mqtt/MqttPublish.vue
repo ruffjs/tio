@@ -2,7 +2,7 @@
   <div class="mqtt-publish">
     <div class="mqtt-publish-header">
       <div class="mqtt-publish-metadata">
-        <span class="mqtt-publish-label">Payload: </span>
+        <span class="mqtt-publish-label">{{ $t('mqtt.payload') }}: </span>
         <el-select
           v-model="payloadType"
           :disabled="Boolean(paytype)"
@@ -12,23 +12,23 @@
           <el-option v-for="(type, index) in payloadOptions" :key="index" :value="type">
           </el-option>
         </el-select>
-        <span class="mqtt-publish-label">QoS: </span>
+        <span class="mqtt-publish-label">{{ $t('mqtt.qos') }}: </span>
         <el-select v-model="form.qos" size="small" class="mqtt-publish-select">
           <el-option
             v-for="qos in qosOptions"
             :key="qos.value"
-            :label="qos.label"
+            :label="getLabel(qos)"
             :value="qos.value"
           >
             <span style="float: left">{{ qos.value }}</span>
             <span style="float: right; color: #8492a6; margin-left: 12px">{{
-              qos.label
+              getLabel(qos)
             }}</span>
           </el-option>
         </el-select>
         <el-checkbox
           v-model="form.retain"
-          label="Retain"
+          :label="$t('mqtt.retain')"
           border
           size="small"
           class="mqtt-publish-checkbox retain-block"
@@ -38,7 +38,7 @@
           persistent
           placement="top"
           effect="dark"
-          content="Enabled only with MQTT 5.0"
+          :content="$t('mqtt.mqtt5Only')"
           popper-class="tooltip-box"
         >
           <el-badge :is-dot="hasMqtt5Props" class="mqtt-publish-badge">
@@ -47,11 +47,11 @@
               :class="['meta-block', isMetaFormShown ? 'meta-block-active' : '']"
               plain
               type=""
-              label="Meta"
+              :label="$t('mqtt.meta')"
               size="small"
               @click="toggleMetaFormVisable"
             >
-              Meta
+              {{ $t('mqtt.meta') }}
             </el-button>
           </el-badge>
         </el-tooltip>
@@ -59,7 +59,7 @@
       <el-input
         v-model="form.topic"
         :disabled="Boolean(topic)"
-        placeholder="Topic"
+        :placeholder="$t('mqtt.topic')"
         size="small"
         class="mqtt-publish-topic-input"
         @focus="handleInputFoucs"
@@ -67,7 +67,7 @@
       </el-input>
       <div v-if="!topic" class="mqtt-tpls-btn">
         <el-button :disabled="false" size="small" plain @click="toggleTplsCardVisable"
-          >Suggestions</el-button
+          >{{ $t('mqtt.suggestions') }}</el-button
         >
       </div>
     </div>
@@ -119,6 +119,9 @@ import useMqtt from "@/reactives/useMqtt";
 import MetaForm from "./MetaForm.vue";
 import PublishTopicSuggestions from "./PublishTopicSuggestions.vue";
 import JSONEditor from "../common/JSONEditor.vue";
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const payloadOptions = ["Plaintext", "Base64", "JSON", "Hex"];
 const emit = defineEmits(["publish"]);
@@ -147,6 +150,10 @@ const hasMqtt5Props = ref(false);
 const isMetaFormShown = ref(false);
 const isTplsListShown = ref(false);
 const hasJSONError = ref(false);
+
+const getLabel = (item) => {
+  return item.labelLocale ? t(item.labelLocale) : item.label
+}
 
 onMounted(() => {
   loadMqttPubData();

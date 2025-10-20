@@ -2,7 +2,7 @@
   <el-drawer
     :model-value="isConnFormVisible"
     size="640"
-    title="MQTT Connection Config"
+    :title="$t('mqtt.connectionConfig')"
     class="mqtt-connection-form"
     append-to-body
     @close="emit('close')"
@@ -10,10 +10,10 @@
     <template #footer>
       <div style="flex: auto">
         <el-button :loading="connecting" @click="handleConnect(true)"
-          >Test Connection</el-button
+          >{{ $t('mqtt.testConnection') }}</el-button
         >
         <el-button :loading="connecting" type="primary" @click="handleConnect(false)"
-          >Connect</el-button
+          >{{ $t('mqtt.connect') }}</el-button
         >
       </div>
     </template>
@@ -21,7 +21,7 @@
       v-loading="
         connecting
           ? {
-              text: 'Connecting...',
+              text: $t('mqtt.connecting'),
             }
           : false
       "

@@ -42,7 +42,7 @@
           <el-icon @click="handleOpenDoc"><Link /></el-icon>
         </el-col>
         <el-col :span="23">
-          <el-form-item :label-width="formLabelWidth" label="METHOD" prop="method">
+          <el-form-item :label-width="formLabelWidth" :label="t('things.method')" prop="method">
             <el-select v-model="form.method" disabled size="small">
               <el-option label="POST" value="post" />
               <el-option label="GET" value="get" />
@@ -53,13 +53,13 @@
         </el-col>
         <el-col :span="1"></el-col>
         <el-col :span="23">
-          <el-form-item :label-width="formLabelWidth" label="Url" prop="url">
+          <el-form-item :label-width="formLabelWidth" label="URL" prop="url">
             <el-input v-model="form.url" disabled size="small" />
           </el-form-item>
         </el-col>
         <el-col :span="1"></el-col>
         <el-col :span="23">
-          <el-form-item :label-width="formLabelWidth" label="Thing Id" prop="id">
+          <el-form-item :label-width="formLabelWidth" :label="t('things.thingId')" prop="id">
             <el-input v-model="form.id" :disabled="Boolean(payload)" size="small" />
           </el-form-item>
         </el-col>
@@ -68,7 +68,7 @@
           <el-form-item
             v-for="param in params"
             :label-width="formLabelWidth"
-            :label="param.label"
+            :label="t(param.labelLocale ?? param.label)"
             :prop="param.key"
             :key="param.key"
           >
@@ -77,7 +77,7 @@
         </el-col>
         <el-col :span="1"></el-col>
         <el-col :span="23">
-          <el-form-item :label-width="formLabelWidth" label="Headers" prop="headers">
+          <el-form-item :label-width="formLabelWidth" :label="t('things.headers')" prop="headers">
             <KeyValueEditor
               title=""
               v-model="form.headers"
@@ -88,7 +88,7 @@
         </el-col>
         <el-col :span="1"></el-col>
         <el-col :span="23">
-          <el-form-item :label-width="formLabelWidth" label="Body" prop="body">
+          <el-form-item :label-width="formLabelWidth" :label="t('things.body')" prop="body">
             <JSONEditor
               v-model="form.body"
               v-model:has-error="hasJSONError"
@@ -101,7 +101,7 @@
       </el-row>
     </el-form>
     <el-card
-      header="Response"
+      :header="t('things.response')"
       shadow="never"
       :class="['http-poster-res', isError ? 'is-error' : '']"
     >
@@ -117,7 +117,8 @@
 
 <script setup>
 import { onMounted, reactive, ref, shallowRef, watch } from "vue";
-import { shadowApis } from "@/configs/thing";
+import { useI18n } from "vue-i18n";
+import { createShadowApis } from "@/configs/thing";
 import KeyValueEditor from "@/components/common/KeyValueEditor.vue";
 import { request } from "@/apis";
 import { notifyThingStateChange, TSCE_HTTP } from "@/utils/event";
@@ -130,6 +131,7 @@ const defaultRes = JSON.stringify({
   data: "",
 });
 
+const { t } = useI18n();
 const emit = defineEmits(["close", "done"]);
 const props = defineProps({
   code: {
@@ -203,7 +205,7 @@ const handleSubmit = async () => {
 watch(
   props,
   () => {
-    api.value = shadowApis[props.code] || null;
+    api.value = createShadowApis(t)[props.code] || null;
     const _params = [];
     if (api.value) {
       form.method = api.value.method;

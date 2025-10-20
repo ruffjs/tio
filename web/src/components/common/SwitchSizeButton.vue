@@ -1,6 +1,6 @@
 <template>
   <el-tooltip
-    :content="isToolAreaMaxSize ? 'resize to default height' : 'resize to maximum height'"
+    :content="isToolAreaMaxSize ? $t('common.resizeToDefaultHeight') : $t('common.resizeToMaximumHeight')"
     placement="top"
   >
     <el-button

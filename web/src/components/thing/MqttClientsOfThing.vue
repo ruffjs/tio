@@ -1,6 +1,6 @@
 <template>
   <div class="thing-mqtt-clients">
-    <div class="thing-mqtt-clients-title">MQTT Clients of Thing</div>
+    <div class="thing-mqtt-clients-title">{{ $t('things.mqttClientsOfThing') }}</div>
     <el-collapse v-if="clients.length" v-model="activeName" accordion>
       <el-collapse-item v-for="(c, index) in clients" :name="c.id">
         <template #title>
@@ -27,14 +27,14 @@
                 size="small"
                 plain
                 @click="handleDisconnectMqttClient(c.config)"
-                >Disconnect</el-button
+                >{{ $t('mqtt.disconnect') }}</el-button
               >
               <el-button
                 v-else
                 class="thing-mqtt-innerbtn"
                 size="small"
                 @click="handleConnectMqttClient(c.config)"
-                >Connect and Subscribe</el-button
+                >{{ $t('mqtt.connectAndSubscribe') }}</el-button
               >
             </el-col>
             <el-col :span="24">
@@ -42,7 +42,7 @@
                 :disabled="true"
                 size="small"
                 class="thing-mqtt-innerbtn subscription-stats"
-                ><span>Subscription</span
+                ><span>{{ $t('mqtt.subscription') }}</span
                 ><span
                   >{{ getSubscribedSubs(c.subs).length }} /
                   {{ c.subscriptions.length }}</span
@@ -57,7 +57,7 @@
                 class="thing-mqtt-innerbtn"
                 plain
                 @click="handleSubscribeAll(c.config, c.subs)"
-                >Subs All</el-button
+                >{{ $t('mqtt.subsAll') }}</el-button
               >
             </el-col>
             <el-col :span="12">
@@ -68,7 +68,7 @@
                 class="thing-mqtt-innerbtn"
                 plain
                 @click="handleUnsubscribeAll(c.config, c.subs)"
-                >Unsub All</el-button
+                >{{ $t('mqtt.unsubAll') }}</el-button
               >
             </el-col>
             <el-col :span="24">
@@ -84,7 +84,7 @@
                   size="small"
                   @click="handleShowToolPanel(c.config)"
                 >
-                  Show in tool-panel
+                  {{ $t('mqtt.showInToolPanel') }}
                 </el-button>
               </el-badge>
             </el-col>
@@ -94,14 +94,14 @@
     </el-collapse>
     <template v-else>
       <el-tooltip
-        content="Click to create and connect a mqtt client for this thing, and subscribe all suggested topics."
+        :content="$t('mqtt.createClientTooltip')"
         placement="right"
       >
         <el-button
           icon="Connection"
           class="thing-mqtt-bigbtn"
           @click="handleCreateMqttClient(false)"
-          >Create Client</el-button
+          >{{ $t('mqtt.createClient') }}</el-button
         ></el-tooltip
       >
     </template>
