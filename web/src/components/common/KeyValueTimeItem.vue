@@ -1,7 +1,6 @@
 <template>
   <div class="key-value-time">
-    <div class="key-value-time-block">{{ computedData.d }}</div>
-    <div class="key-value-time-block">{{ computedData.t }}</div>
+    <div class="key-value-time-block">{{ computedData }}</div>
   </div>
 </template>
 
@@ -15,12 +14,7 @@ const props = defineProps({
 
 const computedData = computed(() => {
   const time = dayjs(props.time);
-  const d = time.format("MMM DD, YYYY");
-  const t = time.format("HH:mm:ss");
-  return {
-    d,
-    t,
-  };
+  return time.format("YYYY-MM-DD HH:mm:ss");
 });
 </script>
 

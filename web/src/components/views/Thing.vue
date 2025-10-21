@@ -95,7 +95,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { getThing, kickOutClient } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
-import { metaFields, createMetaFields } from "@/configs/thing";
+import { createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
 import ShadowProps from "@/components/thing/ShadowProps.vue";
 import ShadowTags from "@/components/thing/ShadowTags.vue";

@@ -24,7 +24,7 @@ export const createMetaFields = (t) => [
     type: "password",
   },
   {
-    key: "createAt",
+    key: "createdAt",
     label: t('things.createdAt'),
     type: "time",
   },
@@ -95,34 +95,3 @@ export const createShadowApis = (t) => ({
     },
   },
 });
-
-// 保持向后兼容的静态字段
-export const metaFields = [
-  {
-    key: "thingId",
-    label: "Thing Id",
-    type: "string",
-  },
-  {
-    key: "enabled",
-    label: "Enabled",
-    type: "boolean",
-  },
-  {
-    key: "authType",
-    label: "Auth Type",
-    tips: "",
-    type: "tag",
-  },
-  {
-    key: "authValue",
-    label: "Auth Value",
-    type: "password",
-  },
-  {
-    key: "createAt",
-    label: "Created At",
-    type: "time",
-  },
-];
-
