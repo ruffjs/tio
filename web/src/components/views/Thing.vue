@@ -205,6 +205,8 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   background-color: #f5f7fa;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 
   .thing-view-header {
     display: flex;
