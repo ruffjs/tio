@@ -27,7 +27,7 @@
     <div class="shadow-prop">
       <el-alert
         v-if="shadow.connected"
-        :title="$t('things.connected')"
+        :title="$t('rules.connector')"
         :description="$t('mqtt.connected')"
         type="success"
         show-icon

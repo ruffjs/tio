@@ -138,7 +138,9 @@ watch(
   }
 
   .playground {
-    margin-top: 40px;
+    padding: 60px 10px 10px 30px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: calc(100vh - 30px);
   }
 
   .tool-area {
@@ -148,6 +150,10 @@ watch(
     width: calc(100% - 180px);
     height: auto;
     min-width: 1080px;
+    margin-left: 20px;
   }
+}
+.el-main {
+  padding: 0;
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
 
-  <div class="con">
+  <div class="rule-con">
 
     <EditRule v-if="showEditRule" :rule="currentRule" :config="data.config" :isNew="isNewRule"
       @cancel="afterRuleEdit" />
@@ -544,7 +544,7 @@ const delSink = async row => {
 </script>
 
 <style lang="scss" scoped>
-.con {
+.rule-con {
   margin: 0 10px 30px 10px;
 
   .segment-title {

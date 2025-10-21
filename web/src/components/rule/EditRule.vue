@@ -1,6 +1,6 @@
 <template>
 
-  <el-row :gutter="10" class="con">
+  <el-row :gutter="10" class="rule-edit-con">
     <el-col :span="20" style="margin-bottom: 10px;">
       <el-button icon="ArrowLeft" link @click="emit('cancel')">{{ $t('nav.backList') }}</el-button>
     </el-col>
@@ -565,8 +565,10 @@ const save = async () => {
 </script>
 
 <style lang="scss" scoped>
-.con {
-  padding: 10px 0 30px 20;
+.rule-edit-con {
+  background-color: #fff;
+  padding: 20px 0 30px 20px;
+  border-radius: 5px;
 
   .part {
     border-top: 1px #eaeaea solid;

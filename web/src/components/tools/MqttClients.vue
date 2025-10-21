@@ -235,12 +235,8 @@ const handleCheckStats = async () => {
     border-right: solid 1px rgba($color: #000000, $alpha: 0.1);
 
     .mqtt-clients-title {
-      width: auto;
-      height: 30px;
-      line-height: 29px;
       padding-left: 5px;
-      font-size: 17px;
-      font-weight: 200;
+      font-size: 16px;
       text-transform: uppercase;
       letter-spacing: 1px;
       overflow: hidden;

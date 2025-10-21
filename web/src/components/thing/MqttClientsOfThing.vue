@@ -10,7 +10,7 @@
               connected: c.client.connected,
             }"
           >
-            <el-icon><SwitchButton /></el-icon>
+            <el-icon><Link /></el-icon>
             <el-tooltip effect="dark" :content="c.name" placement="top-start">
               <span>{{ c.name }}</span></el-tooltip
             >
@@ -245,10 +245,8 @@ onSomethingStatusChange(({ thingId, type, about }) => {
 <style scoped lang="scss">
 .thing-mqtt-clients {
   width: 100%;
-  margin-top: 14px;
+  margin-top: 24px;
   padding-bottom: 10px;
-  border-top: solid 2px rgba($color: #000000, $alpha: 0.1);
-  border-radius: 5px;
   text-align: center;
 
   .thing-mqtt-clients-title {
@@ -287,7 +285,6 @@ onSomethingStatusChange(({ thingId, type, about }) => {
     border-left: none;
     border-right: none;
     border-radius: 0;
-    font-weight: 300;
     font-size: 12px;
   }
 

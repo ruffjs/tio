@@ -14,7 +14,7 @@
         :total="total"
         :current-page="pageIndex"
         :page-size="pageSize"
-        :page-sizes="[20, 50, 100, 200]"
+        :page-sizes="[10, 20, 50, 100, 200]"
         @current-change="handlePageIndexChange"
         @size-change="handlePageSizeChange"
       />
@@ -50,11 +50,11 @@ const handlePageSizeChange = (value) => {
   justify-content: start;
   align-items: center;
   width: 100%;
-  height: 100%;
   .things-list-container {
     flex: 1;
     width: 100%;
     height: 0;
+    padding-top: 10px;
     overflow: hidden;
     .things-list-items {
       width: 100%;

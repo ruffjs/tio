@@ -1,46 +1,78 @@
 <template>
   <div class="thing-view">
-    <div class="thing-view-left">
-      <div class="thing-view-back">
-        <el-button type="info" icon="Back" @click="handleBack2List"
-          >{{ $t('things.backToList') }}</el-button
-        >
+    <!-- 顶部状态栏 -->
+    <div class="thing-view-header">
+      <div class="thing-view-header-left">
+        <el-button type="text" icon="Back" plain @click="handleBack2List">{{ $t('things.backToList') }}</el-button>
+        <div class="thing-status-card">
+          <div class="status-indicator">
+            <div class="status-dot" :class="{ connected: shadow.connected }"></div>
+            <span class="status-text">{{ shadow.connected ? $t('things.connected') : $t('things.disconnected') }}</span>
+          </div>
+          <div class="status-info">
+            <div class="info-item" v-if="thing.remoteAddr">
+              <el-icon>
+                <Location />
+              </el-icon>
+              <span>{{ thing.remoteAddr }}</span>
+            </div>
+            <div class="info-item" v-if="thing.version">
+              <el-icon>
+                <Document />
+              </el-icon>
+              <span>{{ $t('things.version') }}: {{ thing.version }}</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="thing-view-left-main">
-        <div class="thing-view-meta">
-          <KeyValueDisplayer :data="thing" :fields="createMetaFields(t)" />
-        </div>
-        <div class="thing-update-btn">
-          <el-button icon="Aim" @click="(posterCode = 'invoke'), (posterData = null)"
-            >{{ $t('things.requestDirectMethod') }}</el-button
-          >
-        </div>
-        <div class="thing-update-btn">
-          <el-button icon="RefreshRight" @click="getBasicInfo"
-            >{{ $t('things.reloadData') }}</el-button
-          >
-        </div>
-        <MqttClients />
+      <div class="thing-view-header-right">
+        <el-tooltip :content="$t('nav.kickOut')">
+          <el-button v-if="shadow?.connected" type="danger" plain circle icon="RemoveFilled"
+            @click="handleKickOutSelected" />
+        </el-tooltip>
+        <el-tooltip :content="$t('things.reloadData')">
+          <el-button icon="RefreshRight" plain circle @click="refreshThingData" />
+        </el-tooltip>
       </div>
     </div>
-    <div class="thing-view-right">
-      <ShadowProps :shadow="shadow" />
-      <ShadowTags
-        :data="shadow?.tags"
-        @update="(payload) => ((posterCode = 'tags'), (posterData = payload || null))"
-      />
-      <div class="thing-view-state">
-        <ShadowData @call="(code) => ((posterCode = code), (posterData = null))" />
+
+    <!-- 主要内容区域 -->
+    <div class="thing-view-content">
+      <div class="thing-view-left">
+        <div class="thing-info-card">
+          <div class="card-header">
+            <h3>{{ $t('things.basicInfo') }}</h3>
+          </div>
+          <div class="card-content">
+            <KeyValueDisplayer :data="thing" :fields="createMetaFields(t)" />
+          </div>
+        </div>
+
+        <div class="thing-actions-card">
+          <div class="card-header">
+            <h3>{{ $t('things.actions') }}</h3>
+          </div>
+          <div class="card-content">
+            <el-button icon="TopRight" type="primary" plain @click="(posterCode = 'invoke'), (posterData = null)" block>
+              {{ $t('things.requestDirectMethod') }}
+            </el-button>
+            <MqttClients />
+          </div>
+        </div>
+      </div>
+
+      <div class="thing-view-right">
+        <!-- <ShadowProps :shadow="shadow" /> -->
+        <ShadowTags :data="shadow?.tags"
+          @update="(payload) => ((posterCode = 'tags'), (posterData = payload || null))" />
+        <div class="thing-view-state">
+          <ShadowData @call="(code) => ((posterCode = code), (posterData = null))" />
+        </div>
       </div>
     </div>
   </div>
-  <HttpPoster
-    :code="posterCode"
-    :thing-id="thingId"
-    :payload="posterData"
-    @done="updateCurrentShadow"
-    @close="posterCode = ''"
-  />
+  <HttpPoster :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
+    @close="posterCode = ''" />
 </template>
 
 <script>
@@ -58,9 +90,10 @@ export default {
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { getThing } from "@/apis";
+import { getThing, kickOutClient } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { metaFields, createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
@@ -94,6 +127,10 @@ const thing = reactive({});
 const posterCode = ref("");
 const posterData = ref(null);
 
+const formatTime = (time) => {
+  return time ? dayjs(time).format("YYYY-MM-DD HH:mm:ss") : "-";
+};
+
 const handleBack2List = () => {
   if (isFromList.value) {
     router.back();
@@ -101,6 +138,14 @@ const handleBack2List = () => {
     router.replace("/");
   }
   setCurrentShadow(null);
+};
+
+const refreshThingData = async () => {
+  await Promise.all([
+    getBasicInfo(),
+    updateCurrentShadow()
+  ]);
+  ElMessage.success(t('common.success'));
 };
 
 const getBasicInfo = async () => {
@@ -136,6 +181,16 @@ onSomethingStatusChange(async ({ thingId: eventThingId, type, about }) => {
   }
 });
 
+const handleKickOutSelected = async () => {
+  try {
+    const res = await kickOutClient(thingId.value);
+    console.log("handleKickOutSelected", res);
+    updateCurrentShadow();
+  } catch (error) {
+    console.error("error", error);
+  }
+};
+
 onMounted(() => {
   if (shadow.value.fromList) isFromList.value = true;
   getBasicInfo();
@@ -146,65 +201,174 @@ onMounted(() => {
 <style scoped lang="scss">
 .thing-view {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 268px;
+  background-color: #f5f7fa;
 
-  .thing-view-left {
+  .thing-view-header {
     display: flex;
-    flex-direction: column;
     justify-content: space-between;
     align-items: center;
+    padding: 16px 20px;
+    background-color: white;
+    border-bottom: 1px solid #e4e7ed;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 
-    width: 240px;
-    height: 100%;
+    .thing-view-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
 
-    .thing-view-back {
-      width: 100%;
-      padding: 10px;
-      .el-button {
+      .thing-status-card {
         display: flex;
-        flex-direction: row;
-        justify-content: space-between;
         align-items: center;
-        width: 100%;
-        font-weight: 600;
-      }
-    }
+        gap: 16px;
+        padding: 4px 8px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
 
-    .thing-view-left-main {
-      flex: 1;
-      width: 100%;
-      height: 0;
-      padding: 0 10px 10px;
-      overflow-x: hidden;
-      overflow-y: auto;
-      .thing-view-meta {
-        width: 100%;
-        overflow: hidden;
-      }
-      .thing-update-btn {
-        width: 100%;
-        height: 32px;
-        margin-top: 2px;
-        .el-button {
-          width: 100%;
-          font-weight: 300;
+        .status-indicator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #dcdfe6;
+
+            &.connected {
+              background-color: #67c23a;
+            }
+          }
+
+          .status-text {
+            font-weight: 500;
+            color: #303133;
+          }
+        }
+
+        .status-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+
+          .info-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: #606266;
+          }
         }
       }
     }
   }
 
-  .thing-view-right {
+  .thing-view-content {
+    display: flex;
     flex: 1;
-    width: 0;
-    height: 100%;
-    padding: 10px;
-    overflow-x: hidden;
-    overflow-y: auto;
+    gap: 16px;
+    padding: 16px 20px;
+    overflow: hidden;
+
+    .thing-view-left {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+
+      .thing-info-card,
+      .thing-actions-card {
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e4e7ed;
+        overflow: hidden;
+
+        .card-header {
+          padding: 16px 20px;
+          border-bottom: 1px solid #f0f0f0;
+          background-color: #fafafa;
+
+          h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #303133;
+          }
+        }
+
+        .card-content {
+          padding: 16px 20px;
+        }
+      }
+
+      .thing-actions-card {
+        .card-content {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+      }
+    }
+
+    .thing-view-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+
+      .thing-view-state {
+        flex: 1;
+        min-height: 0;
+      }
+    }
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .thing-view {
+    .thing-view-header {
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+
+      .thing-view-header-left {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+
+        .thing-status-card {
+          flex-direction: column;
+          gap: 12px;
+          align-items: stretch;
+
+          .status-info {
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+          }
+        }
+      }
+    }
+
+    .thing-view-content {
+      flex-direction: column;
+      padding: 12px;
+
+      .thing-view-left {
+        width: 100%;
+      }
+    }
   }
 }
 </style>

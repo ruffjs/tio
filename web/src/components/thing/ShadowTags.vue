@@ -7,13 +7,13 @@
           </span
         >
         <div class="shadow-tags-card-buttons">
-          <el-button
+          <!-- <el-button
             v-if="data"
             icon="View"
             size="small"
             @click="viewObject(data, $t('things.tagsRaw'))"
             >{{ $t('things.viewRaw') }}</el-button
-          >
+          > -->
           <el-button icon="Plus" size="small" @click="emit('update')">{{ $t('things.setTags') }}</el-button>
         </div>
       </div>

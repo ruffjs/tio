@@ -11,22 +11,6 @@
       <div v-if="isList" class="nav-button" @click="handleShowAddingForm">
         <el-icon><CirclePlusFilled /></el-icon>{{ $t('nav.addThing') }}
       </div>
-      <div v-if="isList" class="nav-button" @click="requestUpdateShadowList">
-        <el-icon><Refresh /></el-icon>{{ $t('nav.refreshList') }}
-      </div>
-      <div
-        v-if="isThing && currentShadow.connected"
-        class="nav-button danger"
-        @click="handleKickOutSelected"
-      >
-        <el-icon><Scissor /></el-icon>{{ $t('nav.kickOut') }}
-      </div>
-      <div v-if="isThing" class="nav-button" @click="updateCurrentShadow">
-        <el-icon><Refresh /></el-icon>{{ $t('nav.refreshShadow') }}
-      </div>
-      <!-- <div v-if="isThing" class="nav-button" @click="handleReturnList">
-        <el-icon><Menu /></el-icon>Back List
-      </div> -->
     </div>
   </div>
   <AddThingForm v-if="isAdding" @close="handleCloseDialogs" />
@@ -41,7 +25,6 @@ import Thing from "@/components/views/Thing.vue";
 import AddThingForm from "./AddThingForm.vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
-import { kickOutClient } from "@/apis";
 
 const store = useStore();
 const router = useRouter();
@@ -73,16 +56,6 @@ const handleShowSettingPanel = () => {
 const handleCloseDialogs = () => {
   isAdding.value = false;
   isSetting.value = false;
-};
-
-const handleKickOutSelected = async () => {
-  try {
-    const res = await kickOutClient(selectedThingId.value);
-    console.log("handleKickOutSelected", res);
-    updateCurrentShadow();
-  } catch (error) {
-    console.error("error", error);
-  }
 };
 
 const handleLogOut = () => {

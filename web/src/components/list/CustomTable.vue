@@ -94,7 +94,7 @@
             size="small"
             @click.prevent="viewObject(scope.row, 'Raw Data', true)"
           >
-            View Shadow
+            {{ $t('things.viewShadow') }}
           </el-button>
           <DeleteButton
             title="Are you sure to delete this Thing?"

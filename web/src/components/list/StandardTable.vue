@@ -7,7 +7,7 @@
       size="small"
       style="width: 100%"
     >
-      <el-table-column fixed prop="thingId" label="Thing Id" min-width="180">
+      <el-table-column fixed prop="thingId" :label="$t('things.thingId')" min-width="180">
         <template #default="scope">
           <el-button
             link
@@ -19,7 +19,7 @@
           </el-button></template
         >
       </el-table-column>
-      <el-table-column prop="connected" label="Connected" align="center" width="120">
+      <el-table-column prop="connected" :label="$t('things.connected')" align="center" width="120">
         <template #default="scope">
           <el-button
             v-if="scope.row.connected"
@@ -37,7 +37,7 @@
       </el-table-column>
       <el-table-column
         prop="connectedAt"
-        label="Last Connected Time"
+        :label="$t('things.lastConnectedTime')"
         align="center"
         min-width="180"
       >
@@ -47,7 +47,7 @@
       >
       <el-table-column
         prop="remoteAddr"
-        label="Remote Address"
+        :label="$t('things.remoteAddress')"
         align="center"
         min-width="180"
       >
@@ -55,18 +55,12 @@
           {{ scope.row.remoteAddr || "-" }}
         </template>
       </el-table-column>
-      <el-table-column prop="createdAt" label="Created At" align="center" min-width="180">
+      <el-table-column prop="createdAt" :label="$t('things.createdAt')" align="center" min-width="180">
         <template #default="scope">{{
           formatTime(scope.row.createdAt)
         }}</template></el-table-column
       >
-      <el-table-column prop="updatedAt" label="Updated At" align="center" min-width="180">
-        <template #default="scope">{{
-          formatTime(scope.row.updatedAt)
-        }}</template></el-table-column
-      >
-      <el-table-column prop="version" label="Version" align="center" width="90" />
-      <el-table-column fixed="right" label="Operations" align="center" min-width="180">
+      <el-table-column fixed="right" :label="$t('things.operations')" align="center" min-width="180">
         <template #default="scope">
           <el-button
             link
@@ -75,7 +69,7 @@
             :disabled="scope.row.thingId === void 0"
             @click.prevent="viewObject(scope.row, 'Raw Data', true)"
           >
-            View Shadow
+            {{ $t("things.viewShadow") }}
           </el-button>
           <DeleteButton
             title="Are you sure to delete this Thing?"
