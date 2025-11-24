@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/shadow"
@@ -19,6 +20,7 @@ import (
 	"github.com/emicklei/go-restful/v3"
 	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/pkg/uuid"
@@ -45,6 +47,15 @@ func (m *mockShadowSvc) NotifyDeleted(thingId string) {
 var connector = shadowMock.NewConnectivity()
 
 func newServer() *httptest.Server {
+	return newServerWithDB().Server
+}
+
+type serverWithDB struct {
+	Server *httptest.Server
+	DB     *gorm.DB
+}
+
+func newServerWithDB() *serverWithDB {
 	mkSs := new(mockShadowSvc)
 	mkSs.On("NotifyCreated", tmock.Anything, tmock.Anything)
 	mkSs.On("NotifyDeleted", tmock.Anything)
@@ -59,7 +70,10 @@ func newServer() *httptest.Server {
 	container.ServeMux = http.NewServeMux()
 	container.Add(apiSvc)
 	container.Add(restfulspec.NewOpenAPIService(gapi.OpenapiConfig()))
-	return httptest.NewServer(container)
+	return &serverWithDB{
+		Server: httptest.NewServer(container),
+		DB:     conn,
+	}
 }
 
 var createThReq = api.CreateReq{}
@@ -274,6 +288,80 @@ func TestQueryHandler(t *testing.T) {
 		require.Falsef(t, slices.ContainsFunc(resD2.Data.Content, func(th thing.Thing) bool {
 			return !th.IsGateway
 		}), "should all be gateway")
+	})
+
+	t.Run("should query with connection status", func(t *testing.T) {
+		// Use server with DB to get the same database connection
+		svrWithDB := newServerWithDB()
+		defer svrWithDB.Server.Close()
+
+		// Create a thing for testing
+		thId := id()
+		th := api.CreateReq{ThingId: thId}
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", svrWithDB.Server.URL), toBuf(th))
+		req.Header.Set("Content-Type", "application/json")
+		client := svrWithDB.Server.Client()
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Update connection status directly in database using the same connection
+		now := time.Now()
+		connectedAt := now.Add(-1 * time.Hour)
+		err = svrWithDB.DB.Model(&shadow.ConnStatusEntity{}).
+			Where("thing_id = ?", thId).
+			Updates(map[string]any{
+				"connected":    true,
+				"connected_at": &connectedAt,
+			}).Error
+		require.NoError(t, err)
+
+		// Query with withStatus=true
+		req, _ = http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v1/things?withStatus=true&pageIndex=1&pageSize=20", svrWithDB.Server.URL), toBuf(nil))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = client.Do(req)
+		require.NoError(t, err)
+		var resD rest.Resp[thing.Page]
+		err = json.NewDecoder(resp.Body).Decode(&resD)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Find the thing we created
+		var foundThing *thing.ThingWithConnStatus
+		for i := range resD.Data.Content {
+			if resD.Data.Content[i].Id == thId {
+				foundThing = &resD.Data.Content[i]
+				break
+			}
+		}
+		require.NotNil(t, foundThing, "should find the created thing")
+		require.NotNil(t, foundThing.Connected, "Connected field should not be nil")
+		require.True(t, *foundThing.Connected, "thing should be connected")
+		require.NotNil(t, foundThing.ConnectedAt, "ConnectedAt should not be nil")
+
+		// Query with withStatus=false (default)
+		req, _ = http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v1/things?withStatus=false&pageIndex=1&pageSize=20", svrWithDB.Server.URL), toBuf(nil))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = client.Do(req)
+		require.NoError(t, err)
+		var resD2 rest.Resp[thing.Page]
+		err = json.NewDecoder(resp.Body).Decode(&resD2)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Find the thing we created
+		foundThing = nil
+		for i := range resD2.Data.Content {
+			if resD2.Data.Content[i].Id == thId {
+				foundThing = &resD2.Data.Content[i]
+				break
+			}
+		}
+		require.NotNil(t, foundThing, "should find the created thing")
+		require.Nil(t, foundThing.Connected, "Connected should be nil when withStatus=false")
+		require.Nil(t, foundThing.ConnectedAt, "ConnectedAt should be nil when withStatus=false")
 	})
 }
 

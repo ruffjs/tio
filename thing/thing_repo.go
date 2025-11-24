@@ -15,7 +15,7 @@ type Repo interface {
 	Update(ctx context.Context, id string, tu thingPatch) error
 	UpdateBatch(ctx context.Context, ids []string, tu thingPatch) error
 	Delete(ctx context.Context, id string) error
-	Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error)
+	Query(ctx context.Context, pq PageQuery) (model.PageData[ThingWithConnStatus], error)
 	Get(ctx context.Context, id string) (*Thing, error)
 	GetBatch(ctx context.Context, ids []string) ([]Thing, error)
 	Exist(ctx context.Context, id string) (bool, error)
@@ -122,40 +122,81 @@ func (t *thingRepo) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (t *thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[Thing], error) {
-	offset := pq.Offset()
-	limit := pq.Limit()
-	var page model.PageData[Thing]
+func (t *thingRepo) Query(ctx context.Context, pq PageQuery) (model.PageData[ThingWithConnStatus], error) {
+	var page model.PageData[ThingWithConnStatus]
+
+	// Build base query with filters
+	baseQ := t.db.WithContext(ctx).Model(&Entity{})
+	applyFilters(baseQ, pq, false)
+
+	// Count query
 	var total int64
-
-	q := t.db.WithContext(ctx).Model(&Entity{}).
-		Order("created_at ASC").
-		Offset(offset).
-		Limit(limit)
-	if pq.Enabled != nil {
-		q.Where("enabled = ?", *pq.Enabled)
+	if err := baseQ.Count(&total).Error; err != nil {
+		return page, err
 	}
-	if pq.GatewayThingId != nil {
-		q.Where("gateway_thing_id = ?", *pq.GatewayThingId)
-	}
-	if pq.IsGateway != nil {
-		q.Where("is_gateway = ?", *pq.IsGateway)
-	}
-
-	q.Count(&total)
 	if total == 0 {
-		page.Content = []Thing{}
+		page.Content = []ThingWithConnStatus{}
 		return page, nil
 	}
 	page.Total = total
 
-	q.Find(&page.Content)
-	if !pq.WithAuthValue {
-		for i := range page.Content {
-			page.Content[i].AuthValue = ""
+	// Build data query
+	var q *gorm.DB
+	if pq.WithStatus {
+		q = t.db.WithContext(ctx).Table("thing").
+			Select("thing.*, conn_status.connected AS connected, conn_status.connected_at AS connected_at, conn_status.disconnected_at AS disconnected_at").
+			Joins("LEFT JOIN conn_status ON thing.id = conn_status.thing_id").
+			Order("thing.created_at ASC")
+		applyFilters(q, pq, true)
+	} else {
+		q = baseQ.Order("created_at ASC")
+	}
+	q.Offset(pq.Offset()).Limit(pq.Limit())
+
+	// Execute query
+	if pq.WithStatus {
+		var results []ThingWithConnStatus
+		if err := q.Find(&results).Error; err != nil {
+			return page, err
+		}
+		page.Content = results
+	} else {
+		var entities []Entity
+		if err := q.Find(&entities).Error; err != nil {
+			return page, err
+		}
+		page.Content = make([]ThingWithConnStatus, len(entities))
+		for i, en := range entities {
+			page.Content[i].Thing = ToThing(en)
 		}
 	}
+
+	// Clear AuthValue if not requested
+	if !pq.WithAuthValue {
+		for i := range page.Content {
+			page.Content[i].Thing.AuthValue = ""
+		}
+	}
+
 	return page, nil
+}
+
+// applyFilters applies common filter conditions to the query
+func applyFilters(q *gorm.DB, pq PageQuery, useTablePrefix bool) {
+	prefix := ""
+	if useTablePrefix {
+		prefix = "thing."
+	}
+
+	if pq.Enabled != nil {
+		q.Where(prefix+"enabled = ?", *pq.Enabled)
+	}
+	if pq.GatewayThingId != nil {
+		q.Where(prefix+"gateway_thing_id = ?", *pq.GatewayThingId)
+	}
+	if pq.IsGateway != nil {
+		q.Where(prefix+"is_gateway = ?", *pq.IsGateway)
+	}
 }
 
 func (t *thingRepo) Get(ctx context.Context, id string) (*Thing, error) {

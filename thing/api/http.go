@@ -81,6 +81,7 @@ func Service(ctx context.Context, svc thing.Service) *restful.WebService {
 		Param(ws.QueryParameter("isGateway", "").DataType("string")).
 		Param(ws.QueryParameter("gatewayThingId", "gateway thingId").DataType("string")).
 		Param(ws.QueryParameter("withAuthValue", "whether return authValue field").DataType("boolean")).
+		Param(ws.QueryParameter("withStatus", "whether return connection status").DataType("boolean")).
 		Param(ws.QueryParameter("pageIndex", "page index, from 1").DataType("integer").DefaultValue("1")).
 		Param(ws.QueryParameter("pageSize", "page size, from 1").DataType("integer").DefaultValue("10")).
 		Returns(200, "OK", rest.RespOK(thing.Page{})))

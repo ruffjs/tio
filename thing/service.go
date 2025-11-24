@@ -35,13 +35,14 @@ type Service interface {
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
 }
 
-type Page = model.PageData[Thing]
+type Page = model.PageData[ThingWithConnStatus]
 
 type PageQuery struct {
 	Enabled        *bool   `json:"enabled"`
 	IsGateway      *bool   `json:"isGateway"`
 	GatewayThingId *string `json:"gatewayThingId"`
 	WithAuthValue  bool    `json:"withAuthValue"`
+	WithStatus     bool    `json:"withStatus"`
 	model.PageQuery
 }
 
@@ -227,7 +228,7 @@ func (t *thingSvc) UnbindFromGateway(ctx context.Context, thingIds []string, gat
 			return nil
 		}
 		for _, th := range l.Content {
-			ids = append(ids, th.Id)
+			ids = append(ids, th.Thing.Id)
 		}
 	}
 

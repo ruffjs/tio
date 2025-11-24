@@ -4,12 +4,14 @@ import (
 	"context"
 	"math/rand"
 	"testing"
+	"time"
 
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/shadow"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/pkg/testutil"
 	"ruff.io/tio/pkg/uuid"
@@ -31,6 +33,14 @@ func NewTestSvc() (thing.Service, shadow.Service) {
 	shadowSvc := shadowWire.InitSvc(db, connector)
 	thingSvc := wire.InitSvc(context.Background(), db, shadowSvc, connector)
 	return thingSvc, shadowSvc
+}
+
+func NewTestSvcWithDB() (thing.Service, shadow.Service, *gorm.DB) {
+	db := mock.NewSqliteConnTest()
+	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
+	shadowSvc := shadowWire.InitSvc(db, connector)
+	thingSvc := wire.InitSvc(context.Background(), db, shadowSvc, connector)
+	return thingSvc, shadowSvc, db
 }
 
 func TestThingSvc_Create(t *testing.T) {
@@ -218,6 +228,110 @@ func TestThingSvc_Get(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, int64(1), page.Total, "query page total count")
 	require.LessOrEqual(t, 1, len(page.Content), "query page content count")
+}
+
+func TestThingSvc_QueryWithStatus(t *testing.T) {
+	svc, _, db := NewTestSvcWithDB()
+	randId, _ := uuid.New().ID()
+
+	// Create a thing
+	_, err := svc.Create(ctxTest, thing.Thing{Id: randId}, nil, false)
+	require.NoError(t, err)
+
+	now := time.Now()
+	connectedAt := now.Add(-1 * time.Hour)
+	disconnectedAt := now.Add(-30 * time.Minute)
+
+	t.Run("query with WithStatus=true should return connection status", func(t *testing.T) {
+		// Update connection status to connected
+		err = db.Model(&shadow.ConnStatusEntity{}).
+			Where("thing_id = ?", randId).
+			Updates(map[string]any{
+				"connected":       true,
+				"connected_at":    &connectedAt,
+				"disconnected_at": nil,
+			}).Error
+		require.NoError(t, err)
+
+		pq := thing.PageQuery{
+			WithStatus:    true,
+			WithAuthValue: false,
+			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+		}
+		page, err := svc.Query(ctxTest, pq)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, page.Total, int64(1))
+
+		// Find the thing we created
+		var foundThing *thing.ThingWithConnStatus
+		for i := range page.Content {
+			if page.Content[i].Id == randId {
+				foundThing = &page.Content[i]
+				break
+			}
+		}
+		require.NotNil(t, foundThing, "should find the created thing")
+		require.NotNil(t, foundThing.Connected, "Connected field should not be nil")
+		require.True(t, *foundThing.Connected, "thing should be connected")
+		require.NotNil(t, foundThing.ConnectedAt, "ConnectedAt should not be nil")
+	})
+
+	t.Run("query with WithStatus=false should not return connection status", func(t *testing.T) {
+		pq := thing.PageQuery{
+			WithStatus:    false,
+			WithAuthValue: false,
+			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+		}
+		page, err := svc.Query(ctxTest, pq)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, page.Total, int64(1))
+
+		// Find the thing we created
+		var foundThing *thing.ThingWithConnStatus
+		for i := range page.Content {
+			if page.Content[i].Id == randId {
+				foundThing = &page.Content[i]
+				break
+			}
+		}
+		require.NotNil(t, foundThing, "should find the created thing")
+		// When WithStatus=false, connection status fields should be zero values
+		require.Nil(t, foundThing.Connected, "Connected should be nil when WithStatus=false")
+		require.Nil(t, foundThing.ConnectedAt, "ConnectedAt should be nil when WithStatus=false")
+		require.Nil(t, foundThing.DisconnectedAt, "DisconnectedAt should be nil when WithStatus=false")
+	})
+
+	t.Run("query with WithStatus=true for disconnected thing", func(t *testing.T) {
+		// Update connection status to disconnected
+		err = db.Model(&shadow.ConnStatusEntity{}).
+			Where("thing_id = ?", randId).
+			Updates(map[string]any{
+				"connected":       false,
+				"disconnected_at": &disconnectedAt,
+			}).Error
+		require.NoError(t, err)
+
+		pq := thing.PageQuery{
+			WithStatus:    true,
+			WithAuthValue: false,
+			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+		}
+		page, err := svc.Query(ctxTest, pq)
+		require.NoError(t, err)
+
+		// Find the thing we created
+		var foundThing *thing.ThingWithConnStatus
+		for i := range page.Content {
+			if page.Content[i].Id == randId {
+				foundThing = &page.Content[i]
+				break
+			}
+		}
+		require.NotNil(t, foundThing, "should find the created thing")
+		require.NotNil(t, foundThing.Connected, "Connected field should not be nil")
+		require.False(t, *foundThing.Connected, "thing should be disconnected")
+		require.NotNil(t, foundThing.DisconnectedAt, "DisconnectedAt should not be nil when disconnected")
+	})
 }
 
 func TestIdValid(t *testing.T) {

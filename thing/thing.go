@@ -25,6 +25,14 @@ type Thing struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// ThingWithConnStatus is used for JOIN query results with connection status
+type ThingWithConnStatus struct {
+	Thing
+	Connected      *bool      `json:"connected,omitempty"`
+	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
+	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
+}
+
 type ThingPatch struct {
 	Enabled *bool `json:"enabled"`
 }
