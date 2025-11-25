@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 
 	"ruff.io/tio/connector"
+	"ruff.io/tio/metrics"
 
 	rv8 "github.com/go-redis/redis/v8"
 	mqtt "github.com/mochi-mqtt/server/v2"
@@ -244,6 +245,13 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		publishEventFn: publishEventFn(svr, evtBus),
 	}
 	err = svr.AddHook(presenceHk, nil)
+	if err != nil {
+		slog.Error("broker add hook", "error", err)
+		os.Exit(1)
+	}
+
+	openMetricsHk := &metrics.OpenMetricsHook{}
+	err = svr.AddHook(openMetricsHk, nil)
 	if err != nil {
 		slog.Error("broker add hook", "error", err)
 		os.Exit(1)

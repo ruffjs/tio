@@ -15,6 +15,7 @@ import (
 
 	"ruff.io/tio/auth"
 	"ruff.io/tio/job"
+	"ruff.io/tio/metrics"
 	"ruff.io/tio/ntp"
 	"ruff.io/tio/rule"
 
@@ -161,18 +162,24 @@ func main() {
 	tio.RouteWeb()
 	azf := api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
 	thingWs := thingApi.Service(ctx, thingSvc).
+		Filter(metrics.Middleware).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
-	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
-
-	jobWs := jobApi.Service(ctx, jobMgrSvc, thingWs)
-	jobWs.Filter(api.LoggingMiddleware).Filter(azf)
-
-	mqWs := mq.Service(ctx, connector).Filter(api.LoggingMiddleware).Filter(azf)
+	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler).
+		Filter(metrics.Middleware).
+		Filter(api.LoggingMiddleware).
+		Filter(azf)
+	jobWs := jobApi.Service(ctx, jobMgrSvc, thingWs).
+		Filter(metrics.Middleware).
+		Filter(api.LoggingMiddleware).
+		Filter(azf)
+	mqWs := mq.Service(ctx, connector).Filter(metrics.Middleware).Filter(api.LoggingMiddleware).Filter(azf)
 	cfgWs := config.Service(ctx, cfg)
 
 	ruleWs := ruleApi.Service(ctx, ruleMgr).
 		Filter(api.LoggingMiddleware).Filter(azf)
+
+	metricsWs := metrics.Service()
 
 	restful.DefaultContainer.Add(thingWs)
 	restful.DefaultContainer.Add(mqWs)
@@ -180,6 +187,7 @@ func main() {
 	restful.DefaultContainer.Add(cfgWs)
 	restful.DefaultContainer.Add(ruleWs)
 	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration(aclFn))
+	restful.DefaultContainer.Add(metricsWs)
 	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
 	if cfg.API.Cors {
 		restful.DefaultContainer.Filter(restful.OPTIONSFilter())
