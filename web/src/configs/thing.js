@@ -51,8 +51,8 @@ export const createShadowApis = (t) => ({
     },
     payloadResolver: () => {
       return {
-        connTimeout: 30,
-        respTimeout: 20,
+        connTimeout: 0,
+        respTimeout: 10,
         data: {},
       };
     },
