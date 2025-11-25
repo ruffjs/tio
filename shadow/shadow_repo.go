@@ -185,6 +185,18 @@ func (r shadowRepo) Delete(ctx context.Context, thingId string) error {
 	return errors.Wrap(err, "delete shadow "+thingId)
 }
 
+// Add a temporary struct for query result
+type queryResult struct {
+	Entity
+	Enabled          bool
+	Connected        bool
+	ConnectedAt      *time.Time
+	DisconnectedAt   *time.Time
+	DisconnectReason string
+	RemoteAddr       string
+	ConnUpdatedAt    time.Time
+}
+
 func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuerySql) (model.PageData[ShadowWithStatus], error) {
 	offset := pq.Offset()
 	limit := pq.Limit()
@@ -193,9 +205,14 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 
 	db := r.db.WithContext(ctx).
 		Model(&Entity{}).
-		Select("t.enabled", "shadow.*").
+		Select("t.enabled", "shadow.*",
+			"ConnStatus.connected AS connected",
+			"ConnStatus.connected_at AS connected_at",
+			"ConnStatus.disconnected_at AS disconnected_at",
+			"ConnStatus.disconnect_reason AS disconnect_reason",
+			"ConnStatus.remote_addr AS remote_addr",
+			"ConnStatus.updated_at AS conn_updated_at").
 		Joins("ConnStatus").
-		Preload("ConnStatus").
 		Joins("INNER JOIN thing t ON t.id=shadow.thing_id")
 	if q.Where != "" {
 		db.Where(q.Where)
@@ -214,12 +231,31 @@ func (r shadowRepo) Query(ctx context.Context, pq model.PageQuery, q ParsedQuery
 		db.Order(q.OrderBy)
 	}
 
-	results := make([]EntityWithEnable, 0)
+	// Use temporary struct to receive JOIN results
+	queryResults := make([]queryResult, 0)
 	res = db.Offset(offset).
 		Limit(limit).
-		Find(&results)
+		Find(&queryResults)
 	if res.Error != nil {
 		return page, res.Error
+	}
+
+	// Convert to EntityWithEnable
+	results := make([]EntityWithEnable, len(queryResults))
+	for i, qr := range queryResults {
+		results[i] = EntityWithEnable{
+			Entity:  qr.Entity,
+			Enabled: qr.Enabled,
+		}
+		results[i].ConnStatus = ConnStatusEntity{
+			ThingId:          qr.Entity.ThingId,
+			Connected:        qr.Connected,
+			ConnectedAt:      qr.ConnectedAt,
+			DisconnectedAt:   qr.DisconnectedAt,
+			DisconnectReason: qr.DisconnectReason,
+			RemoteAddr:       qr.RemoteAddr,
+			UpdatedAt:        qr.ConnUpdatedAt,
+		}
 	}
 
 	l, err := toShadowWithStatusList(results)
