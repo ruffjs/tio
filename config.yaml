@@ -100,3 +100,8 @@ provisionSecret:
 
 log:
   level: debug # debug info warn error
+
+# Enable golang pprof http api
+pprof:
+  enabled: true
+  port: 6060

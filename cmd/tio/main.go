@@ -95,6 +95,13 @@ func main() {
 		}
 	}()
 
+	// start pprof api server
+	if cfg.Pprof.Enabled {
+		go func() {
+			api.StartPprofApiServer(ctx, cfg.Pprof.Port)
+		}()
+	}
+
 	dbConn := newDb(cfg)
 	autoMigrate(dbConn)
 
@@ -158,8 +165,10 @@ func main() {
 
 	// htt api
 
-	tio.RouteSwagger()
-	tio.RouteWeb()
+	httpCon := restful.NewContainer()
+
+	tio.RouteSwagger(httpCon)
+	tio.RouteWeb(httpCon)
 	azf := api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
 	thingWs := thingApi.Service(ctx, thingSvc).
 		Filter(metrics.Middleware).
@@ -181,26 +190,26 @@ func main() {
 
 	metricsWs := metrics.Service()
 
-	restful.DefaultContainer.Add(thingWs)
-	restful.DefaultContainer.Add(mqWs)
-	restful.DefaultContainer.Add(jobWs)
-	restful.DefaultContainer.Add(cfgWs)
-	restful.DefaultContainer.Add(ruleWs)
-	restful.DefaultContainer.Add(thingApi.ServiceForEmqxIntegration(aclFn))
-	restful.DefaultContainer.Add(metricsWs)
-	restful.DefaultContainer.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
+	httpCon.Add(thingWs)
+	httpCon.Add(mqWs)
+	httpCon.Add(jobWs)
+	httpCon.Add(cfgWs)
+	httpCon.Add(ruleWs)
+	httpCon.Add(thingApi.ServiceForEmqxIntegration(aclFn))
+	httpCon.Add(metricsWs)
+	httpCon.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig(httpCon)))
 	if cfg.API.Cors {
-		restful.DefaultContainer.Filter(restful.OPTIONSFilter())
+		httpCon.Filter(restful.OPTIONSFilter())
 	}
-	startHttpSvr(ctx, cfg, nil)
+	startHttpSvr(ctx, cfg, httpCon)
 
 	// wait some seconds before shutting down
 	time.Sleep(1 * time.Second)
 }
 
-func startHttpSvr(ctx context.Context, cfg config.Config, handler http.Handler) {
+func startHttpSvr(ctx context.Context, cfg config.Config, container *restful.Container) {
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
-	server := &http.Server{Addr: addr, Handler: handler}
+	server := &http.Server{Addr: addr, Handler: container}
 	errCh := make(chan error)
 	go func() {
 		slog.Info("Http listening", "addr", addr)

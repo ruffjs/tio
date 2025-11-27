@@ -69,7 +69,7 @@ func newServerWithDB() *serverWithDB {
 	container := restful.NewContainer()
 	container.ServeMux = http.NewServeMux()
 	container.Add(apiSvc)
-	container.Add(restfulspec.NewOpenAPIService(gapi.OpenapiConfig()))
+	container.Add(restfulspec.NewOpenAPIService(gapi.OpenapiConfig(container)))
 	return &serverWithDB{
 		Server: httptest.NewServer(container),
 		DB:     conn,

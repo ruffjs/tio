@@ -11,9 +11,9 @@ import (
 	"ruff.io/tio/config"
 )
 
-func OpenapiConfig() restfulspec.Config {
+func OpenapiConfig(container *restful.Container) restfulspec.Config {
 	c := restfulspec.Config{
-		WebServices:                   restful.RegisteredWebServices(), // you control what services are visible
+		WebServices:                   container.RegisteredWebServices(),
 		APIPath:                       "/apidocs.json",
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject,
 		ModelTypeNameHandler: func(t reflect.Type) (string, bool) {

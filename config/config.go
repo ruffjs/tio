@@ -87,6 +87,10 @@ type Config struct {
 	} `json:"db"`
 	Connector       Connector `json:"connector"`
 	ProvisionSecret string
+	Pprof           struct {
+		Port    int  `json:"port"`
+		Enabled bool `json:"enabled"`
+	} `json:"pprof"`
 }
 
 func ReadConfig() Config {

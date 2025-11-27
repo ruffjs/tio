@@ -92,7 +92,7 @@ func setup() {
 	thingWs := thingApi.Service(context.Background(), thingSvc)
 	shadowApi.Service(context.Background(), thingWs, shadowSvc, thingSvc, methodHandler)
 	container.Add(thingWs)
-	container.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig()))
+	container.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig(container)))
 
 	// http test server
 	httpSvr = httptest.NewServer(container)
