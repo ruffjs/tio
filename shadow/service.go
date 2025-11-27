@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -135,22 +134,6 @@ func NewSvc(r Repo, a connector.ConnectChecker) Service {
 
 func (s *shadowSvc) Init(ctx context.Context) {
 	svcSingleton.syncConnStatus(ctx)
-	svcSingleton.initCache()
-}
-
-func (s *shadowSvc) initCache() {
-	p, err := s.repo.Query(context.Background(), model.PageQuery{PageIndex: 1, PageSize: MaxShadowCount}, ParsedQuerySql{})
-	if err != nil {
-		slog.Error("Init shadow cache, load shadows", "error", err)
-		os.Exit(1)
-	}
-	if p.Total != int64(len(p.Content)) {
-		slog.Error("Init shadow cache, load shadows", "error", "total not equal to content")
-		os.Exit(1)
-	}
-	for _, v := range p.Content {
-		s.cache.Set(v.ThingId, v)
-	}
 }
 
 func (s *shadowSvc) SubscribeUpdate(subscribe StateUpdateSubscribe) {
@@ -210,7 +193,6 @@ func (s *shadowSvc) syncConnStatus(ctx context.Context) error {
 					slog.Error("update conn error", "clientId", c.ClientId, "error", err)
 				} else {
 					s.cache.UpdateConnStatus(c.ClientId, c)
-					slog.Debug("updated conn status", "clientInfo", c)
 				}
 			}
 		}
@@ -390,8 +372,8 @@ func (s *shadowSvc) setState(
 			return err
 		}
 
-		// update cache
-		s.cache.SetShadow(thingId, *reS)
+		// delete cache
+		s.cache.Del(thingId)
 
 		resCh <- struct {
 			pre Shadow
@@ -511,10 +493,19 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 // ========= CacheService interface =========
 
 func (s *shadowSvc) GetFromCache(thingId string) (ShadowWithStatus, bool) {
-	return s.cache.Get(thingId)
+	if s, ok := s.cache.Get(thingId); ok {
+		return s, true
+	}
+	ss, err := s.repo.GetWithStatus(context.Background(), thingId)
+	if err == nil && ss != nil {
+		// TODO: LRU cache
+		s.cache.Set(thingId, *ss)
+		return *ss, true
+	}
+	return ShadowWithStatus{}, false
 }
 func (s *shadowSvc) NotifyCreated(thingId string, sd ShadowWithEnable) {
-	s.cache.Set(thingId, ShadowWithStatus{Shadow: sd.Shadow, Enabled: sd.Enabled})
+	// do nothing
 }
 func (s *shadowSvc) NotifyDeleted(thingId string) {
 	s.cache.Del(thingId)
