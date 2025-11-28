@@ -83,7 +83,7 @@ func main() {
 	// init logger
 	initLogger(cfg.Log)
 
-	slog.Info("Version", "version", Version, "gitCommit", GitCommit)
+	slog.Info("Starting Tio", "version", Version, "gitCommit", GitCommit)
 	slog.Info("Config", "config", cfgJ)
 
 	ctx, cancel := context.WithCancel(context.Background())
