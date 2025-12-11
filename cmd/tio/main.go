@@ -250,16 +250,17 @@ func startMqttBroker(ctx context.Context,
 	aclFn auth.AclFn,
 ) embed.Broker {
 	return embed.InitBroker(embed.MochiConfig{
-		TcpPort:    cfg.TcpPort,
-		TcpSslPort: cfg.TcpSslPort,
-		WsPort:     cfg.WsPort,
-		WssPort:    cfg.WssPort,
-		KeyFile:    cfg.KeyFile,
-		CertFile:   cfg.CertFile,
-		Storage:    cfg.Storage,
-		AuthzFn:    authzFn,
-		AclFn:      aclFn,
-		SuperUsers: cfg.SuperUsers,
+		TcpPort:         cfg.TcpPort,
+		TcpSslPort:      cfg.TcpSslPort,
+		WsPort:          cfg.WsPort,
+		WssPort:         cfg.WssPort,
+		KeyFile:         cfg.KeyFile,
+		CertFile:        cfg.CertFile,
+		Storage:         cfg.Storage,
+		AuthzFn:         authzFn,
+		AclFn:           aclFn,
+		SuperUsers:      cfg.SuperUsers,
+		MaximumInflight: cfg.MaximumInflight,
 	})
 }
 

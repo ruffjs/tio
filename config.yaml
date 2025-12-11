@@ -69,6 +69,9 @@ connector:
     # certFile: "./cert-key.pem"
     # keyFile: "./cert.pem"
 
+    # Max 65535 , default 8192
+    # maximumInflight: 8192
+
     # mqtt storage, if left blank, the storage is disabled
     # https://github.com/mochi-mqtt/server?tab=readme-ov-file#badger-db
     storage: 

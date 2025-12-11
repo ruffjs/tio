@@ -35,16 +35,17 @@ type ConnectParams packets.ConnectParams
 type AuthzFn func(connParam ConnectParams) bool
 type AclFn func(clientId, user string, topic string, write bool) bool
 type MochiConfig struct {
-	TcpPort    int
-	TcpSslPort int
-	WsPort     int
-	WssPort    int
-	CertFile   string
-	KeyFile    string
-	AuthzFn    AuthzFn
-	AclFn      AclFn
-	Storage    config.InnerMqttStorage
-	SuperUsers []config.UserPassword
+	TcpPort         int
+	TcpSslPort      int
+	WsPort          int
+	WssPort         int
+	CertFile        string
+	KeyFile         string
+	AuthzFn         AuthzFn
+	AclFn           AclFn
+	Storage         config.InnerMqttStorage
+	SuperUsers      []config.UserPassword
+	MaximumInflight uint16
 }
 
 var newOnce sync.Once
@@ -195,11 +196,18 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 }
 
 func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) *mqtt.Server {
-	svr := mqtt.New(&mqtt.Options{
+	opts := mqtt.Options{
 		InlineClient:           true,
 		SysTopicResendInterval: 5,
 		Logger:                 slog.Default(),
-	})
+	}
+	opts.Capabilities = mqtt.NewDefaultServerCapabilities()
+	if cfg.MaximumInflight > 0 {
+		opts.Capabilities.MaximumInflight = cfg.MaximumInflight
+	} else {
+		opts.Capabilities.MaximumInflight = 1024 * 8
+	}
+	svr := mqtt.New(&opts)
 
 	authHk := &authHook{authzFn: cfg.AuthzFn, aclFn: cfg.AclFn}
 	err := svr.AddHook(authHk, nil)

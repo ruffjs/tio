@@ -69,6 +69,7 @@ type InnerMqttBroker struct {
 	KeyFile          string           `json:"-"`
 	Storage          InnerMqttStorage `json:"storage"`
 	SuperUsers       []UserPassword   `json:"superUsers"`
+	MaximumInflight  uint16           `json:"maximumInflight"`
 }
 
 type Config struct {
