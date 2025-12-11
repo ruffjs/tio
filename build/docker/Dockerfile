@@ -1,4 +1,4 @@
-FROM golang:1.23
+FROM golang:1.25
 WORKDIR /go/src/ruff.io/tio
 COPY ./ ./
 ARG version
