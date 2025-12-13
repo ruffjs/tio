@@ -35,17 +35,18 @@ type ConnectParams packets.ConnectParams
 type AuthzFn func(connParam ConnectParams) bool
 type AclFn func(clientId, user string, topic string, write bool) bool
 type MochiConfig struct {
-	TcpPort         int
-	TcpSslPort      int
-	WsPort          int
-	WssPort         int
-	CertFile        string
-	KeyFile         string
-	AuthzFn         AuthzFn
-	AclFn           AclFn
-	Storage         config.InnerMqttStorage
-	SuperUsers      []config.UserPassword
-	MaximumInflight uint16
+	TcpPort             int
+	TcpSslPort          int
+	WsPort              int
+	WssPort             int
+	CertFile            string
+	KeyFile             string
+	AuthzFn             AuthzFn
+	AclFn               AclFn
+	Storage             config.InnerMqttStorage
+	MessageQueueStorage config.MessageQueueStorage
+	SuperUsers          []config.UserPassword
+	MaximumInflight     uint16
 }
 
 var newOnce sync.Once
@@ -196,10 +197,11 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 }
 
 func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) *mqtt.Server {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	opts := mqtt.Options{
 		InlineClient:           true,
 		SysTopicResendInterval: 5,
-		Logger:                 slog.Default(),
+		Logger:                 logger,
 	}
 	opts.Capabilities = mqtt.NewDefaultServerCapabilities()
 	if cfg.MaximumInflight > 0 {
@@ -213,6 +215,25 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 	err := svr.AddHook(authHk, nil)
 	if err != nil {
 		slog.Error("broker add hook", "error", err)
+		os.Exit(1)
+	}
+
+	// 注册消息队列 Hook
+	mqCfg := messageQueueConfig{
+		StorageType: cfg.MessageQueueStorage.Type,
+		StoragePath: cfg.MessageQueueStorage.FilePath,
+	}
+	if mqCfg.StorageType == "" {
+		mqCfg.StorageType = "memory" // 默认使用内存存储
+	}
+	mqHook, err := newMessageQueueHook(svr, mqCfg)
+	if err != nil {
+		slog.Error("Failed to create message queue hook", "error", err)
+		os.Exit(1)
+	}
+	err = svr.AddHook(mqHook, nil)
+	if err != nil {
+		slog.Error("Failed to add message queue hook", "error", err)
 		os.Exit(1)
 	}
 

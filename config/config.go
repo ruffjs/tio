@@ -56,20 +56,26 @@ type InnerMqttStorage struct {
 	Redis    Redis  `json:"redis"`
 }
 
+type MessageQueueStorage struct {
+	Type     string `json:"type"`     // "memory" or "badger"
+	FilePath string `json:"filePath"` // BadgerDB 文件路径，当 type 为 badger 时使用
+}
+
 type InnerMqttBroker struct {
-	TcpPort          int              `json:"tcpPort"`
-	TcpSslPort       int              `json:"tcpSslPort"`
-	WsPort           int              `json:"wsPort"`
-	WssPort          int              `json:"wssPort"`
-	PublicTcpPort    *int             `json:"publicTcpPort"`
-	PublicTcpSslPort *int             `json:"publicTcpSslPort"`
-	PublicWsPort     *int             `json:"publicWsPort"`
-	PublicWssPort    *int             `json:"publicWssPort"`
-	CertFile         string           `json:"-"`
-	KeyFile          string           `json:"-"`
-	Storage          InnerMqttStorage `json:"storage"`
-	SuperUsers       []UserPassword   `json:"superUsers"`
-	MaximumInflight  uint16           `json:"maximumInflight"`
+	TcpPort             int                 `json:"tcpPort"`
+	TcpSslPort          int                 `json:"tcpSslPort"`
+	WsPort              int                 `json:"wsPort"`
+	WssPort             int                 `json:"wssPort"`
+	PublicTcpPort       *int                `json:"publicTcpPort"`
+	PublicTcpSslPort    *int                `json:"publicTcpSslPort"`
+	PublicWsPort        *int                `json:"publicWsPort"`
+	PublicWssPort       *int                `json:"publicWssPort"`
+	CertFile            string              `json:"-"`
+	KeyFile             string              `json:"-"`
+	Storage             InnerMqttStorage    `json:"storage"`
+	MessageQueueStorage MessageQueueStorage `json:"messageQueueStorage"`
+	SuperUsers          []UserPassword      `json:"superUsers"`
+	MaximumInflight     uint16              `json:"maximumInflight"`
 }
 
 type Config struct {
