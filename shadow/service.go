@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -98,11 +99,16 @@ type Repo interface {
 	UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error
 }
 
+type Config struct {
+	IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
+}
+
 var _ Service = (*shadowSvc)(nil)
 
 type shadowSvc struct {
 	repo                Repo
 	cache               Cache
+	cfg                 Config
 	connectorChecker    connector.ConnectChecker
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
@@ -113,7 +119,7 @@ type shadowSvc struct {
 var svcSingleton *shadowSvc
 var svcOnce sync.Once
 
-func NewSvc(r Repo, a connector.ConnectChecker) Service {
+func NewSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
 	svcOnce.Do(func() {
 		u := make([]StateUpdateSubscribe, 0)
 		d := make([]StateDeltaSubscribe, 0)
@@ -122,6 +128,7 @@ func NewSvc(r Repo, a connector.ConnectChecker) Service {
 		svcSingleton = &shadowSvc{
 			repo:                r,
 			cache:               newCache(),
+			cfg:                 cfg,
 			connectorChecker:    a,
 			updateSubscribers:   u,
 			deltaSubscribers:    d,
@@ -164,10 +171,12 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 	} else {
 		sar := StateAcceptedResp{
 			State:       StateDRD{Reported: sr.State.Reported},
-			Metadata:    Metadata{Reported: updatedMeta},
 			Timestamp:   time.Now().UnixMilli(),
 			ClientToken: sr.ClientToken,
 			Version:     ss.Version,
+		}
+		if !slices.Contains(s.cfg.IgnoreMetadataFor, TopicUpdateAccepted) {
+			sar.Metadata = Metadata{Reported: updatedMeta}
 		}
 		s.notifyAccepted(thingId, sr.ClientToken, sar)
 	}
@@ -403,19 +412,26 @@ func (s *shadowSvc) setState(
 }
 
 func (s *shadowSvc) notifyStateUpdate(thingId, clientToken string, pre *Shadow, rs *Shadow) {
+	notice := StateUpdatedNotice{
+		Previous: StatePrevious{
+			State:   StateDR{Desired: pre.State.Desired, Reported: pre.State.Reported},
+			Version: pre.Version,
+		},
+		Current: StateCurrent{
+			State:   StateDR{Desired: rs.State.Desired, Reported: rs.State.Reported},
+			Version: rs.Version,
+		},
+		Timestamp:   time.Now().UnixMilli(),
+		ClientToken: clientToken,
+	}
+
+	if !slices.Contains(s.cfg.IgnoreMetadataFor, TopicUpdateDocuments) {
+		notice.Previous.Metadata = pre.Metadata
+		notice.Current.Metadata = rs.Metadata
+	}
+
 	for _, f := range s.updateSubscribers {
-		f(thingId, StateUpdatedNotice{
-			Previous: StatePrevious{
-				State:   StateDR{Desired: pre.State.Desired, Reported: pre.State.Reported},
-				Version: pre.Version, Metadata: pre.Metadata,
-			},
-			Current: StateCurrent{
-				State:   StateDR{Desired: rs.State.Desired, Reported: rs.State.Reported},
-				Version: rs.Version, Metadata: rs.Metadata,
-			},
-			Timestamp:   time.Now().UnixMilli(),
-			ClientToken: clientToken,
-		})
+		f(thingId, notice)
 	}
 }
 
@@ -426,14 +442,18 @@ func (s *shadowSvc) notifyDeltaState(thingId, clientToken string, rs *Shadow) {
 		return
 	}
 
+	deltaNotice := DeltaStateNotice{
+		State:       delta,
+		Timestamp:   time.Now().UnixMilli(),
+		ClientToken: clientToken,
+		Version:     rs.Version,
+	}
+	if !slices.Contains(s.cfg.IgnoreMetadataFor, TopicUpdateDelta) {
+		deltaNotice.Metadata = deltaMeta
+	}
+
 	for _, f := range s.deltaSubscribers {
-		f(thingId, DeltaStateNotice{
-			State:       delta,
-			Metadata:    deltaMeta,
-			Timestamp:   time.Now().UnixMilli(),
-			ClientToken: clientToken,
-			Version:     rs.Version,
-		})
+		f(thingId, deltaNotice)
 	}
 }
 

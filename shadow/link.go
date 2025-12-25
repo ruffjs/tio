@@ -7,6 +7,7 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
@@ -19,7 +20,7 @@ const (
 	maxShadowGetWorkerCount    = 500
 )
 
-func Link(ctx context.Context, conn StateHandler, svc Service) error {
+func Link(ctx context.Context, conn StateHandler, svc Service, cfg Config) error {
 	// handle shadow get request
 	go func() {
 		ch, err := conn.ShadowGetReq(ctx)
@@ -28,7 +29,7 @@ func Link(ctx context.Context, conn StateHandler, svc Service) error {
 		}
 		pool, err := ants.NewPoolWithFunc(maxShadowGetWorkerCount, func(shadowGetReq any) {
 			req := shadowGetReq.(GetReqMsg)
-			handleShadowGetReq(ctx, svc, conn, req)
+			handleShadowGetReq(ctx, svc, conn, req, cfg)
 		})
 		if err != nil {
 			log.Fatalf("New pool for shadow get : %v", err)
@@ -123,7 +124,7 @@ func handleShadowStateUpdateReq(ctx context.Context, svc Service, h StateHandler
 	}
 }
 
-func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req GetReqMsg) {
+func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req GetReqMsg, cfg Config) {
 	ss, err := svc.Get(ctx, req.ThingId)
 	if err != nil {
 		resp := ErrResp{ClientToken: req.Req.ClientToken, Timestamp: time.Now().UnixMilli()}
@@ -149,8 +150,10 @@ func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req Ge
 			Reported: ss.State.Reported,
 			Delta:    delta,
 		},
-		Metadata: ss.Metadata,
-		Version:  ss.Version,
+		Version: ss.Version,
+	}
+	if !req.Req.NoMetadata && !slices.Contains(cfg.IgnoreMetadataFor, TopicGetAccepted) {
+		resp.Metadata = ss.Metadata
 	}
 	msg := StateAcceptedRespMsg{ThingId: req.ThingId, Op: OpGet, Resp: resp}
 	err = h.AcceptedResp(ctx, msg)

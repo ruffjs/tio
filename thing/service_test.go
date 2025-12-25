@@ -30,7 +30,7 @@ var connector = shadowMock.NewConnectivity()
 func NewTestSvc() (thing.Service, shadow.Service) {
 	db := mock.NewSqliteConnTest()
 	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
-	shadowSvc := shadowWire.InitSvc(db, connector)
+	shadowSvc := shadowWire.InitSvc(db, connector, shadow.Config{})
 	thingSvc := wire.InitSvc(context.Background(), db, shadowSvc, connector)
 	return thingSvc, shadowSvc
 }
@@ -38,7 +38,7 @@ func NewTestSvc() (thing.Service, shadow.Service) {
 func NewTestSvcWithDB() (thing.Service, shadow.Service, *gorm.DB) {
 	db := mock.NewSqliteConnTest()
 	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
-	shadowSvc := shadowWire.InitSvc(db, connector)
+	shadowSvc := shadowWire.InitSvc(db, connector, shadow.Config{})
 	thingSvc := wire.InitSvc(context.Background(), db, shadowSvc, connector)
 	return thingSvc, shadowSvc, db
 }
