@@ -31,7 +31,7 @@ func newTestSvc() (shadow.Service, thing.Service, *gorm.DB) {
 		log.Fatalf("db AutoMigrate: %v", err)
 	}
 	time.Sleep(time.Millisecond * 100)
-	svc := wire.InitSvc(db, shadowMock.NewConnectivity())
+	svc := wire.InitSvc(db, shadowMock.NewConnectivity(), shadow.Config{})
 	tsvc := thingwire.InitSvc(ctx, db, svc, shadowMock.NewConnectivity())
 	return svc, tsvc, db
 }

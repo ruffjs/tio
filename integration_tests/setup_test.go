@@ -69,7 +69,7 @@ func setup() {
 	methodHandler := shadow.NewMethodHandler(connector)
 	shadowStateHandler := shadow.NewShadowHandler(connector)
 
-	shadowSvc = shadowWire.InitSvc(dbConn, connector)
+	shadowSvc = shadowWire.InitSvc(dbConn, connector, shadow.Config{})
 	thingSvc = thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
 
 	// embedded mqtt broker
@@ -83,7 +83,7 @@ func setup() {
 	if err := methodHandler.InitMethodHandler(ctx); err != nil {
 		log.Fatalf("Init method handler error: %v", err)
 	}
-	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc); err != nil {
+	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, shadow.Config{}); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
 

@@ -69,6 +69,7 @@ type TagsReq struct {
 // GetReq Publish a request to get device's shadow
 type GetReq struct {
 	ClientToken string // optional
+	NoMetadata  bool   // optional
 }
 
 // StateAcceptedResp  tio publishes a response shadow document to this topic when returning the device's shadow:

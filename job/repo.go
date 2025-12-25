@@ -35,7 +35,7 @@ func (r jobRepo) CreateJob(ctx context.Context, j Entity) (Entity, error) {
 			return res.Error
 		} else {
 			if res.RowsAffected > 0 {
-				return errors.WithMessagef(model.ErrDuplicated, "job "+j.JobId)
+				return errors.WithMessagef(model.ErrDuplicated, "%s", "job "+j.JobId)
 			}
 		}
 		if res := tx.WithContext(ctx).Create(&j); res.Error != nil {

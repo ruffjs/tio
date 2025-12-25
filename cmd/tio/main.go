@@ -115,7 +115,7 @@ func main() {
 	ntpHandler := ntp.NewNtpHandler(connector)
 
 	// services
-	shadowSvc := shadowWire.InitSvc(dbConn, connector)
+	shadowSvc := shadowWire.InitSvc(dbConn, connector, cfg.Shadow)
 	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
 
 	jobCenter := job.NewCenter(job.CenterOptions{
@@ -153,7 +153,7 @@ func main() {
 		log.Fatalf("Init ntp handler error: %v", err)
 	}
 
-	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc); err != nil {
+	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, cfg.Shadow); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
 	if err := mqttClient.Connect(ctx); err != nil {

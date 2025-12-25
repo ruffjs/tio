@@ -94,7 +94,10 @@ type Config struct {
 	} `json:"db"`
 	Connector       Connector `json:"connector"`
 	ProvisionSecret string
-	Pprof           struct {
+	Shadow          struct {
+		IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
+	} `json:"shadow"`
+	Pprof struct {
 		Port    int  `json:"port"`
 		Enabled bool `json:"enabled"`
 	} `json:"pprof"`

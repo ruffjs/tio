@@ -14,8 +14,8 @@ import (
 
 // Injectors from wire.go:
 
-func InitSvc(dbConn *gorm.DB, conn connector.Connectivity) shadow.Service {
+func InitSvc(dbConn *gorm.DB, conn connector.Connectivity, cfg shadow.Config) shadow.Service {
 	repo := shadow.NewShadowRepo(dbConn)
-	service := shadow.NewSvc(repo, conn)
+	service := shadow.NewSvc(repo, conn, cfg)
 	return service
 }

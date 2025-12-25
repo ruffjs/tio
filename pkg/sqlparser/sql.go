@@ -125,7 +125,7 @@ func (p *parser) doParse() (query.Query, error) {
 				p.pop()
 				alias := p.peek()
 				if !isIdentifier(alias) {
-					return p.query, fmt.Errorf("at SELECT: expected field alias for \"" + identifier + " as\" to SELECT")
+					return p.query, fmt.Errorf("at SELECT: expected field alias for %q to SELECT", identifier+" as")
 				}
 				if p.query.Aliases == nil {
 					p.query.Aliases = make(map[string]string)

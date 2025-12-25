@@ -101,6 +101,25 @@ connector:
     apiUser: admin
     apiPassword: public
 
+shadow:
+  # Configure which shadow topics should exclude metadata to reduce payload size
+  # This is particularly useful for MCU clients with limited bandwidth or memory
+  # Available topic suffixes:
+  #   - "/get/accepted": Shadow get response messages
+  #   - "/update/accepted": Shadow update accepted messages  
+  #   - "/update/delta": Shadow delta state messages
+  #   - "/update/documents": Shadow document update messages
+  # For shadow get requests to $iothub/things/{thingId}/shadows/name/default/get, 
+  # the noMetadata field can be used to exclude metadata from the response:
+  # {
+  #   "clientToken": "generate-unique-token-string",
+  #   "noMetadata": true
+  # }
+  ignoreMetadataFor:
+    - "/get/accepted"
+    - "/update/accepted"
+    - "/update/delta"
+    - "/update/documents"
 # Provision secret for automatic thing creation
 # Thing's password should comply the generative rule:
 #   echo -n "thingId" | openssl dgst -md5 -hmac "provisionSecret" | xargs -I {} echo H{}
