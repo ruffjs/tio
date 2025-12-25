@@ -3,7 +3,6 @@ package shadow
 import (
 	"bytes"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"strings"
 	"unicode"
@@ -107,7 +106,6 @@ func parseQuerySql(qrySql string) (ParsedQuerySql, error) {
 
 	allSql := sqlNodeToString(selStmt)
 	allSql = trimJsonExtractSpecialChar(allSql)
-	slog.Debug("parsed SQL", "sql", allSql)
 
 	return res, nil
 }

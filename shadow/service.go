@@ -402,7 +402,7 @@ func (s *shadowSvc) setState(
 	if isDesired {
 		typ = StateTypeDesired
 	}
-	slog.Info("Successfully set shadow", "type", typ, "thingId", thingId, "content", sr)
+	slog.Debug("Successfully set shadow", "type", typ, "thingId", thingId, "content", sr)
 
 	// notify regardless of whether there is a field update or not.
 	s.notifyDeltaState(thingId, sr.ClientToken, &resShadow)
