@@ -3,6 +3,7 @@ package mqtt
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"ruff.io/tio/connector"
 
@@ -46,7 +47,28 @@ func Service(ctx context.Context, brk connector.Connectivity) *restful.WebServic
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", rest.RespOK(embed.Client{})))
 
+	ws.Route(ws.GET("/embed/queue/pull").
+		To(PullMessageQueueHandler).
+		Operation("pull-message-queue").
+		Doc("Pull messages from a message queue via WebSocket").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("queue", "Queue name").Required(true)).
+		Param(ws.QueryParameter("clientId", "Client ID").Required(false)))
+
 	return ws
+}
+
+func PullMessageQueueHandler(req *restful.Request, resp *restful.Response) {
+	if embed.BrokerInstance() == nil {
+		resp.WriteErrorString(http.StatusBadRequest, "broker is not running")
+		return
+	}
+	hook := embed.BrokerInstance().QueueHook()
+	if hook == nil {
+		resp.WriteErrorString(http.StatusInternalServerError, "message queue hook not found")
+		return
+	}
+	hook.WsHandler(resp.ResponseWriter, req.Request)
 }
 
 func CloseClientHandler(ctx context.Context, connector connector.Connectivity) restful.RouteFunction {

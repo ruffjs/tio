@@ -86,7 +86,7 @@ connector:
     # Message queue storage for $q/ topics
     # If not configured, defaults to memory storage
     messageQueueStorage:
-      type: memory  # memory or badger
+      type: badger  # memory or badger
       filePath: "./message-queue.db"  # BadgerDB file path when type is badger
 
     # Users can publish and subscribe all topics

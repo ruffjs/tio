@@ -67,6 +67,7 @@ type Broker interface {
 	CloseClient(clientId string) bool
 	StatsInfo() *system.Info
 	AllClients() []Client
+	QueueHook() *MessageQueueHook
 }
 
 type Msg struct {
@@ -84,9 +85,10 @@ func InitBroker(c MochiConfig) Broker {
 	newOnce.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		evtBus := eventbus.NewEventBus[connector.PresenceEvent]()
-		s := initBroker(ctx, c, evtBus)
+		s, mq := initBroker(ctx, c, evtBus)
 		broker = &embedBroker{
 			impl:             s,
+			mqHook:           mq,
 			presenceEventBus: evtBus,
 			ctx:              ctx,
 			cancel:           cancel,
@@ -105,11 +107,16 @@ func InitBroker(c MochiConfig) Broker {
 
 type embedBroker struct {
 	impl             *mqtt.Server
+	mqHook           *MessageQueueHook
 	clients          sync.Map
 	presenceEventBus *eventbus.EventBus[connector.PresenceEvent]
 
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+func (e *embedBroker) QueueHook() *MessageQueueHook {
+	return e.mqHook
 }
 
 func (e *embedBroker) StatsInfo() *system.Info {
@@ -196,7 +203,7 @@ func (e *embedBroker) AllClientInfo() ([]connector.ClientInfo, error) {
 	return clients, nil
 }
 
-func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) *mqtt.Server {
+func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[connector.PresenceEvent]) (*mqtt.Server, *MessageQueueHook) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	opts := mqtt.Options{
 		InlineClient:           true,
@@ -341,7 +348,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 		os.Exit(1)
 	}
 
-	return svr
+	return svr, mqHook
 }
 
 func readCert(keyFile, certFile string) tls.Certificate {
