@@ -145,7 +145,21 @@
     "body": "请求体",
     "response": "响应",
     "basicInfo": "基本信息",
-    "actions": "操作"
+    "actions": "操作",
+    "querySuggestions": {
+      "selectAll": "查询所有",
+      "sortByCreated": "按创建时间排序",
+      "sortByUpdatedDesc": "按更新时间倒序",
+      "selectStatus": "查询状态详情",
+      "renameTimeFields": "重命名时间字段",
+      "allConnected": "查询所有在线设备",
+      "disconnected": "查询离线设备",
+      "selectSpecified": "查询指定设备",
+      "byCreatedTime": "按创建时间查询",
+      "byTagName": "按标签名查询",
+      "byDesiredProp": "按期望属性查询",
+      "byReportedProp": "按上报属性查询"
+    }
   },
   "mqtt": {
     "title": "MQTT",

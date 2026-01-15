@@ -75,7 +75,7 @@
               @click.stop="handleSelect(suggestion)">
               <div class="sql-editor-tpl-item-header">
                 <el-tag size="small" type="primary">
-                  {{ suggestion.label }}
+                  {{ $t(suggestion.label) }}
                 </el-tag>
                 <el-tag v-if="suggestion.autoTrigger" size="small" type="success">
                   {{ $t('things.auto') }}
@@ -529,13 +529,13 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         }
 
         .sql-editor-tpls-content {
-          padding: 16px;
+          padding: 12px;
           overflow-y: auto;
           height: calc(100% - 60px);
 
           .sql-editor-tpl-item {
-            margin-bottom: 12px;
-            padding: 16px;
+            margin-bottom: 8px;
+            padding: 10px 12px;
             background-color: #f8f9fa;
             border: 1px solid #e9ecef;
             border-radius: 6px;
@@ -549,13 +549,13 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             .sql-editor-tpl-item-header {
               display: flex;
               gap: 8px;
-              margin-bottom: 8px;
+              margin-bottom: 4px;
             }
 
             .sql-editor-tpl-item-content {
               font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-              font-size: 13px;
-              line-height: 1.5;
+              font-size: 12px;
+              line-height: 1.4;
               color: #606266;
               word-break: break-all;
             }

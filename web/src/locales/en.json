@@ -140,7 +140,21 @@
     "body": "Body",
     "response": "Response",
     "actions": "Actions",
-    "basicInfo": "Basic Info"
+    "basicInfo": "Basic Info",
+    "querySuggestions": {
+      "selectAll": "SELECT All",
+      "sortByCreated": "Sort By Created Time",
+      "sortByUpdatedDesc": "Sort By Updated DESC",
+      "selectStatus": "SELECT Status",
+      "renameTimeFields": "Rename Time Fields",
+      "allConnected": "All Connected",
+      "disconnected": "Disconnected",
+      "selectSpecified": "Select Specified Thing",
+      "byCreatedTime": "By Created Time",
+      "byTagName": "By Tag Name",
+      "byDesiredProp": "By Desired Prop",
+      "byReportedProp": "By Reported Prop"
+    }
   },
   "mqtt": {
     "title": "MQTT",

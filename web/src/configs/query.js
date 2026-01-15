@@ -1,71 +1,71 @@
 export const suggestions = [
   {
     value: `SELECT * FROM shadow`,
-    label: "SELECT All",
+    label: "things.querySuggestions.selectAll",
     autoTrigger: true,
   },
   {
     value: `SELECT * FROM shadow ORDER BY createdAt`,
-    label: "Sort By Created Time",
+    label: "things.querySuggestions.sortByCreated",
     autoTrigger: true,
   },
   {
     value: `SELECT * FROM shadow ORDER BY updatedAt DESC`,
-    label: "Sort By Updated DESC",
+    label: "things.querySuggestions.sortByUpdatedDesc",
     autoTrigger: true,
   },
   // {
   //   value: `SELECT * FROM shadow ORDER BY updatedAt DESC LIMIT 1`,
-  //   label: "Select the last Updated Thing",
+  //   label: "things.querySuggestions.selectLastUpdated",
   //   autoTrigger: true,
   // },
   {
     value: `SELECT thingId, connected, \`state.reported\` as reported, \`state.desired\` as desired, updatedAt FROM shadow`,
-    label: "SELECT Status",
+    label: "things.querySuggestions.selectStatus",
     autoTrigger: true,
   },
   {
     value: `SELECT thingId, connected, \`state.reported\`, createdAt as created_time, updatedAt as updated_time, \`tags\` FROM shadow`,
-    label: "Rename Time Fields",
+    label: "things.querySuggestions.renameTimeFields",
     autoTrigger: true,
   },
   {
     value: `SELECT * FROM shadow WHERE connected = true`,
-    label: "All Connected",
+    label: "things.querySuggestions.allConnected",
     autoTrigger: true,
   },
   {
     value: `SELECT * FROM shadow
          WHERE connected = false
          OR connected IS NULL`,
-    label: "Disconnected",
+    label: "things.querySuggestions.disconnected",
     autoTrigger: true,
   },
   {
-    value: "SELECT * FROM shadow WHERE thingId = {thingId}",
-    label: "Select Specified Thing",
+    value: "SELECT * FROM shadow WHERE thingId = 'your-thingId'",
+    label: "things.querySuggestions.selectSpecified",
     autoTrigger: false,
   },
   {
-    value: "SELECT * FROM shadow WHERE createdAt > '{time}'",
-    label: "By Created Time",
+    value: "SELECT * FROM shadow WHERE createdAt > '2026-01-01 00:00:00'",
+    label: "things.querySuggestions.byCreatedTime",
     autoTrigger: false,
   },
   {
-    value: "SELECT * FROM shadow WHERE `tags.{tagName}` = '{tagValue}'",
-    label: "By Tag Name",
-    autoTrigger: false,
-  },
-  {
-    value:
-      "SELECT * FROM shadow WHERE `state.desired.{propName}` = '{propValue}'",
-    label: "By Desired Prop",
+    value: "SELECT * FROM shadow WHERE `tags.yourTagName` = 'yourTagValue'",
+    label: "things.querySuggestions.byTagName",
     autoTrigger: false,
   },
   {
     value:
-      "SELECT * FROM shadow WHERE `state.reported.{propName}` = '{propValue}'",
-    label: "By Peported Prop",
+      "SELECT * FROM shadow WHERE `state.desired.yourPropName` = 'yourPropValue'",
+    label: "things.querySuggestions.byDesiredProp",
+    autoTrigger: false,
+  },
+  {
+    value:
+      "SELECT * FROM shadow WHERE `state.reported.yourPropName` = 'yourPropValue'",
+    label: "things.querySuggestions.byReportedProp",
     autoTrigger: false,
   },
 ];
