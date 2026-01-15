@@ -21,7 +21,7 @@
             {{ $t('things.query') }}
           </el-button>
           <!-- <el-button v-if="active" @click="handleClear" size="small" icon="Refresh" text /> -->
-          <el-button v-if="queryHistory.length > 0" @click="showHistory = !showHistory" text size="small" icon="Clock" :title="$t('common.history')" />
+          <el-button v-if="queryHistory.length > 0" @click="showHistory = !showHistory" text size="small" type="primary" icon="Clock" :title="$t('common.history')" />
         </div>
       </div>
 
