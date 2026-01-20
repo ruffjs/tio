@@ -126,9 +126,11 @@ func genMeta(s map[string]any, outMeta *map[string]any) {
 // removeNilFieldsForValue Before the value is saved to Shadow, remove the null field in it.
 func removeNilFieldsForValue(srcValue any) any {
 	if m, ok := srcValue.(map[string]any); ok {
+		origLen := len(m)
 		for k, v := range m {
 			if v == nil {
 				delete(m, k)
+				continue
 			}
 			if sm, ok := v.(map[string]any); ok {
 				if sr := removeNilFieldsForValue(sm); sr == nil {
@@ -136,13 +138,14 @@ func removeNilFieldsForValue(srcValue any) any {
 				}
 			}
 		}
-		if len(m) == 0 {
+		// If the map is empty after deletion and the original map is not empty, it means the field is deleted, so return nil.
+		// Otherwise, return the original map, cause tio support empty object field.
+		if len(m) == 0 && origLen > 0 {
 			return nil
 		}
 		return srcValue
-	} else {
-		return srcValue
 	}
+	return srcValue
 }
 
 func isScalar(v any) (bool, error) {

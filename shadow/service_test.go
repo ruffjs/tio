@@ -150,6 +150,53 @@ func TestSvcImpl_Set(t *testing.T) {
 		require.Equal(t, string(o), string(n))
 	})
 
+	t.Run("should delete field by nil value", func(t *testing.T) {
+		thingId = fmt.Sprintf("for-delete-field-by-nil-value-%d", time.Now().UnixNano())
+		_, err := svc.Create(ctx, thingId)
+		require.NoError(t, err)
+		req := shadow.StateReq{ClientToken: "xxx", State: shadow.StateDR{Desired: shadow.StateValue{"a": map[string]any{"b": "c"}}}}
+		s, err := svc.SetDesired(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{"a": map[string]any{"b": "c"}}, s.State.Desired)
+
+		req.State.Desired = shadow.StateValue{"a": map[string]any{"b": nil}}
+		s, err = svc.SetDesired(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{"a": map[string]any{}}, s.State.Desired)
+
+		req.State.Desired = shadow.StateValue{"a": nil}
+		s, err = svc.SetDesired(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{}, s.State.Desired)
+
+		// for reported
+		req = shadow.StateReq{ClientToken: "xxx", State: shadow.StateDR{Reported: shadow.StateValue{"a": map[string]any{"b": "c"}}}}
+		s, err = svc.SetReported(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{"a": map[string]any{"b": "c"}}, s.State.Reported)
+
+		req.State.Reported = shadow.StateValue{"a": map[string]any{"b": nil}}
+		s, err = svc.SetReported(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{"a": map[string]any{}}, s.State.Reported)
+
+		req.State.Reported = shadow.StateValue{"a": nil}
+		s, err = svc.SetReported(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, shadow.StateValue{}, s.State.Reported)
+	})
+
+	t.Run("should work for empty object field", func(t *testing.T) {
+		thingId = fmt.Sprintf("for-empty-object-field-%d", time.Now().UnixNano())
+		_, err := svc.Create(ctx, thingId)
+		require.NoError(t, err)
+		setObj := shadow.StateValue{"a": map[string]any{}}
+		req := shadow.StateReq{ClientToken: "xxx", State: shadow.StateDR{Reported: setObj}}
+		s, err := svc.SetReported(ctx, thingId, req)
+		require.NoError(t, err)
+		require.Equal(t, setObj, s.State.Reported)
+	})
+
 	t.Run("update state concurrently should ok", func(t *testing.T) {
 		thingId = fmt.Sprintf("for-update-state-concurrently-%d", time.Now().UnixNano())
 		_, err := svc.Create(ctx, thingId)
