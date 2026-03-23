@@ -24,8 +24,6 @@ import (
 	"ruff.io/tio/connector/mqtt/client"
 	"ruff.io/tio/connector/mqtt/embed"
 
-	"ruff.io/tio/auth/password"
-
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
@@ -132,7 +130,7 @@ func main() {
 		if cfg.ProvisionSecret == "" {
 			provisionSvc = nil
 		}
-		authzFn := password.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc)
+		authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc)
 		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
 	}
 
@@ -250,17 +248,19 @@ func startMqttBroker(ctx context.Context,
 	aclFn auth.AclFn,
 ) embed.Broker {
 	return embed.InitBroker(embed.MochiConfig{
-		TcpPort:         cfg.TcpPort,
-		TcpSslPort:      cfg.TcpSslPort,
-		WsPort:          cfg.WsPort,
-		WssPort:         cfg.WssPort,
-		KeyFile:         cfg.KeyFile,
-		CertFile:        cfg.CertFile,
-		Storage:         cfg.Storage,
-		AuthzFn:         authzFn,
-		AclFn:           aclFn,
-		SuperUsers:      cfg.SuperUsers,
-		MaximumInflight: cfg.MaximumInflight,
+		TcpPort:           cfg.TcpPort,
+		TcpSslPort:        cfg.TcpSslPort,
+		WsPort:            cfg.WsPort,
+		WssPort:           cfg.WssPort,
+		KeyFile:           cfg.KeyFile,
+		CertFile:          cfg.CertFile,
+		ClientCAFile:      cfg.ClientCAFile,
+		RequireClientCert: cfg.RequireClientCert,
+		Storage:           cfg.Storage,
+		AuthzFn:           authzFn,
+		AclFn:             aclFn,
+		SuperUsers:        cfg.SuperUsers,
+		MaximumInflight:   cfg.MaximumInflight,
 	})
 }
 

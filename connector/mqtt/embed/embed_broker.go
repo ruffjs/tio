@@ -5,6 +5,7 @@ package embed
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -31,21 +32,36 @@ import (
 
 const presenceEventName = "presence"
 
-type ConnectParams packets.ConnectParams
-type AuthzFn func(connParam ConnectParams) bool
+type AuthContext struct {
+	ClientIdentifier string
+	Username         string
+	Password         string
+	Clean            bool
+	HasClientCert    bool
+	CertCN           string
+}
+
+type AuthResult struct {
+	Principal  string
+	AuthMethod string
+}
+
+type AuthzFn func(authCtx AuthContext) (AuthResult, bool)
 type AclFn func(clientId, user string, topic string, write bool) bool
 type MochiConfig struct {
-	TcpPort         int
-	TcpSslPort      int
-	WsPort          int
-	WssPort         int
-	CertFile        string
-	KeyFile         string
-	AuthzFn         AuthzFn
-	AclFn           AclFn
-	Storage         config.InnerMqttStorage
-	SuperUsers      []config.UserPassword
-	MaximumInflight uint16
+	TcpPort           int
+	TcpSslPort        int
+	WsPort            int
+	WssPort           int
+	CertFile          string
+	KeyFile           string
+	ClientCAFile      string
+	RequireClientCert bool
+	AuthzFn           AuthzFn
+	AclFn             AclFn
+	Storage           config.InnerMqttStorage
+	SuperUsers        []config.UserPassword
+	MaximumInflight   uint16
 }
 
 var newOnce sync.Once
@@ -281,7 +297,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			ID:        "tio-tcp-ssl",
 			Type:      "tcp",
 			Address:   addr,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+			TLSConfig: newTLSConfig(cert, cfg.ClientCAFile, cfg.RequireClientCert),
 		})
 		err = svr.AddListener(tcpSsl)
 		if err != nil {
@@ -301,7 +317,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			ID:        "tio-wss",
 			Type:      "ws",
 			Address:   addr,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+			TLSConfig: newTLSConfig(cert, cfg.ClientCAFile, cfg.RequireClientCert),
 		})
 		err = svr.AddListener(wss)
 		if err != nil {
@@ -334,12 +350,41 @@ func readCert(keyFile, certFile string) tls.Certificate {
 		slog.Error("Read cert file", "error", err)
 		os.Exit(1)
 	}
-	cert, err := tls.X509KeyPair(keyBytes, certBytes)
+	cert, err := tls.X509KeyPair(certBytes, keyBytes)
 	if err != nil {
 		slog.Error("Wrong cert or key file", "error", err)
 		os.Exit(1)
 	}
 	return cert
+}
+
+func newTLSConfig(cert tls.Certificate, clientCAFile string, requireClientCert bool) *tls.Config {
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+	if clientCAFile == "" {
+		if requireClientCert {
+			slog.Error("clientCaFile is required when requireClientCert is enabled")
+			os.Exit(1)
+		}
+		return tlsConfig
+	}
+
+	clientCABytes, err := os.ReadFile(clientCAFile)
+	if err != nil {
+		slog.Error("Read client CA file", "file", clientCAFile, "error", err)
+		os.Exit(1)
+	}
+	clientCAPool := x509.NewCertPool()
+	if !clientCAPool.AppendCertsFromPEM(clientCABytes) {
+		slog.Error("Parse client CA file", "file", clientCAFile)
+		os.Exit(1)
+	}
+	tlsConfig.ClientCAs = clientCAPool
+	if requireClientCert {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	return tlsConfig
 }
 
 // updateClient sync mqtt client info, cause mochi-mqtt has no connect time for client

@@ -21,11 +21,10 @@ import (
 type CreateReq struct {
 	ThingId   string `json:"thingId"`
 	Password  string `json:"password"`
+	AuthType  string `json:"authType,omitempty"`
 	IsGateway bool   `json:"isGateway"`
 
 	Tags map[string]any `json:"tags"`
-
-	// AuthType string `json:"authType"`
 }
 
 type InvalidCreate struct {
@@ -50,7 +49,41 @@ func (req CreateReq) validate() error {
 		strings.TrimSpace(req.Password) != req.Password {
 		return errors.New("thingId and password can't contain space character")
 	}
-	return nil
+	switch req.authTypeOrDefault() {
+	case thing.AuthTypePassword:
+		return nil
+	case thing.AuthTypeCertificate:
+		if req.Password != "" {
+			return errors.New("certificate auth thing cannot set password")
+		}
+		return nil
+	default:
+		return errors.New("authType must be password or certificate")
+	}
+}
+
+func (req CreateReq) authTypeOrDefault() string {
+	if req.AuthType == "" {
+		return thing.AuthTypePassword
+	}
+	return req.AuthType
+}
+
+func (req CreateReq) authValue() string {
+	if req.authTypeOrDefault() == thing.AuthTypeCertificate {
+		return ""
+	}
+	return req.Password
+}
+
+func (req CreateReq) toThing() thing.Thing {
+	return thing.Thing{
+		Id:        req.ThingId,
+		Enabled:   true,
+		AuthType:  req.authTypeOrDefault(),
+		AuthValue: req.authValue(),
+		IsGateway: req.IsGateway,
+	}
 }
 
 func (req CreateReq) batchValidate() error {
@@ -202,13 +235,7 @@ func CreateHandler(ctx context.Context, svc thing.Service) restful.RouteFunction
 		}
 		upsert := r.QueryParameter("upsert") == "true"
 
-		th := thing.Thing{
-			Id:        cReq.ThingId,
-			Enabled:   true,
-			AuthType:  thing.AuthTypePassword,
-			AuthValue: cReq.Password,
-			IsGateway: cReq.IsGateway,
-		}
+		th := cReq.toThing()
 		rTh, err := svc.Create(ctx, th, cReq.Tags, upsert)
 		if err != nil {
 			sent := checkHttpErrAndSend(err, w)
@@ -268,12 +295,7 @@ func CreateBatchHandler(ctx context.Context, svc thing.Service) restful.RouteFun
 				continue
 			}
 
-			th := thing.Thing{
-				Id:        req.ThingId,
-				Enabled:   true,
-				AuthType:  thing.AuthTypePassword,
-				AuthValue: req.Password,
-			}
+			th := req.toThing()
 			rTh, err := svc.Create(ctx, th, nil, false)
 			if err != nil {
 				resp.InvalidList = append(resp.InvalidList, InvalidCreate{req.ThingId, "InternalFailureException", err.Error()})

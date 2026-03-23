@@ -3,11 +3,14 @@ package integration_tests
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	connector2 "ruff.io/tio/connector"
 
@@ -15,13 +18,11 @@ import (
 
 	"ruff.io/tio/connector/mqtt/client"
 
-	"log"
-
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
 	"ruff.io/tio/api"
-	"ruff.io/tio/auth/password"
+	"ruff.io/tio/auth"
 	"ruff.io/tio/config"
 	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/db/mysql"
@@ -139,11 +140,14 @@ func newMysqlDB(cfg mysql.Config) *gorm.DB {
 
 func startMqttBroker(ctx context.Context, cfg config.InnerMqttBroker, thingSvc thing.Service) {
 	embed.InitBroker(embed.MochiConfig{
-		TcpPort: cfg.TcpPort,
-		AuthzFn: password.AuthzMqttClient(ctx, cfg.SuperUsers, thingSvc, nil),
-		AclFn: func(clientId, user string, topic string, write bool) bool {
-			return true
-		},
+		TcpPort:           cfg.TcpPort,
+		TcpSslPort:        cfg.TcpSslPort,
+		CertFile:          cfg.CertFile,
+		KeyFile:           cfg.KeyFile,
+		ClientCAFile:      cfg.ClientCAFile,
+		RequireClientCert: cfg.RequireClientCert,
+		AuthzFn:           auth.AuthzMqttClient(ctx, cfg.SuperUsers, thingSvc, nil),
+		AclFn:             auth.TopicAcl(thingSvc, cfg.SuperUsers),
 	})
 }
 
@@ -160,6 +164,116 @@ func newThingMqttClient(cxt context.Context, thingId string, password string) cl
 		Port:     cfg.Connector.MqttClient.Port,
 	}
 	return client.NewClient(c)
+}
+
+func newThingMTLSClient(thingId string) client.Client {
+	certDir := filepath.Join("..", "demos", "mtls", "certs")
+	return newThingMTLSClientWithTLS(config.MqttClientConfig{
+		ClientId: thingId,
+		Host:     "localhost",
+		Port:     cfg.Connector.MqttBroker.TcpSslPort,
+		TLS: &config.TLSConfig{
+			CAFile:     filepath.Join(certDir, "ca.pem"),
+			CertFile:   filepath.Join(certDir, "client-cert.pem"),
+			KeyFile:    filepath.Join(certDir, "client-key.pem"),
+			ServerName: "localhost",
+		},
+	})
+}
+
+func newThingMTLSClientWithTLS(cfg config.MqttClientConfig) client.Client {
+	return client.NewClient(cfg)
+}
+
+func newThingMTLSClientWithCertFiles(thingId, certFile, keyFile, caFile, serverName string) client.Client {
+	return newThingMTLSClientWithConfig(config.MqttClientConfig{
+		ClientId: thingId,
+		Host:     "localhost",
+		Port:     cfg.Connector.MqttBroker.TcpSslPort,
+		TLS: &config.TLSConfig{
+			CAFile:     caFile,
+			CertFile:   certFile,
+			KeyFile:    keyFile,
+			ServerName: serverName,
+		},
+	})
+}
+
+func newThingMTLSClientWithConfig(cfg config.MqttClientConfig) client.Client {
+	return newThingMTLSClientWithTLS(cfg)
+}
+
+func newThingMTLSClientWithUsername(clientID, username, certFile, keyFile, caFile, serverName string) client.Client {
+	return newThingMTLSClientWithTLS(config.MqttClientConfig{
+		ClientId: clientID,
+		User:     username,
+		Host:     "localhost",
+		Port:     cfg.Connector.MqttBroker.TcpSslPort,
+		TLS: &config.TLSConfig{
+			CAFile:     caFile,
+			CertFile:   certFile,
+			KeyFile:    keyFile,
+			ServerName: serverName,
+		},
+	})
+}
+
+func newThingMTLSClientWithServerName(thingId, serverName string) client.Client {
+	certDir := filepath.Join("..", "demos", "mtls", "certs")
+	return newThingMTLSClientWithCertFiles(
+		thingId,
+		filepath.Join(certDir, "client-cert.pem"),
+		filepath.Join(certDir, "client-key.pem"),
+		filepath.Join(certDir, "ca.pem"),
+		serverName,
+	)
+}
+
+func newThingTLSClientWithoutCertificate(thingId string) client.Client {
+	certDir := filepath.Join("..", "demos", "mtls", "certs")
+	return newThingMTLSClientWithTLS(config.MqttClientConfig{
+		ClientId: thingId,
+		Host:     "localhost",
+		Port:     cfg.Connector.MqttBroker.TcpSslPort,
+		TLS: &config.TLSConfig{
+			CAFile:     filepath.Join(certDir, "ca.pem"),
+			ServerName: "localhost",
+		},
+	})
+}
+
+func waitConnected(t *testing.T, thingId string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		ok, err := connector.IsConnected(thingId)
+		if err == nil && ok {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	ok, err := connector.IsConnected(thingId)
+	if err != nil {
+		t.Fatalf("check thing %s connected failed: %v", thingId, err)
+	}
+	t.Fatalf("thing %s was not connected, final state=%v", thingId, ok)
+}
+
+func waitDisconnected(t *testing.T, thingId string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		ok, err := connector.IsConnected(thingId)
+		if err == nil && !ok {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	ok, err := connector.IsConnected(thingId)
+	if err != nil {
+		t.Fatalf("check thing %s connected failed: %v", thingId, err)
+	}
+	t.Fatalf("thing %s was still connected, final state=%v", thingId, ok)
 }
 
 var uuidProv = uuid.New()

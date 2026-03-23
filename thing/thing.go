@@ -5,12 +5,20 @@ import (
 )
 
 const (
-	AuthTypePassword string = "password"
-	AuthTypeCerts    string = "certs"
+	AuthTypePassword    string = "password"
+	AuthTypeCertificate string = "certificate"
 
 	// MaxBindThings is the max number of things that can be bound to a gateway.
 	MaxBindThings = 100
 )
+
+func IsPasswordAuthType(authType string) bool {
+	return authType == "" || authType == AuthTypePassword
+}
+
+func IsCertificateAuthType(authType string) bool {
+	return authType == AuthTypeCertificate
+}
 
 type Thing struct {
 	Id        string `json:"thingId"`

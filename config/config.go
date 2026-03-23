@@ -57,19 +57,21 @@ type InnerMqttStorage struct {
 }
 
 type InnerMqttBroker struct {
-	TcpPort          int              `json:"tcpPort"`
-	TcpSslPort       int              `json:"tcpSslPort"`
-	WsPort           int              `json:"wsPort"`
-	WssPort          int              `json:"wssPort"`
-	PublicTcpPort    *int             `json:"publicTcpPort"`
-	PublicTcpSslPort *int             `json:"publicTcpSslPort"`
-	PublicWsPort     *int             `json:"publicWsPort"`
-	PublicWssPort    *int             `json:"publicWssPort"`
-	CertFile         string           `json:"-"`
-	KeyFile          string           `json:"-"`
-	Storage          InnerMqttStorage `json:"storage"`
-	SuperUsers       []UserPassword   `json:"superUsers"`
-	MaximumInflight  uint16           `json:"maximumInflight"`
+	TcpPort           int              `json:"tcpPort"`
+	TcpSslPort        int              `json:"tcpSslPort"`
+	WsPort            int              `json:"wsPort"`
+	WssPort           int              `json:"wssPort"`
+	PublicTcpPort     *int             `json:"publicTcpPort"`
+	PublicTcpSslPort  *int             `json:"publicTcpSslPort"`
+	PublicWsPort      *int             `json:"publicWsPort"`
+	PublicWssPort     *int             `json:"publicWssPort"`
+	CertFile          string           `json:"-" mapstructure:"certFile"`
+	KeyFile           string           `json:"-" mapstructure:"keyFile"`
+	ClientCAFile      string           `json:"-" mapstructure:"clientCaFile"`
+	RequireClientCert bool             `json:"requireClientCert" mapstructure:"requireClientCert"`
+	Storage           InnerMqttStorage `json:"storage"`
+	SuperUsers        []UserPassword   `json:"superUsers"`
+	MaximumInflight   uint16           `json:"maximumInflight"`
 }
 
 type Config struct {
@@ -129,14 +131,23 @@ type Connector struct {
 }
 
 type MqttClientConfig struct {
-	ClientId     string `json:"clientId"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	User         string `json:"user"`
-	Password     string `json:"-"`
-	WillTopic    string `json:"WillTopic"`
-	WillPayload  string `json:"willPayload"`
-	CleanSession *bool  `json:"cleanSession"`
+	ClientId     string     `json:"clientId"`
+	Host         string     `json:"host"`
+	Port         int        `json:"port"`
+	User         string     `json:"user"`
+	Password     string     `json:"-"`
+	WillTopic    string     `json:"WillTopic"`
+	WillPayload  string     `json:"willPayload"`
+	CleanSession *bool      `json:"cleanSession"`
+	TLS          *TLSConfig `json:"tls,omitempty"`
+}
+
+type TLSConfig struct {
+	CAFile             string `json:"caFile" mapstructure:"caFile"`
+	CertFile           string `json:"certFile" mapstructure:"certFile"`
+	KeyFile            string `json:"keyFile" mapstructure:"keyFile"`
+	ServerName         string `json:"serverName" mapstructure:"serverName"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify" mapstructure:"insecureSkipVerify"`
 }
 
 type EmqxAdapterConfig struct {

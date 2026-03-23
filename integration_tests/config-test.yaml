@@ -41,6 +41,11 @@ connector:
   # an mqtt broker server will be launched using the following configuration,
   mqttBroker:
     tcpPort: 11883
+    tcpSslPort: 18883
+    certFile: ../demos/mtls/certs/server-cert.pem
+    keyFile: ../demos/mtls/certs/server-key.pem
+    clientCaFile: ../demos/mtls/certs/ca.pem
+    requireClientCert: true
     wsPort: 8083
     superUsers: # users can publish and subscribe all topics
       - name: tio

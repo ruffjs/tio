@@ -168,6 +168,32 @@ func TestCreateHandler(t *testing.T) {
 		require.Equal(t, thing.AuthTypePassword, rTh.AuthType, "auth type should be password by default")
 		require.Equal(t, th.Password, rTh.AuthValue, "password should be equal with request")
 	})
+
+	t.Run("should create certificate thing ok", func(t *testing.T) {
+		th := createThReq
+		th.ThingId = id()
+		th.AuthType = thing.AuthTypeCertificate
+
+		resp, err := doReq(th)
+		require.NoError(t, err)
+		rTh, err := decodeRes(resp)
+		require.NoError(t, err)
+
+		require.Equal(t, th.ThingId, rTh.Id)
+		require.Equal(t, thing.AuthTypeCertificate, rTh.AuthType)
+		require.Empty(t, rTh.AuthValue)
+	})
+
+	t.Run("certificate thing with password should error", func(t *testing.T) {
+		th := createThReq
+		th.ThingId = id()
+		th.AuthType = thing.AuthTypeCertificate
+		th.Password = "pw"
+
+		resp, err := doReq(th)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
 }
 
 func TestCreateBatchHandler(t *testing.T) {
@@ -175,8 +201,9 @@ func TestCreateBatchHandler(t *testing.T) {
 	svr := newServer()
 	defer svr.Close()
 
-	vaildThing := api.CreateReq{"some-id-xxx", "password", true, nil}
+	vaildThing := api.CreateReq{ThingId: "some-id-xxx", Password: "password", IsGateway: true}
 	noPasswordThing := api.CreateReq{ThingId: "noPasswordThing"}
+	certThing := api.CreateReq{ThingId: "cert-thing", AuthType: thing.AuthTypeCertificate}
 
 	doReq := func(r []api.CreateReq) (*http.Response, error) {
 		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things/batch", svr.URL), toBuf(r))
@@ -195,7 +222,7 @@ func TestCreateBatchHandler(t *testing.T) {
 	}
 
 	t.Run("should request ok", func(t *testing.T) {
-		ths := []api.CreateReq{vaildThing, noPasswordThing}
+		ths := []api.CreateReq{vaildThing, noPasswordThing, certThing}
 		resp, err := doReq(ths)
 		require.NoError(t, err)
 
@@ -204,6 +231,21 @@ func TestCreateBatchHandler(t *testing.T) {
 
 		require.Equal(t, resp.StatusCode, http.StatusOK)
 		require.Equal(t, len(rTh.ValidList), len(ths))
+	})
+
+	t.Run("certificate thing with password should be invalid", func(t *testing.T) {
+		ths := []api.CreateReq{{
+			ThingId:  "bad-cert-thing",
+			Password: "pw",
+			AuthType: thing.AuthTypeCertificate,
+		}}
+		resp, err := doReq(ths)
+		require.NoError(t, err)
+
+		rTh, err := decodeRes(resp)
+		require.NoError(t, err)
+		require.Len(t, rTh.InvalidList, 1)
+		require.Empty(t, rTh.ValidList)
 	})
 
 	t.Run("wrong thingId should error", func(t *testing.T) {

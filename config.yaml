@@ -48,26 +48,28 @@ connector:
   # and if the ssl, wss ports are not configured, they will not be enabled.
   mqttBroker:
     tcpPort: 1883           # default is 1883
-    # tcpSslPort: 8883        # tcp SSL/TLS, default is 0 means it is disabled
+    tcpSslPort: 8883        # tcp SSL/TLS, default is 0 means it is disabled
     wsPort: 8083            # mqtt over websocket, default is 8083
     # wssPort: 8084           # mqtt over websocket(SSL/TLS), default is 0 means it is disabled
 
     # The following public ports are used externally to understand the current available external ports,
-    # NOT for the tio server, 
-    # such as publicWsPort or publicWssPort as the default port of mqtt client on the web console. 
+    # NOT for the tio server,
+    # such as publicWsPort or publicWssPort as the default port of mqtt client on the web console.
     # If these ports are left blank, the previous ports value are used by default
 
-    # publicTcpPort: 
-    # publicTcpSslPort: 
-    # publicWsPort: 
-    # publicWssPort: 
+    # publicTcpPort:
+    # publicTcpSslPort:
+    # publicWsPort:
+    # publicWssPort:
 
 
     # If tcpSslPort or wssPort has configured, certFile and keyFile must also be configured
     # require X509 PEM encoded file
-
-    # certFile: "./cert-key.pem"
-    # keyFile: "./cert.pem"
+    # For mTLS demo, use the certificates generated in demos/mtls/certs/
+    certFile: "./demos/mtls/certs/server-cert.pem"
+    keyFile: "./demos/mtls/certs/server-key.pem"
+    clientCaFile: "./demos/mtls/certs/ca.pem"
+    requireClientCert: true
 
     # Max 65535 , default 8192
     # maximumInflight: 8192
@@ -75,7 +77,7 @@ connector:
     # mqtt storage, if left blank, the storage is disabled
     # https://github.com/mochi-mqtt/server?tab=readme-ov-file#badger-db
     storage: 
-      type: redis  # file or redis
+      type: file  # file or redis
       filePath: "./embed-mqtt.db" # when type is file
       redis:
         addr: 127.0.0.1:6379
