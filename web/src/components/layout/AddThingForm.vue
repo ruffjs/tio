@@ -19,7 +19,18 @@
           :placeholder="t('things.thingIdPlaceholder')"
         />
       </el-form-item>
-      <el-form-item :label="t('login.password')" prop="password" :label-width="formLabelWidth">
+      <el-form-item :label="t('things.authType')" prop="authType" :label-width="formLabelWidth">
+        <el-radio-group v-model="form.authType">
+          <el-radio label="password">{{ t('things.authTypePassword') }}</el-radio>
+          <el-radio label="certificate">{{ t('things.authTypeCertificate') }}</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item
+        v-if="form.authType === 'password'"
+        :label="t('login.password')"
+        prop="password"
+        :label-width="formLabelWidth"
+      >
         <el-input
           v-model="form.password"
           type="password"
@@ -39,7 +50,7 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref } from "vue";
+import { reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 
@@ -88,7 +99,17 @@ const formRef = ref();
 const form = reactive({
   thingId: "",
   password: "",
+  authType: "password",
 });
+
+watch(
+  () => form.authType,
+  (authType) => {
+    if (authType === "certificate") {
+      form.password = "";
+    }
+  }
+);
 
 const handleConfirm = async () => {
   if (!formRef.value) return;

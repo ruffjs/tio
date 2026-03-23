@@ -50,12 +50,16 @@ export default () => {
     }
   };
 
-  const addThing = async ({ thingId, password }) => {
+  const addThing = async ({ thingId, password, authType }) => {
     try {
-      const res = await postThing({
+      const payload = {
         thingId,
-        password,
-      });
+        authType,
+      };
+      if (authType !== "certificate") {
+        payload.password = password;
+      }
+      const res = await postThing(payload);
       console.log("addThing res:", res);
       updateThings();
       store.commit("app/setState", {

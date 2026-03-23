@@ -44,7 +44,18 @@
             <h3>{{ $t('things.basicInfo') }}</h3>
           </div>
           <div class="card-content">
-            <KeyValueDisplayer :data="thing" :fields="createMetaFields(t)" />
+            <div class="thing-meta-item">
+              <div class="thing-meta-label">{{ $t('things.enabled') }}</div>
+              <div class="thing-meta-value">
+                <el-switch
+                  size="small"
+                  v-model="thing.enabled"
+                  :loading="updatingEnabled"
+                  @change="handleToggleEnabled"
+                />
+              </div>
+            </div>
+            <KeyValueDisplayer :data="thing" :fields="metaFields" />
           </div>
         </div>
 
@@ -90,10 +101,10 @@ export default {
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { getThing, kickOutClient } from "@/apis";
+import { getThing, kickOutClient, patchThing } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
@@ -120,12 +131,15 @@ const {
   currentShadow: shadow,
   setCurrentShadow,
   updateCurrentShadow,
+  updateThings,
 } = useThingsAndShadows();
 const { onSomethingStatusChange } = useThingEvent();
 const isFromList = ref(false);
 const thing = reactive({});
 const posterCode = ref("");
 const posterData = ref(null);
+const updatingEnabled = ref(false);
+const metaFields = computed(() => createMetaFields(t).filter(({ key }) => key !== "enabled"));
 
 const formatTime = (time) => {
   return time ? dayjs(time).format("YYYY-MM-DD HH:mm:ss") : "-";
@@ -155,6 +169,38 @@ const getBasicInfo = async () => {
     Object.assign(thing, res.data);
   } catch (error) {
     console.error("error", error);
+  }
+};
+
+const handleToggleEnabled = async (enabled) => {
+  const previousEnabled = !enabled;
+  try {
+    await ElMessageBox.confirm(
+      enabled ? t("things.confirmEnableThing") : t("things.confirmDisableThing"),
+      t("common.warning"),
+      {
+        confirmButtonText: t("common.confirm"),
+        cancelButtonText: t("common.cancel"),
+        type: "warning",
+      }
+    );
+  } catch {
+    thing.enabled = previousEnabled;
+    return;
+  }
+
+  updatingEnabled.value = true;
+  try {
+    await patchThing(thingId.value, { enabled });
+    await updateThings();
+    await getBasicInfo();
+    ElMessage.success(t("common.success"));
+  } catch (error) {
+    thing.enabled = previousEnabled;
+    console.error("error", error);
+    ElMessage.error(t("common.error"));
+  } finally {
+    updatingEnabled.value = false;
   }
 };
 
@@ -295,6 +341,9 @@ onMounted(() => {
         overflow: hidden;
 
         .card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           padding: 16px 20px;
           border-bottom: 1px solid #f0f0f0;
           background-color: #fafafa;
@@ -333,6 +382,34 @@ onMounted(() => {
         min-height: 0;
       }
     }
+  }
+}
+
+.thing-meta-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 28px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  padding: 1px 5px;
+  border: solid 1px rgba(0, 0, 0, 0.1);
+  border-radius: 5px 5px 2px 2px;
+
+  .thing-meta-label {
+    margin-right: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #555;
+  }
+
+  .thing-meta-value {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 24px;
   }
 }
 
