@@ -53,8 +53,10 @@ defineProps({
   min-height: 28px;
   margin-top: 2px;
   padding: 1px 5px;
-  border: solid 1px rgba($color: #000000, $alpha: 0.1);
-  border-radius: 2px;
+  border: 1px solid var(--tio-border);
+  border-radius: var(--tio-radius);
+  background: var(--tio-surface-soft);
+  color: var(--tio-text);
 
   &:first-child {
     margin-top: 0;
@@ -68,7 +70,7 @@ defineProps({
     margin-right: 10px;
     font-size: 12px;
     font-weight: 700;
-    color: #555;
+    color: var(--tio-muted);
   }
   .key-value-value {
     max-width: 140px;

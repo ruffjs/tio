@@ -5,6 +5,14 @@
     </div>
     <div class="nav-buttons">
       <LanguageSwitcher />
+      <div class="nav-button theme-button" @click="toggleTheme" :title="`Switch to ${nextThemeMode}`">
+        <el-icon>
+          <Monitor v-if="themeMode === 'auto'" />
+          <Sunny v-else-if="themeMode === 'dark'" />
+          <Moon v-else />
+        </el-icon>
+        {{ themeLabel }}
+      </div>
       <div class="nav-button" @click="handleLogOut">
         <el-icon><Avatar /></el-icon>{{ hasAuth ? $t('nav.logOut') : "" }}
       </div>
@@ -25,16 +33,12 @@ import Thing from "@/components/views/Thing.vue";
 import AddThingForm from "./AddThingForm.vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
+import useTheme from "@/reactives/useTheme";
 
 const store = useStore();
 const router = useRouter();
-const {
-  route,
-  selectedThingId,
-  currentShadow,
-  requestUpdateShadowList,
-  updateCurrentShadow,
-} = useThingsAndShadows();
+const { route } = useThingsAndShadows();
+const { themeMode, themeLabel, nextThemeMode, toggleTheme } = useTheme();
 const hasAuth = computed(() => !!store.state.user.auth);
 const thingId = computed(() => route.params.thingId || "");
 const isList = computed(() => route.name === List.name);
@@ -69,48 +73,69 @@ const handleLogOut = () => {
 .nav-container {
   display: flex;
   justify-content: space-between;
-  background-color: #071927;
-  color: #fff;
-  // box-shadow: 0 1px 2px rgba($color: #000000, $alpha: 0.1);
+  height: 58px;
+  color: var(--tio-text);
   user-select: none;
 
   .nav-thing-id {
-    height: 34px;
-    margin: 8px 0 8px 3px;
-    padding: 4px;
-    border: solid 1 px #fff;
-    border-left-width: 3px;
+    display: flex;
+    align-items: center;
+    max-width: 48vw;
+    height: 36px;
+    margin: 11px 0 11px 14px;
+    padding: 0 12px;
+    overflow: hidden;
+    border: 1px solid var(--tio-line);
+    border-left: 3px solid var(--tio-accent);
+    border-radius: var(--tio-radius);
+    background: transparent;
+    color: var(--tio-text-strong);
     line-height: 18px;
-    font-size: 24px;
-    font-weight: 400;
+    font-size: 18px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
   }
+
   .nav-buttons {
     flex: 1;
     display: flex;
     flex-direction: row-reverse;
     align-items: center;
-    height: 50px;
-    padding: 10px 20px;
-    gap: 12px;
+    height: 58px;
+    padding: 10px 18px;
+    gap: 10px;
 
     .nav-button {
       display: flex;
       flex-direction: row;
       justify-content: center;
       align-items: center;
-
+      min-height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--tio-line);
+      border-radius: var(--tio-radius);
+      background: transparent;
+      color: var(--tio-text);
       font-size: 12px;
+      font-weight: 650;
       cursor: pointer;
+      transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+
       &:hover {
-        color: var(--el-color-primary);
+        border-color: var(--tio-accent-strong);
+        background: var(--tio-accent-soft);
+        color: var(--tio-text-strong);
       }
+
       &.danger {
-        color: red;
+        color: var(--tio-danger);
       }
+
       .el-icon {
         font-size: 14px;
-        margin-right: 2px;
+        margin-right: 4px;
       }
     }
   }

@@ -92,7 +92,7 @@ const handleSelect = (suggestion) => {
         line-height: 15px;
         font-size: 12px;
         font-weight: 600;
-        color: #888;
+        color: var(--tio-muted);
         word-break: break-all;
         word-wrap: break-word;
       }
@@ -102,7 +102,7 @@ const handleSelect = (suggestion) => {
 </style>
 <style lang="scss">
 .el-overlay.publish-topic-suggestions-mask {
-  background-color: rgba($color: #000000, $alpha: 0.1);
+  background-color: var(--el-mask-color);
 }
 .publish-topic-suggestions {
   .el-drawer__header {

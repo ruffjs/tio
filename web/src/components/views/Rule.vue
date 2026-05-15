@@ -1,197 +1,285 @@
 <template>
-
   <div class="rule-con">
+    <EditRule
+      v-if="showEditRule"
+      :rule="currentRule"
+      :config="data.config"
+      :isNew="isNewRule"
+      @cancel="afterRuleEdit"
+    />
 
-    <EditRule v-if="showEditRule" :rule="currentRule" :config="data.config" :isNew="isNewRule"
-      @cancel="afterRuleEdit" />
-    <div v-show="!showEditRule">
-      <el-card>
-        <div>
-          <label class="segment-title">{{ $t('rules.title') }}
-            <el-popover placement="top-start" :title="$t('rules.help')" :width="550" trigger="hover">
+    <div v-show="!showEditRule" class="rules-workspace">
+      <header class="workspace-toolbar">
+        <div class="toolbar-copy">
+          <div class="title-row">
+            <h1>{{ $t('rules.title') }}</h1>
+            <el-popover placement="bottom-start" :title="$t('rules.help')" :width="550" trigger="hover">
               <template #default>
-                <p>
-                  {{ $t('rules.helpContent') }}
-                </p>
+                <p class="help-text">{{ $t('rules.helpContent') }}</p>
               </template>
               <template #reference>
-
-                <el-icon>
-                  <QuestionFilled />
-                </el-icon>
+                <el-button class="help-button" link :aria-label="$t('rules.help')">
+                  <el-icon><QuestionFilled /></el-icon>
+                </el-button>
               </template>
             </el-popover>
-          </label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddRule">{{ $t('common.add') }}</el-button>
-        </div>
-        <el-table :data="data.config.rules" height="100%">
-          <el-table-column prop="name" :label="$t('rules.name')">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editRule(scope.row)">
-                {{ scope.row.name }}
-              </el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sources" :label="$t('rules.source')">
-            <template #default="scope">
-              <template v-for="(d, i) in scope.row.sources.map(n => getSrcDesp(n))">
-                <br v-if="i > 0" />
-                <el-tag type="info">{{ d }}</el-tag>
-              </template>
-            </template>
-          </el-table-column>
-          <el-table-column prop="sinks" :label="$t('rules.sink')">
-            <template #default="scope">
-              <template v-for="(d, i) in scope.row.sinks.map(n => getSinkDesp(n))">
-                <br v-if="i > 0" />
-                <el-tag type="info">{{ d }}</el-tag>
-              </template>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('rules.status')">
-            <template #header>
-              {{ $t('rules.status') }}
-              <el-tooltip :content="$t('common.info')">
-                <el-icon>
-                  <InfoFilled />
-                </el-icon>
-              </el-tooltip>
-            </template>
-            <template #default="scope">
-              <component :is="getStatus('rule', scope.row.name)" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="note" label="Note">
-          </el-table-column>
-          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
-            <template #default="scope">
-              <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('rule', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('rules.actions')" width="190">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editRule(scope.row)">
-                {{ $t('common.edit') }}
-              </el-button>
-              <el-button link type="primary" @click.prevent="duplicateRule(scope.row)">
-                {{ $t('common.duplicate') }}
-              </el-button>
-              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delRule(scope.row)" />
-            </template>
-
-          </el-table-column>
-        </el-table>
-      </el-card>
-
-      <br />
-      <el-card>
-        <div>
-          <label class="segment-title">{{ $t('rules.connector') }}</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddConnector">{{ $t('common.add') }}</el-button>
+          </div>
+          <p>Sources, process steps, and sinks are managed as one integration flow.</p>
         </div>
 
-        <el-table :data="data.config.connectors" height="100%">
-          <el-table-column prop="name" :label="$t('rules.name')">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editConn(scope.row)">
-                {{ scope.row.name }}
-              </el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="type" :label="$t('rules.type')">
-          </el-table-column>
-          <el-table-column :label="$t('rules.status')">
-            <template #default="scope">
-              <component :is="getStatus('connector', scope.row.name)" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
-            <template #default="scope">
-              <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('connector', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('rules.actions')" width="120">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editConn(scope.row)">
-                {{ $t('common.edit') }}
-              </el-button>
-              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delConn(scope.row)" />
-            </template>
-          </el-table-column>
-        </el-table>
-        <br />
-
-        <div>
-          <label class="segment-title">{{ $t('rules.source') }}</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddSrc">{{ $t('common.add') }}</el-button>
+        <div class="toolbar-actions">
+          <div class="summary-pills" aria-label="Rule resources summary">
+            <span>{{ $t('rules.title') }} <b>{{ data.config.rules.length }}</b></span>
+            <span>{{ $t('rules.connector') }} <b>{{ data.config.connectors.length }}</b></span>
+            <span>{{ $t('rules.source') }} <b>{{ data.config.sources.length }}</b></span>
+            <span>{{ $t('rules.sink') }} <b>{{ data.config.sinks.length }}</b></span>
+          </div>
+          <el-button v-if="activeResourceTab === 'rule'" type="primary" icon="Plus" @click="showAddRule">
+            {{ $t('rules.addRule') }}
+          </el-button>
+          <el-button v-if="activeResourceTab === 'connector'" type="primary" icon="Plus" @click="showAddConnector">
+            {{ $t('common.add') }} {{ $t('rules.connector') }}
+          </el-button>
+          <el-button v-if="activeResourceTab === 'source'" type="primary" icon="Plus" @click="showAddSrc">
+            {{ $t('common.add') }} {{ $t('rules.source') }}
+          </el-button>
+          <el-button v-if="activeResourceTab === 'sink'" type="primary" icon="Plus" @click="showAddSink">
+            {{ $t('common.add') }} {{ $t('rules.sink') }}
+          </el-button>
         </div>
-        <el-table :data="data.config.sources" height="100%">
-          <el-table-column prop="name" :label="$t('rules.name')">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editSrc(scope.row)">
-                {{ scope.row.name }}
-              </el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="type" :label="$t('rules.type')" />
-          <el-table-column :label="$t('rules.status')">
-            <template #default="scope">
-              <component :is="getStatus('source', scope.row.name)" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
-            <template #default="scope">
-              <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('source', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('rules.actions')" width="120">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editSrc(scope.row)">
-                {{ $t('common.edit') }}
-              </el-button>
-              <DeleteButton title="Confimr delete?" @confirm="delSrc(scope.row)" />
-            </template>
-          </el-table-column>
-        </el-table>
-        <br />
+      </header>
 
-        <div>
-          <label class="segment-title">{{ $t('rules.sink') }}</label>
-          <el-button type="primary" icon="Plus" size="small" @click="showAddSink">{{ $t('common.add') }}</el-button>
-        </div>
-        <el-table :data="data.config.sinks" height="100%">
-          <el-table-column prop="name" :label="$t('rules.name')">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editSink(scope.row)">
-                {{ scope.row.name }}
-              </el-button>
-            </template>
-          </el-table-column>
-          <el-table-column prop="type" :label="$t('rules.type')" />
-          <el-table-column :label="$t('rules.status')">
-            <template #default="scope">
-              <component :is="getStatus('sink', scope.row.name)" />
-            </template>
-          </el-table-column>
-          <el-table-column prop="eanbled" :label="$t('rules.enabled')" width="70">
-            <template #default="scope">
-              <el-switch v-model="scope.row.enabled" size="small"
-                @change="v => toggleEnable('sink', scope.row, v)">{{ $t('rules.enabled') }}</el-switch>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('rules.actions')" width="120">
-            <template #default="scope">
-              <el-button link type="primary" @click.prevent="editSink(scope.row)">
-                {{ $t('common.edit') }}
-              </el-button>
-              <DeleteButton :title="$t('common.confirmDelete')" @confirm="delSink(scope.row)" />
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+      <el-tabs v-model="activeResourceTab" class="workspace-tabs">
+        <el-tab-pane name="rule">
+          <template #label>
+            <span class="tab-label">{{ $t('rules.title') }} <b>{{ data.config.rules.length }}</b></span>
+          </template>
+          <div class="table-shell">
+            <el-table :data="data.config.rules" class="clean-table" row-class-name="action-row">
+              <el-table-column prop="name" :label="$t('rules.name')" min-width="150">
+                <template #default="scope">
+                  <div class="name-cell">
+                    <el-button link type="primary" class="name-link" @click.prevent="editRule(scope.row)">
+                      {{ scope.row.name || '-' }}
+                    </el-button>
+                    <span v-if="scope.row.note" class="note-text">{{ scope.row.note }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="sources" :label="$t('rules.source')" min-width="150">
+                <template #default="scope">
+                  <div class="chip-stack">
+                    <el-tag v-for="name in scope.row.sources" :key="name" type="info" effect="plain" round>
+                      {{ getSrcDesp(name) }}
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="sinks" :label="$t('rules.sink')" min-width="150">
+                <template #default="scope">
+                  <div class="chip-stack">
+                    <el-tag v-for="name in scope.row.sinks" :key="name" type="info" effect="plain" round>
+                      {{ getSinkDesp(name) }}
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('rules.status')" width="110">
+                <template #header>
+                  <span class="status-header">
+                    {{ $t('rules.status') }}
+                    <el-tooltip :content="$t('common.info')">
+                      <el-icon><InfoFilled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <template #default="scope">
+                  <component :is="getStatus('rule', scope.row.name)" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="enabled" :label="$t('rules.enabled')" width="82" align="center">
+                <template #default="scope">
+                  <el-switch
+                    v-model="scope.row.enabled"
+                    size="small"
+                    @change="v => toggleEnable('rule', scope.row, v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('rules.actions')" width="166" align="right">
+                <template #default="scope">
+                  <el-dropdown
+                    trigger="click"
+                    popper-class="rule-actions-popper"
+                    @command="(command) => handleRuleCommand(command, scope.row)"
+                  >
+                    <el-button class="row-more-button" link icon="MoreFilled" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="edit">{{ $t('common.edit') }}</el-dropdown-item>
+                        <el-dropdown-item command="duplicate">{{ $t('common.duplicate') }}</el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>{{ $t('common.delete') }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane name="connector">
+          <template #label>
+            <span class="tab-label">{{ $t('rules.connector') }} <b>{{ data.config.connectors.length }}</b></span>
+          </template>
+          <div class="resource-note">Connection profiles shared by sources and sinks.</div>
+          <div class="table-shell">
+            <el-table :data="data.config.connectors" class="clean-table" row-class-name="action-row">
+              <el-table-column prop="name" :label="$t('rules.name')" min-width="150">
+                <template #default="scope">
+                  <el-button link type="primary" class="name-link" @click.prevent="editConn(scope.row)">
+                    {{ scope.row.name }}
+                  </el-button>
+                </template>
+              </el-table-column>
+              <el-table-column prop="type" :label="$t('rules.type')" min-width="110" />
+              <el-table-column :label="$t('rules.status')" width="110">
+                <template #default="scope">
+                  <component :is="getStatus('connector', scope.row.name)" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="enabled" :label="$t('rules.enabled')" width="82" align="center">
+                <template #default="scope">
+                  <el-switch
+                    v-model="scope.row.enabled"
+                    size="small"
+                    @change="v => toggleEnable('connector', scope.row, v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('rules.actions')" width="108" align="right">
+                <template #default="scope">
+                  <el-dropdown
+                    trigger="click"
+                    popper-class="rule-actions-popper"
+                    @command="(command) => handleResourceCommand('connector', command, scope.row)"
+                  >
+                    <el-button class="row-more-button" link icon="MoreFilled" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="edit">{{ $t('common.edit') }}</el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>{{ $t('common.delete') }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane name="source">
+          <template #label>
+            <span class="tab-label">{{ $t('rules.source') }} <b>{{ data.config.sources.length }}</b></span>
+          </template>
+          <div class="resource-note">Inputs that receive data before rule processing.</div>
+          <div class="table-shell">
+            <el-table :data="data.config.sources" class="clean-table" row-class-name="action-row">
+              <el-table-column prop="name" :label="$t('rules.name')" min-width="150">
+                <template #default="scope">
+                  <el-button link type="primary" class="name-link" @click.prevent="editSrc(scope.row)">
+                    {{ scope.row.name }}
+                  </el-button>
+                </template>
+              </el-table-column>
+              <el-table-column prop="type" :label="$t('rules.type')" min-width="100" />
+              <el-table-column prop="connector" :label="$t('rules.connector')" min-width="120" />
+              <el-table-column :label="$t('rules.status')" width="110">
+                <template #default="scope">
+                  <component :is="getStatus('source', scope.row.name)" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="enabled" :label="$t('rules.enabled')" width="82" align="center">
+                <template #default="scope">
+                  <el-switch
+                    v-model="scope.row.enabled"
+                    size="small"
+                    @change="v => toggleEnable('source', scope.row, v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('rules.actions')" width="108" align="right">
+                <template #default="scope">
+                  <el-dropdown
+                    trigger="click"
+                    popper-class="rule-actions-popper"
+                    @command="(command) => handleResourceCommand('source', command, scope.row)"
+                  >
+                    <el-button class="row-more-button" link icon="MoreFilled" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="edit">{{ $t('common.edit') }}</el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>{{ $t('common.delete') }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane name="sink">
+          <template #label>
+            <span class="tab-label">{{ $t('rules.sink') }} <b>{{ data.config.sinks.length }}</b></span>
+          </template>
+          <div class="resource-note">Outputs that receive transformed rule results.</div>
+          <div class="table-shell">
+            <el-table :data="data.config.sinks" class="clean-table" row-class-name="action-row">
+              <el-table-column prop="name" :label="$t('rules.name')" min-width="150">
+                <template #default="scope">
+                  <el-button link type="primary" class="name-link" @click.prevent="editSink(scope.row)">
+                    {{ scope.row.name }}
+                  </el-button>
+                </template>
+              </el-table-column>
+              <el-table-column prop="type" :label="$t('rules.type')" min-width="100" />
+              <el-table-column prop="connector" :label="$t('rules.connector')" min-width="120" />
+              <el-table-column :label="$t('rules.status')" width="110">
+                <template #default="scope">
+                  <component :is="getStatus('sink', scope.row.name)" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="enabled" :label="$t('rules.enabled')" width="82" align="center">
+                <template #default="scope">
+                  <el-switch
+                    v-model="scope.row.enabled"
+                    size="small"
+                    @change="v => toggleEnable('sink', scope.row, v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column :label="$t('rules.actions')" width="108" align="right">
+                <template #default="scope">
+                  <el-dropdown
+                    trigger="click"
+                    popper-class="rule-actions-popper"
+                    @command="(command) => handleResourceCommand('sink', command, scope.row)"
+                  >
+                    <el-button class="row-more-button" link icon="MoreFilled" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="edit">{{ $t('common.edit') }}</el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>{{ $t('common.delete') }}</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 
@@ -218,7 +306,6 @@ import EditOpt from '@/components/rule/EditOpt.vue';
 import * as ruleSchema from '@/components/rule/rule-schema'
 import { deepCopy } from '@/utils/common'
 import { ElNotification } from 'element-plus';
-import DeleteButton from '@/components/list/DeleteButton.vue'
 
 const emptyRuleConfig = {
   connectors: [],
@@ -230,6 +317,7 @@ const data = reactive({ config: emptyRuleConfig, status: {} })
 const showEditRule = ref(false)
 const currentRule = ref(null)
 const isNewRule = ref(false)
+const activeResourceTab = ref('rule')
 
 const editOpt = ref()
 const defaultEditData = {
@@ -271,6 +359,7 @@ const loadRuleConfig = async () => {
   if (!rule.sources) rule.sources = []
   if (!rule.sinks) rule.sinks = []
   if (!rule.rules) rule.rules = []
+  if (!data.status) data.status = {}
 }
 
 const toggleEnable = async (type, row, enable) => {
@@ -302,18 +391,18 @@ const toggleEnable = async (type, row, enable) => {
 }
 
 const getStatus = (type, name) => {
-  const status = data.status[type].find(c => c.name == name)?.status || {}
+  const status = data.status[type]?.find(c => c.name == name)?.status || {}
+  const statusText = status.status || 'unknown'
 
-  let tagType = "info"
-  if (['connected', 'running'].includes(status.status)) tagType = 'success'
-  if (status.status == 'stopped') tagType = 'info'
-  else 'danger'
+  let tagType = 'info'
+  if (['connected', 'running'].includes(statusText)) tagType = 'success'
+  if (statusText && !['connected', 'running', 'stopped', 'unknown'].includes(statusText)) tagType = 'danger'
 
-  const tag = h(ElTag, { type: tagType }, { default: () => status.status })
+  const tag = h(ElTag, { type: tagType, effect: 'plain', round: true }, { default: () => statusText })
   // connector has no metrics
   if (type == 'connector' && tagType == 'success') return tag;
 
-  const reason = h('div', status.reason)
+  const reason = h('div', { class: 'status-reason' }, status.reason || '')
   let metric = h('div', '')
   if (status.metric && Object.keys(status.metric).length > 0) {
     const metricData = Object.keys(status.metric).map(k => ({ key: k, value: status.metric[k] }))
@@ -358,9 +447,32 @@ const duplicateRule = (rule) => {
   isNewRule.value = true
   showEditRule.value = true
 }
-const delRule = (rule) => {
+const handleRuleCommand = async (command, rule) => {
+  if (command == 'edit') {
+    editRule(rule)
+    return
+  }
+  if (command == 'duplicate') {
+    duplicateRule(rule)
+    return
+  }
+  if (command == 'delete') {
+    try {
+      await ElMessageBox.confirm(rule.name, 'Confirm delete?', {
+        confirmButtonText: 'OK',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      })
+      await delRule(rule)
+    } catch (e) {
+      // user cancelled
+    }
+  }
+}
+const delRule = async (rule) => {
   const { rules } = data.config
-  rules.splice(rules.findIndex(r => r.name == rule.name))
+  rules.splice(rules.findIndex(r => r.name == rule.name), 1)
+  await saveRule()
 }
 
 const getSrcDesp = (name) => {
@@ -429,6 +541,30 @@ const confirmEdit = async () => {
 }
 const cancelEdit = () => {
   Object.assign(drawerEdit, defaultEditData)
+}
+
+const handleResourceCommand = async (type, command, row) => {
+  if (command == 'edit') {
+    if (type == 'connector') editConn(row)
+    if (type == 'source') editSrc(row)
+    if (type == 'sink') editSink(row)
+    return
+  }
+
+  if (command == 'delete') {
+    try {
+      await ElMessageBox.confirm(row.name, 'Confirm delete?', {
+        confirmButtonText: 'OK',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+      })
+      if (type == 'connector') await delConn(row)
+      if (type == 'source') await delSrc(row)
+      if (type == 'sink') await delSink(row)
+    } catch (e) {
+      // user cancelled
+    }
+  }
 }
 
 // connector 
@@ -545,13 +681,245 @@ const delSink = async row => {
 
 <style lang="scss" scoped>
 .rule-con {
-  margin: 0 10px 30px 10px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 30px;
+  color: var(--tio-text);
+  overflow: hidden;
+}
 
-  .segment-title {
-    display: inline-block;
-    margin: 0px 30px 10px 0px;
-    width: 100px;
-    font-size: 14px;
+.rules-workspace {
+  min-width: 0;
+  padding: 2px 2px 14px;
+}
+
+.workspace-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--tio-line);
+}
+
+.toolbar-copy {
+  min-width: 0;
+
+  p {
+    margin: 6px 0 0;
+    color: var(--tio-muted);
+    line-height: 1.6;
   }
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  h1 {
+    margin: 0;
+    color: var(--tio-text-strong);
+    font-size: 24px;
+    font-weight: 760;
+    letter-spacing: -0.02em;
+  }
+}
+
+.help-button {
+  color: var(--tio-muted);
+}
+
+.help-text {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+    font-size: 12px;
+  }
+
+  b {
+    color: var(--tio-text-strong);
+    font-weight: 760;
+  }
+}
+
+.workspace-tabs {
+  min-width: 0;
+
+  :deep(.el-tabs__header) {
+    margin-bottom: 12px;
+  }
+
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+    background: var(--tio-line);
+  }
+
+  :deep(.el-tabs__content),
+  :deep(.el-tab-pane) {
+    min-width: 0;
+  }
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  b {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+  }
+}
+
+.resource-note {
+  margin: 0 0 10px;
+  color: var(--tio-muted);
+  font-size: 13px;
+}
+
+.table-shell {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--tio-line);
+  border-radius: var(--tio-radius);
+}
+
+.clean-table {
+  width: 100%;
+  min-width: 680px;
+
+  :deep(.el-table__inner-wrapper::before) {
+    display: none;
+  }
+
+  :deep(th.el-table__cell) {
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  :deep(td.el-table__cell) {
+    border-color: var(--tio-line);
+  }
+
+  :deep(.el-table__row:hover > td.el-table__cell) {
+    background: var(--tio-surface-soft);
+  }
+
+  :deep(.el-table__row:hover .row-more-button),
+  :deep(.row-more-button:focus) {
+    opacity: 1;
+  }
+}
+
+.name-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.name-link {
+  min-height: auto;
+  padding: 0;
+  color: var(--tio-link);
+  font-weight: 650;
+}
+
+.note-text {
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--tio-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  :deep(.el-tag) {
+    max-width: 220px;
+    border-color: var(--tio-line);
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+  }
+}
+
+.row-more-button.el-button {
+  opacity: 0.34;
+  transition: opacity 0.16s ease;
+}
+
+:global(.status-reason) {
+  color: var(--tio-text);
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .workspace-toolbar {
+    flex-direction: column;
+  }
+
+  .toolbar-actions,
+  .summary-pills {
+    justify-content: flex-start;
+  }
+
+  .row-more-button.el-button {
+    opacity: 1;
+  }
+}
+</style>
+
+<style lang="scss">
+.rule-actions-popper {
+  min-width: 120px;
 }
 </style>

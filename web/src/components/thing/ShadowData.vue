@@ -1,25 +1,23 @@
 <template>
-  <el-card class="shadow-state-card" shadow="never">
-    <template #header>
-      <div class="shadow-state-card-header">
-        <span>{{ $t('things.shadowData') }}</span>
-        <div class="shadow-state-card-buttons">
-          <el-switch
-            v-model="isJSONViewTreeMode"
-            size="small"
-            inline-prompt
-            :active-text="$t('common.tree')"
-            :inactive-text="$t('common.text')"
-          />
-          <el-divider direction="vertical" />
-          <el-button size="small" @click="handleCompareState">{{ $t('things.compareState') }}</el-button>
-          <el-button size="small" @click="handleCheckDelta">{{ $t('things.checkDelta') }}</el-button>
-          <el-divider direction="vertical" />
-          <el-button size="small" @click="emit('call', 'desire')">{{ $t('things.setDesired') }}</el-button>
-          <el-button size="small" @click="handleSetReported">{{ $t('things.setReported') }}</el-button>
-        </div>
+  <section class="shadow-state-card">
+    <div class="shadow-state-card-header">
+      <span>{{ $t('things.shadowData') }}</span>
+      <div class="shadow-state-card-buttons">
+        <el-switch
+          v-model="isJSONViewTreeMode"
+          size="small"
+          inline-prompt
+          :active-text="$t('common.tree')"
+          :inactive-text="$t('common.text')"
+        />
+        <el-divider direction="vertical" />
+        <el-button size="small" @click="handleCompareState">{{ $t('things.compareState') }}</el-button>
+        <el-button size="small" @click="handleCheckDelta">{{ $t('things.checkDelta') }}</el-button>
+        <el-divider direction="vertical" />
+        <el-button size="small" @click="emit('call', 'desire')">{{ $t('things.setDesired') }}</el-button>
+        <el-button size="small" @click="handleSetReported">{{ $t('things.setReported') }}</el-button>
       </div>
-    </template>
+    </div>
     <div class="shadow-state-card-main">
       <JSONEditor
         :mode="isJSONViewTreeMode ? 'tree' : 'text'"
@@ -28,7 +26,7 @@
         class="shadow-state-card-code"
       />
     </div>
-  </el-card>
+  </section>
   <ObjectViewer
     :visible="!!objectToBeView"
     :data="objectToBeView"
@@ -225,24 +223,51 @@ onSomethingStatusChange(({ thingId, type, about }) => {
 
 <style scoped lang="scss">
 .shadow-state-card {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  margin-top: 10px;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
 
   .shadow-state-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--tio-border);
+
+    > span {
+      color: var(--tio-text-strong);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .shadow-state-card-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
 
     .el-divider--vertical {
-      margin: 0 14px;
+      margin: 0 4px;
     }
   }
 
   .shadow-state-card-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+
     .shadow-state-card-code {
       position: relative;
       width: 100%;
-      height: auto;
+      height: 100%;
       overflow: hidden;
     }
   }
@@ -251,27 +276,21 @@ onSomethingStatusChange(({ thingId, type, about }) => {
 
 <style lang="scss">
 .shadow-state-card {
-  .el-card__header {
-    padding: 10px var(--el-card-padding);
-  }
+  .shadow-state-card-main {
+    .shadow-state-card-code {
+      .jse-main {
+        position: relative;
+        height: 100%;
+        border-radius: 0;
 
-  .el-card__body {
-    padding: 0;
-    .shadow-state-card-main {
-      .shadow-state-card-code {
-        .jse-main {
-          position: relative;
-          height: auto;
-          max-height: 450px;
+        .jse-tree-mode,
+        .jse-text-mode {
+          border: none;
           border-radius: 0;
-          .jse-tree-mode,
-          .jse-text-mode {
+
+          .jse-contents {
             border: none;
             border-radius: 0;
-            .jse-contents {
-              border: none;
-              border-radius: 0;
-            }
           }
         }
       }

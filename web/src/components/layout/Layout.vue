@@ -1,26 +1,17 @@
 <template>
-  <el-container>
-    <el-aside class="left">
+  <el-container :class="['layout-shell', isStandalone ? 'standalone' : '']">
+    <el-aside v-if="!isStandalone" class="left">
       <div class="logo-con">
         <div class="nav-logo">
-          <div class="nav-logo-tio">
-            <el-icon>
-              <ArrowLeftBold />
-            </el-icon>
-            <span>T</span>
-            <span>I</span>
-            <span>O</span>
-            <el-icon>
-              <ArrowRightBold />
-            </el-icon>
-          </div>
-          <div class="nav-logo-sub">
-            <span v-for="l in 'playground'.split('')">{{ l }}</span>
+          <img class="nav-logo-mark" :src="tioLogoUrl" alt="" aria-hidden="true" />
+          <div>
+            <div class="nav-logo-title">TIO</div>
+            <div class="nav-logo-sub">playground</div>
           </div>
         </div>
       </div>
 
-      <el-menu :default-active="route.path" :router="true" class="menu" background-color="#071927" text-color="#fff">
+      <el-menu :default-active="route.path" :router="true" class="menu">
         <el-menu-item index="/" route="/">
           <el-icon>
             <Grid />
@@ -37,7 +28,7 @@
 
     </el-aside>
     <el-container class="right">
-      <el-header class="top-nav-bar">
+      <el-header v-if="!isStandalone" class="top-nav-bar">
         <nav>
           <TopNavBar />
         </nav>
@@ -47,7 +38,7 @@
           <router-view></router-view>
         </div>
 
-        <div class="tool-area">
+        <div v-if="!isStandalone" class="tool-area">
           <ToolArea />
         </div>
       </el-main>
@@ -64,6 +55,11 @@ import ToolArea from "@/components/layout/ToolArea.vue";
 
 const route = useRoute();
 const zIndex = ref(0);
+const isStandalone = computed(() => Boolean(route.meta.standalone));
+const publicPath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const tioLogoUrl = `${publicPath}tio-logo.svg`;
 
 watch(
   route,
@@ -80,67 +76,120 @@ watch(
 </script>
 
 <style scoped lang="scss">
+.layout-shell {
+  min-height: 100vh;
+  background: transparent;
+
+  &.standalone {
+    display: block;
+  }
+}
+
 .left {
   position: fixed;
   z-index: 10;
   height: 100vh;
   width: 180px;
+  padding: 12px 10px;
+  border-right: 1px solid var(--tio-line);
+  background: var(--tio-surface-solid);
+  box-shadow: none;
 
   .menu {
-    height: calc(100vh - 50px);
+    height: calc(100vh - 72px);
+    border-right: 0;
+    background: transparent;
+
+    :deep(.el-menu-item) {
+      height: 40px;
+      margin: 5px 0;
+      border: 1px solid transparent;
+      border-radius: var(--tio-radius);
+      color: var(--tio-muted);
+      transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+
+      &:hover {
+        border-color: var(--tio-line);
+        background: var(--tio-surface-soft);
+        color: var(--tio-text-strong);
+      }
+
+      &.is-active {
+        border-color: var(--tio-accent-strong);
+        background: var(--tio-accent-soft);
+        color: var(--tio-text-strong);
+      }
+    }
   }
 
   .logo-con {
-    display: block;
-    height: 58px;
-    margin-top: -8px;
-    padding-top: 8px;
-    background-color: #071927;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    margin-bottom: 8px;
+    border: 1px solid var(--tio-line);
+    border-radius: var(--tio-radius);
+    background: var(--tio-surface);
   }
 
   .nav-logo {
-    width: 100px;
-    height: 34px;
-    margin: 8px 0px 8px 20px;
-    text-align: center;
-    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    height: 100%;
+    padding: 7px 11px;
+    color: var(--tio-text-strong);
     cursor: default;
 
-    .nav-logo-tio {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .nav-logo-mark {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+    }
+
+    .nav-logo-title {
       text-transform: uppercase;
-      line-height: 24px;
-      font-size: 24px;
+      line-height: 20px;
+      font-size: 20px;
       font-weight: 700;
+      letter-spacing: 0.08em;
     }
 
     .nav-logo-sub {
-      display: flex;
-      justify-content: space-between;
       text-transform: uppercase;
-      line-height: 10px;
-      font-size: 12px;
-      font-weight: 900;
-      color: #a0cfff;
+      line-height: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--tio-accent);
     }
   }
 }
 
+:global(:root[data-theme="light"]) .left {
+  background: var(--tio-surface-solid);
+  box-shadow: none;
+}
+
 .right {
-  margin-left: 160px;
+  margin-left: 180px;
 
   .top-nav-bar {
     position: fixed;
     z-index: 10;
-    width: calc(100% - 140px);
+    width: calc(100% - 180px);
+    height: 58px;
+    padding: 0;
+    border-bottom: 1px solid var(--tio-line);
+    background: var(--tio-surface-solid);
+    backdrop-filter: none;
   }
 
   .playground {
-    padding: 60px 10px 10px 30px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 74px 18px 42px;
     min-height: calc(100vh - 30px);
+    background: var(--tio-bg);
   }
 
   .tool-area {
@@ -149,10 +198,30 @@ watch(
     bottom: 0;
     width: calc(100% - 180px);
     height: auto;
-    min-width: 1080px;
-    margin-left: 20px;
+    min-width: 900px;
+    margin-left: 0;
   }
 }
+
+.standalone .right {
+  margin-left: 0;
+
+  .playground {
+    min-height: 100vh;
+    padding: 0;
+  }
+}
+
+:global(:root[data-theme="light"]) .right {
+  .top-nav-bar {
+    background: var(--tio-surface-solid);
+  }
+
+  .playground {
+    background: var(--tio-bg);
+  }
+}
+
 .el-main {
   padding: 0;
 }

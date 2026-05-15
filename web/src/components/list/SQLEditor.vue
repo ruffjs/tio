@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
+import { nextTick, onMounted, ref, shallowRef, watch } from "vue";
 import codemirror from "codemirror/lib/codemirror";
 import "codemirror/theme/ambiance.css";
 import "codemirror/lib/codemirror.css";
@@ -15,9 +15,11 @@ import "codemirror/addon/selection/active-line";
 import "codemirror/mode/sql/sql";
 import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/hint/sql-hint";
+import useTheme from "@/reactives/useTheme";
 
 const editRef = ref();
 const editor = shallowRef();
+const { effectiveTheme } = useTheme();
 const emit = defineEmits(["update:modelValue", "update:focused", "update:blured", "submit"]);
 const props = defineProps({
   focused: Boolean,
@@ -54,6 +56,7 @@ const createEditor = async () => {
     cursorHeight: 1,
     lineWrapping: true,
     readOnly: props.readOnly,
+    theme: effectiveTheme.value === "dark" ? "ambiance" : "default",
     // extraKeys: { Ctrl: "autocomplete" },
   });
   editor.value.on("inputRead", () => {
@@ -88,6 +91,11 @@ watch(
     editor.value?.setValue(value.trim());
   }
 );
+
+watch(effectiveTheme, (value) => {
+  editor.value?.setOption("theme", value === "dark" ? "ambiance" : "default");
+  editor.value?.refresh();
+});
 
 onMounted(async () => {
   await nextTick();

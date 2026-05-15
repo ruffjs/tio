@@ -12,7 +12,7 @@
         :mode="asTree ? 'tree' : 'text'"
         :model-value="content"
         read-only
-        class="object-view-main jse-theme-dark"
+        class="object-view-main"
       />
     </div>
   </el-dialog>

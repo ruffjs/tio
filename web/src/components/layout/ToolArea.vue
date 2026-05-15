@@ -49,8 +49,9 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
 
 <style scoped lang="scss">
 .tool-box {
-  background-color: #fafafa;
-  box-shadow: 0 -1px 2px rgba($color: #000000, $alpha: 0.05);
+  border-top: 1px solid var(--tio-line);
+  background: var(--tio-surface-solid);
+  box-shadow: none;
   transition: height ease-in-out 0.1s;
 
   .tool-tabs {
@@ -65,8 +66,10 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
     width: 100%;
     height: 30px;
     min-width: 1080px;
-    border-top: solid 1px rgba($color: #000000, $alpha: 0.1);
-    background-color: #f2f2f2;
+    border-top: 1px solid var(--tio-line);
+    background: var(--tio-surface-solid);
+    color: var(--tio-text);
+    backdrop-filter: none;
 
     user-select: none;
 
@@ -75,22 +78,31 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
       justify-content: start;
       align-items: center;
       padding: 0 10px 1px;
+      border-top: 2px solid transparent;
       line-height: 28px;
       font-size: 12px;
       cursor: pointer;
+      color: var(--tio-muted);
+      transition: background-color 0.18s ease, color 0.18s ease;
+
       .el-icon {
         font-size: 14px;
         margin-right: 4px;
       }
 
       &:hover {
-        background-color: rgba(#000000, 0.1);
+        background: var(--tio-surface-soft);
+        color: var(--tio-text-strong);
       }
+
       &.active {
-        background-color: rgba(#000000, 0.2);
+        background: var(--tio-accent-soft);
+        border-top-color: var(--tio-accent);
+        color: var(--tio-text-strong);
       }
+
       &.active:hover {
-        background-color: rgba(#000000, 0.25);
+        background: var(--tio-accent-soft);
       }
     }
   }
@@ -104,6 +116,14 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
       height: 100%;
       top: 200%;
     }
+  }
+}
+
+:global(:root[data-theme="light"]) .tool-box {
+  box-shadow: none;
+
+  .tool-tabs {
+    background: var(--tio-surface-solid);
   }
 }
 </style>

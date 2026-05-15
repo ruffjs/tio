@@ -359,12 +359,13 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
   width: 100%;
   padding: 16px;
   overflow: hidden;
+  color: var(--tio-text);
 
   .thing-detail {
     width: 100%;
     height: auto;
-    border-radius: 8px;
-    background-color: white;
+    border-radius: var(--tio-radius);
+    background: transparent;
   }
 
   .thing-list {
@@ -382,17 +383,13 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
       .list-view-search {
         width: 100%;
         height: 100px;
-        border-radius: 12px;
-        background-color: white;
-        border: 1px solid #e4e7ed;
+        border-radius: var(--tio-radius-lg);
 
         .list-view-search-left {
           height: 100px;
 
-          .list-view-query-editor {
-            .list-view-query-link {
-              top: 8px;
-            }
+          .list-view-query-editor .list-view-query-link {
+            top: 8px;
           }
         }
 
@@ -404,52 +401,63 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
       }
     }
 
+    .list-view-search,
+    .list-view-things,
+    .sql-editor-tpls,
+    .query-history,
+    .list-view-empty,
+    .list-view-error,
+    .list-view-tips {
+      border: 1px solid var(--tio-border);
+      background: var(--tio-surface);
+      color: var(--tio-text);
+      box-shadow: none;
+    }
+
     .list-view-search {
+      position: relative;
       display: flex;
       width: 100%;
       max-width: 800px;
       height: 70px;
       padding: 0;
-      border-radius: 8px;
-      background-color: white;
-      border: 1px solid #e4e7ed;
+      border-radius: var(--tio-radius);
       overflow: hidden;
-
 
       .list-view-search-left {
         flex: 1;
         width: 0;
-        padding: 8px;
-        padding-right: 0;
+        padding: 8px 0 8px 8px;
 
         .list-view-query-editor {
           position: relative;
           width: 100%;
           height: 100%;
-          border: 1px solid #dcdfe6;
-          border-radius: 6px;
           overflow: hidden;
+          border: 1px solid var(--tio-border);
+          border-radius: var(--tio-radius);
+          background: var(--tio-surface);
+          transition: border-color 0.18s ease, background-color 0.18s ease;
 
           &:focus-within {
-            border-color: #409eff;
+            border-color: var(--tio-accent-strong);
+            background: var(--tio-surface);
           }
 
           .list-view-query-link {
             position: absolute;
             top: 12px;
             right: 8px;
+            z-index: 10;
             width: 28px;
             height: 28px;
             line-height: 28px;
             text-align: center;
             opacity: 0;
-            z-index: 10;
           }
 
-          &:hover {
-            .list-view-query-link {
-              opacity: 1;
-            }
+          &:hover .list-view-query-link {
+            opacity: 1;
           }
         }
       }
@@ -470,7 +478,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
           height: 36px;
           margin: 0;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 650;
           white-space: nowrap;
 
           &.el-button--text {
@@ -478,11 +486,11 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             width: 32px;
             height: 32px;
             padding: 0;
-            color: #909399;
+            color: var(--tio-muted);
 
             &:hover {
-              color: #409eff;
-              background-color: rgba(64, 158, 255, 0.1);
+              background: var(--tio-accent-soft);
+              color: var(--tio-text-strong);
             }
           }
         }
@@ -493,57 +501,54 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
       flex: 1;
       width: 100%;
       height: 0;
-      // max-height: calc(100% - 100px);
       margin-top: 16px;
 
       .list-view-things {
         width: 100%;
         height: 100%;
-        background-color: white;
-        border-radius: 6px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         overflow: hidden;
+        border-radius: var(--tio-radius);
       }
 
       .sql-editor-tpls {
         width: 100%;
         height: 100%;
-        background-color: white;
-        border-radius: 8px;
         overflow: hidden;
+        border-radius: var(--tio-radius);
 
         .sql-editor-tpls-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 16px;
-          border-bottom: 1px solid #e4e7ed;
-          background-color: #fafafa;
+          border-bottom: 1px solid var(--tio-border);
+          background: var(--tio-surface-soft);
 
           h4 {
             margin: 0;
+            color: var(--tio-text-strong);
             font-size: 16px;
-            font-weight: 600;
-            color: #303133;
+            font-weight: 650;
           }
         }
 
         .sql-editor-tpls-content {
+          height: calc(100% - 60px);
           padding: 12px;
           overflow-y: auto;
-          height: calc(100% - 60px);
 
           .sql-editor-tpl-item {
             margin-bottom: 8px;
             padding: 10px 12px;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 6px;
+            border: 1px solid var(--tio-border);
+            border-radius: var(--tio-radius);
+            background: var(--tio-surface-soft);
             cursor: pointer;
+            transition: background-color 0.18s ease, border-color 0.18s ease;
 
             &:hover {
-              background-color: #e3f2fd;
-              border-color: #409eff;
+              border-color: var(--tio-accent-strong);
+              background: var(--tio-accent-soft);
             }
 
             .sql-editor-tpl-item-header {
@@ -553,10 +558,10 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             }
 
             .sql-editor-tpl-item-content {
-              font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+              color: var(--tio-text);
+              font-family: var(--tio-mono);
               font-size: 12px;
               line-height: 1.4;
-              color: #606266;
               word-break: break-all;
             }
           }
@@ -567,24 +572,23 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         width: 100%;
         max-width: 800px;
         height: 400px;
-        background-color: white;
-        border-radius: 8px;
         overflow: hidden;
         margin: 16px auto;
+        border-radius: var(--tio-radius);
 
         .query-history-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 16px;
-          border-bottom: 1px solid #e4e7ed;
-          background-color: #fafafa;
+          border-bottom: 1px solid var(--tio-border);
+          background: var(--tio-surface-soft);
 
           h4 {
             margin: 0;
+            color: var(--tio-text-strong);
             font-size: 16px;
-            font-weight: 600;
-            color: #303133;
+            font-weight: 650;
           }
 
           .query-history-actions {
@@ -594,28 +598,29 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         }
 
         .query-history-content {
+          height: calc(100% - 60px);
           padding: 16px;
           overflow-y: auto;
-          height: calc(100% - 60px);
 
           .query-history-item {
             margin-bottom: 8px;
             padding: 12px;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 6px;
+            border: 1px solid var(--tio-border);
+            border-radius: var(--tio-radius);
+            background: var(--tio-surface-soft);
             cursor: pointer;
+            transition: background-color 0.18s ease, border-color 0.18s ease;
 
             &:hover {
-              background-color: #e3f2fd;
-              border-color: #409eff;
+              border-color: var(--tio-accent-strong);
+              background: var(--tio-accent-soft);
             }
 
             .query-history-item-content {
-              font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+              color: var(--tio-text);
+              font-family: var(--tio-mono);
               font-size: 13px;
               line-height: 1.4;
-              color: #606266;
               word-break: break-all;
             }
           }
@@ -625,26 +630,18 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             align-items: center;
             justify-content: center;
             height: 100px;
-            color: #909399;
+            color: var(--tio-muted);
           }
         }
       }
 
       .list-view-empty {
-        width: 100%;
-        height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: white;
-        border-radius: 8px;
-
-        .el-empty {
-          .el-empty__description {
-            color: #909399;
-            font-size: 14px;
-          }
-        }
+        width: 100%;
+        height: 100%;
+        border-radius: var(--tio-radius);
       }
     }
 
@@ -656,23 +653,23 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
       .list-view-error {
         width: 100%;
         height: 100%;
-        background-color: white;
-        border-radius: 8px;
         overflow: hidden;
+        border-color: rgba(239, 68, 68, 0.24);
+        border-radius: var(--tio-radius);
 
         .list-view-error-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 12px 16px;
-          background-color: #fef0f0;
-          border-bottom: 1px solid #fbc4c4;
+          border-bottom: 1px solid rgba(239, 68, 68, 0.24);
+          background: var(--tio-danger-soft);
 
           .el-text {
             display: flex;
             align-items: center;
             gap: 8px;
-            font-weight: 500;
+            font-weight: 650;
           }
         }
 
@@ -683,50 +680,65 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
       }
 
       .list-view-tips {
-        margin-top: 20px;
-        width: 100%;
-        height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        height: 100%;
+        margin-top: 20px;
+        border-radius: var(--tio-radius);
 
         .list-view-tips-content {
-          text-align: center;
           padding: 32px;
+          text-align: center;
 
           .el-icon {
             margin-bottom: 16px;
+            color: var(--tio-muted);
           }
 
           h3 {
-            margin: 0 0 8px 0;
+            margin: 0 0 8px;
+            color: var(--tio-text-strong);
             font-size: 18px;
-            font-weight: 600;
-            color: #303133;
+            font-weight: 650;
           }
 
           p {
-            margin: 0 0 24px 0;
+            margin: 0 0 24px;
+            color: var(--tio-muted);
             font-size: 14px;
-            color: #909399;
             line-height: 1.5;
-          }
-
-          .el-button {
-            border-radius: 6px;
-            padding: 12px 24px;
-            font-weight: 500;
           }
         }
       }
     }
   }
+
+  :deep(.CodeMirror) {
+    height: 100%;
+    line-height: 1.5;
+    direction: ltr;
+    font-size: 14px;
+
+    .CodeMirror-scroll {
+      width: 100%;
+      height: 100%;
+      padding: 8px;
+    }
+
+    .CodeMirror-lines {
+      padding: 0;
+    }
+  }
+
+  :deep(.jse-main) {
+    position: relative;
+    height: 100%;
+    border-radius: var(--tio-radius);
+  }
 }
 
-// 响应式设计
 @media (max-width: 768px) {
   .main-view {
     padding: 8px;
@@ -740,7 +752,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         .list-view-search-left {
           width: 100%;
           height: auto;
-          padding: 0 0 12px 0;
+          padding: 0 0 12px;
 
           .list-view-query-editor {
             height: 50px;
@@ -750,10 +762,10 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         .list-view-search-right {
           width: 100%;
           height: auto;
+          min-width: auto;
           flex-direction: row;
           gap: 8px;
           padding: 0;
-          min-width: auto;
 
           .el-button {
             flex: 1;
@@ -763,188 +775,9 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         }
       }
 
-      &.active {
-        .list-view-search {
-          height: auto;
-        }
+      &.active .list-view-search {
+        height: auto;
       }
-    }
-  }
-}
-</style>
-
-<style lang="scss">
-.main-view {
-  .thing-list {
-    .list-view-search {
-      .CodeMirror {
-        height: 100%;
-        line-height: 1.5;
-        color: #303133;
-        direction: ltr;
-        background-color: white;
-        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-        font-size: 14px;
-
-        .CodeMirror-scroll {
-          width: 100%;
-          height: 100%;
-          padding: 8px;
-        }
-
-        .CodeMirror-lines {
-          padding: 0;
-        }
-
-        .CodeMirror-cursor {
-          border-left: 2px solid #409eff;
-        }
-
-        .CodeMirror-selected {
-          background-color: rgba(64, 158, 255, 0.2);
-        }
-
-        .CodeMirror-focused .CodeMirror-selected {
-          background-color: rgba(64, 158, 255, 0.3);
-        }
-      }
-    }
-
-    .list-view-error {
-      .jse-main {
-        position: relative;
-        height: 100%;
-        border-radius: 4px;
-
-        .jse-tree-mode {
-          border: none;
-          background-color: transparent;
-
-          .jse-contents {
-            border: none;
-            background-color: #fef0f0;
-          }
-
-          .jse-key {
-            color: #e6a23c;
-            font-weight: 600;
-          }
-
-          .jse-string {
-            color: #67c23a;
-          }
-
-          .jse-number {
-            color: #409eff;
-          }
-
-          .jse-boolean {
-            color: #f56c6c;
-          }
-        }
-      }
-    }
-  }
-}
-
-/* CodeMirror 提示框样式优化 */
-.CodeMirror-hints {
-  z-index: 9999 !important;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e4e7ed;
-  background-color: white;
-
-  .CodeMirror-hint {
-    padding: 8px 12px;
-    font-size: 13px;
-    line-height: 1.4;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-
-    &:hover {
-      background-color: #f5f7fa;
-    }
-
-    &.CodeMirror-hint-active {
-      background-color: #e3f2fd;
-      color: #409eff;
-    }
-  }
-}
-
-/* 加载状态优化 */
-.el-loading-mask {
-  background-color: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(2px);
-}
-
-.el-loading-spinner {
-  .circular {
-    width: 40px;
-    height: 40px;
-  }
-}
-
-/* 按钮悬停效果优化 */
-.el-button {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:hover {
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  &.is-loading {
-    pointer-events: none;
-  }
-}
-
-/* 表格样式优化 */
-.el-table {
-  .el-table__header {
-    th {
-      background-color: #fafafa;
-      font-weight: 600;
-      color: #303133;
-    }
-  }
-
-  .el-table__row {
-    transition: background-color 0.3s;
-
-    &:hover {
-      background-color: #f5f7fa;
-    }
-  }
-}
-
-/* 分页组件样式优化 */
-.el-pagination {
-  .el-pager li {
-    transition: all 0.3s;
-    border-radius: 4px;
-
-    &:hover {
-      background-color: #f5f7fa;
-    }
-
-    &.is-active {
-      background-color: #409eff;
-      color: white;
-    }
-  }
-
-  .btn-prev,
-  .btn-next {
-    transition: all 0.3s;
-    border-radius: 4px;
-
-    &:hover {
-      background-color: #f5f7fa;
     }
   }
 }

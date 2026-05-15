@@ -6,19 +6,21 @@
     :navigation-bar="readOnly"
     :status-bar="false"
     :read-only="readOnly"
-    class="json-editor-n-viewer"
+    :class="editorClass"
     @change="onChange"
   />
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import JsonEditorVue from "json-editor-vue";
+import useTheme from "@/reactives/useTheme";
 
 const error = ref(null);
 const object = ref({});
 const content = ref("{}");
+const { isDark } = useTheme();
 const emit = defineEmits(["update:modelValue", "update:hasError"]);
 const props = defineProps({
   mode: {
@@ -35,6 +37,12 @@ const props = defineProps({
   },
   readOnly: Boolean,
 });
+const editorClass = computed(() => [
+  "json-editor-n-viewer",
+  {
+    "jse-theme-dark": isDark.value,
+  },
+]);
 
 watch(
   () => props.modelValue,
