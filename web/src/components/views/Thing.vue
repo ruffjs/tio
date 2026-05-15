@@ -1,31 +1,35 @@
 <template>
   <div class="thing-view">
-    <!-- 顶部状态栏 -->
-    <div class="thing-view-header">
-      <div class="thing-view-header-left">
-        <el-button type="text" icon="Back" plain @click="handleBack2List">{{ $t('things.backToList') }}</el-button>
-        <div class="thing-status-card">
-          <div class="status-indicator">
-            <div class="status-dot" :class="{ connected: shadow.connected }"></div>
-            <span class="status-text">{{ shadow.connected ? $t('things.connected') : $t('things.disconnected') }}</span>
+    <div class="thing-summary">
+      <div class="thing-summary-main">
+        <el-tooltip :content="$t('things.backToList')" placement="bottom">
+          <el-button class="thing-back-button" link circle icon="Back" @click="handleBack2List" />
+        </el-tooltip>
+        <div class="thing-title-group">
+          <div class="thing-title-row">
+            <h2>{{ thingId }}</h2>
+            <span :class="['thing-status-pill', shadow?.connected ? 'connected' : '']">
+              <i></i>
+              {{ shadow?.connected ? $t('things.connected') : $t('things.disconnected') }}
+            </span>
           </div>
-          <div class="status-info">
-            <div class="info-item" v-if="thing.remoteAddr">
+          <div class="thing-meta-strip">
+            <span v-if="thing.remoteAddr" class="thing-meta-chip">
               <el-icon>
                 <Location />
               </el-icon>
-              <span>{{ thing.remoteAddr }}</span>
-            </div>
-            <div class="info-item" v-if="thing.version">
+              {{ thing.remoteAddr }}
+            </span>
+            <span v-if="thing.version" class="thing-meta-chip">
               <el-icon>
                 <Document />
               </el-icon>
-              <span>{{ $t('things.version') }}: {{ thing.version }}</span>
-            </div>
+              {{ $t('things.version') }}: {{ thing.version }}
+            </span>
           </div>
         </div>
       </div>
-      <div class="thing-view-header-right">
+      <div class="thing-summary-actions">
         <el-tooltip :content="$t('nav.kickOut')">
           <el-button v-if="shadow?.connected" type="danger" plain circle icon="RemoveFilled"
             @click="handleKickOutSelected" />
@@ -36,54 +40,46 @@
       </div>
     </div>
 
-    <!-- 主要内容区域 -->
-    <div class="thing-view-content">
-      <div class="thing-view-left">
-        <div class="thing-info-card">
-          <div class="card-header">
-            <h3>{{ $t('things.basicInfo') }}</h3>
-          </div>
-          <div class="card-content">
-            <div class="thing-meta-item">
-              <div class="thing-meta-label">{{ $t('things.enabled') }}</div>
-              <div class="thing-meta-value">
-                <el-switch
-                  size="small"
-                  v-model="thing.enabled"
-                  :loading="updatingEnabled"
-                  @change="handleToggleEnabled"
-                />
-              </div>
+    <div class="thing-workspace">
+      <aside class="thing-sidebar">
+        <section class="thing-side-section">
+          <h3>{{ $t('things.basicInfo') }}</h3>
+          <div class="thing-meta-item">
+            <div class="thing-meta-label">{{ $t('things.enabled') }}</div>
+            <div class="thing-meta-value">
+              <el-switch
+                size="small"
+                v-model="thing.enabled"
+                :loading="updatingEnabled"
+                @change="handleToggleEnabled"
+              />
             </div>
-            <KeyValueDisplayer :data="thing" :fields="metaFields" />
           </div>
-        </div>
+          <KeyValueDisplayer :data="thing" :fields="metaFields" />
+        </section>
 
-        <div class="thing-actions-card">
-          <div class="card-header">
-            <h3>{{ $t('things.actions') }}</h3>
-          </div>
-          <div class="card-content">
-            <el-button icon="TopRight" type="primary" plain @click="(posterCode = 'invoke'), (posterData = null)" block>
+        <section class="thing-side-section">
+          <h3>{{ $t('things.actions') }}</h3>
+          <div class="thing-action-stack">
+            <el-button icon="TopRight" type="primary" plain @click="openPoster('invoke')" block>
               {{ $t('things.requestDirectMethod') }}
             </el-button>
             <MqttClients />
           </div>
-        </div>
-      </div>
+        </section>
+      </aside>
 
-      <div class="thing-view-right">
-        <!-- <ShadowProps :shadow="shadow" /> -->
+      <main class="thing-shadow-panel">
         <ShadowTags :data="shadow?.tags"
-          @update="(payload) => ((posterCode = 'tags'), (posterData = payload || null))" />
-        <div class="thing-view-state">
-          <ShadowData @call="(code) => ((posterCode = code), (posterData = null))" />
+          @update="(payload) => openPoster('tags', payload || null)" />
+        <div class="thing-shadow-state">
+          <ShadowData @call="(code) => openPoster(code)" />
         </div>
-      </div>
+      </main>
     </div>
   </div>
-  <HttpPoster :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
-    @close="posterCode = ''" />
+  <HttpPoster v-if="posterCode" :key="posterKey" :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
+    @close="closePoster" />
 </template>
 
 <script>
@@ -108,14 +104,11 @@ import { getThing, kickOutClient, patchThing } from "@/apis";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
-import ShadowProps from "@/components/thing/ShadowProps.vue";
 import ShadowTags from "@/components/thing/ShadowTags.vue";
 import ShadowData from "@/components/thing/ShadowData.vue";
 import HttpPoster from "@/components/thing/HttpPoster.vue";
 import MqttClients from "@/components/thing/MqttClientsOfThing.vue";
-import dayjs from "dayjs";
 import {
-  TH_STATUS_CHG_EVT,
   TSCE_MQTO,
   TSCE_MQTT,
   TSCE_MSGO,
@@ -138,11 +131,22 @@ const isFromList = ref(false);
 const thing = reactive({});
 const posterCode = ref("");
 const posterData = ref(null);
+const posterKey = ref(0);
 const updatingEnabled = ref(false);
 const metaFields = computed(() => createMetaFields(t).filter(({ key }) => key !== "enabled"));
 
-const formatTime = (time) => {
-  return time ? dayjs(time).format("YYYY-MM-DD HH:mm:ss") : "-";
+const openPoster = async (code, payload = null) => {
+  posterCode.value = "";
+  posterData.value = null;
+  await nextTick();
+  posterData.value = payload;
+  posterKey.value += 1;
+  posterCode.value = code;
+};
+
+const closePoster = () => {
+  posterCode.value = "";
+  posterData.value = null;
 };
 
 const handleBack2List = () => {
@@ -238,7 +242,7 @@ const handleKickOutSelected = async () => {
 };
 
 onMounted(() => {
-  if (shadow.value.fromList) isFromList.value = true;
+  if (shadow.value?.fromList) isFromList.value = true;
   getBasicInfo();
   updateCurrentShadow();
 });
@@ -250,136 +254,190 @@ onMounted(() => {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background-color: #f5f7fa;
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+  overflow: hidden;
+  background: transparent;
+  color: var(--tio-text);
 
-  .thing-view-header {
+  .thing-summary {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    background-color: white;
-    border-bottom: 1px solid #e4e7ed;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 14px;
+    padding: 4px 2px 14px;
+    border-bottom: 1px solid var(--tio-line);
+    background: transparent;
 
-    .thing-view-header-left {
+    .thing-summary-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .thing-back-button {
+      width: 30px;
+      height: 30px;
+      margin-top: 2px;
+      border: 1px solid var(--tio-line);
+      background: var(--tio-surface-soft);
+      flex: 0 0 auto;
+    }
+
+    .thing-title-group {
+      min-width: 0;
+    }
+
+    .thing-title-row {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
+      min-width: 0;
 
-      .thing-status-card {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 4px 8px;
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        border: 1px solid #e9ecef;
+      h2 {
+        margin: 0;
+        overflow: hidden;
+        color: var(--tio-text-strong);
+        font-size: 20px;
+        font-weight: 750;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
 
-        .status-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
+    .thing-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 24px;
+      padding: 0 9px;
+      border: 1px solid var(--tio-border);
+      border-radius: 999px;
+      color: var(--tio-muted);
+      background: var(--tio-surface-soft);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
 
-          .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #dcdfe6;
+      i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--tio-muted);
+      }
 
-            &.connected {
-              background-color: #67c23a;
-            }
-          }
+      &.connected {
+        border-color: rgba(34, 197, 94, 0.26);
+        color: var(--tio-success);
+        background: var(--tio-success-soft);
 
-          .status-text {
-            font-weight: 500;
-            color: #303133;
-          }
-        }
-
-        .status-info {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-
-          .info-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 13px;
-            color: #606266;
-          }
+        i {
+          background: var(--tio-success);
         }
       }
+    }
+
+    .thing-meta-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .thing-meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      max-width: 360px;
+      color: var(--tio-muted);
+      font-size: 12px;
+
+      .el-icon {
+        flex: 0 0 auto;
+      }
+    }
+
+    .thing-summary-actions {
+      display: flex;
+      gap: 8px;
+      flex: 0 0 auto;
     }
   }
 
-  .thing-view-content {
-    display: flex;
+  .thing-workspace {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 14px;
     flex: 1;
-    gap: 16px;
-    padding: 16px 20px;
+    min-height: 0;
     overflow: hidden;
 
-    .thing-view-left {
-      width: 280px;
+    .thing-sidebar {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
+      min-height: 0;
+      padding: 2px 16px 0 0;
+      border-right: 1px solid var(--tio-line);
       overflow-y: auto;
+    }
 
-      .thing-info-card,
-      .thing-actions-card {
-        background-color: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        border: 1px solid #e4e7ed;
-        overflow: hidden;
+    .thing-side-section {
+      padding: 0 0 14px;
+      border-bottom: 1px solid var(--tio-line);
+      background: transparent;
 
-        .card-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 20px;
-          border-bottom: 1px solid #f0f0f0;
-          background-color: #fafafa;
-
-          h3 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 600;
-            color: #303133;
-          }
-        }
-
-        .card-content {
-          padding: 16px 20px;
-        }
+      &:last-child {
+        border-bottom: 0;
       }
 
-      .thing-actions-card {
-        .card-content {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+      h3 {
+        margin: 0 0 12px;
+        color: var(--tio-text-strong);
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: 0.02em;
+      }
+
+      :deep(.key-value-item) {
+        min-height: 30px;
+        margin-top: 0;
+        border-width: 0 0 1px;
+        border-radius: 0;
+        background: transparent;
+        padding: 4px 0;
+
+        &:last-child {
+          border-bottom: 0;
         }
       }
     }
 
-    .thing-view-right {
-      flex: 1;
+    .thing-action-stack {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      overflow-y: auto;
+      gap: 12px;
 
-      .thing-view-state {
+      > .el-button {
+        width: 100%;
+        margin-left: 0;
+      }
+    }
+
+    .thing-shadow-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      padding-left: 2px;
+      background: transparent;
+
+      .thing-shadow-state {
         flex: 1;
         min-height: 0;
+        border-top: 1px solid var(--tio-line);
       }
     }
   }
@@ -387,22 +445,20 @@ onMounted(() => {
 
 .thing-meta-item {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   width: 100%;
-  min-height: 28px;
-  margin-top: 2px;
-  margin-bottom: 2px;
-  padding: 1px 5px;
-  border: solid 1px rgba(0, 0, 0, 0.1);
-  border-radius: 5px 5px 2px 2px;
+  min-height: 30px;
+  margin-bottom: 4px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--tio-border);
+  color: var(--tio-text);
 
   .thing-meta-label {
     margin-right: 10px;
+    color: var(--tio-muted);
     font-size: 12px;
     font-weight: 700;
-    color: #555;
   }
 
   .thing-meta-value {
@@ -413,39 +469,45 @@ onMounted(() => {
   }
 }
 
-// 响应式设计
 @media (max-width: 768px) {
   .thing-view {
-    .thing-view-header {
+    overflow-y: auto;
+
+    .thing-summary {
       flex-direction: column;
       gap: 12px;
-      align-items: stretch;
 
-      .thing-view-header-left {
+      .thing-summary-main {
         flex-direction: column;
-        gap: 12px;
-        align-items: stretch;
+        gap: 10px;
+      }
 
-        .thing-status-card {
-          flex-direction: column;
-          gap: 12px;
-          align-items: stretch;
+      .thing-title-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
 
-          .status-info {
-            flex-direction: column;
-            gap: 8px;
-            align-items: flex-start;
-          }
-        }
+      .thing-summary-actions {
+        align-self: flex-end;
       }
     }
 
-    .thing-view-content {
-      flex-direction: column;
-      padding: 12px;
+    .thing-workspace {
+      grid-template-columns: 1fr;
+      overflow: visible;
 
-      .thing-view-left {
-        width: 100%;
+      .thing-sidebar,
+      .thing-shadow-panel {
+        overflow: visible;
+      }
+
+      .thing-sidebar {
+        padding-right: 0;
+        border-right: 0;
+      }
+
+      .thing-shadow-panel {
+        padding-left: 0;
       }
     }
   }

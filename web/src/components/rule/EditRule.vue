@@ -1,245 +1,266 @@
 <template>
-
-  <el-row :gutter="10" class="rule-edit-con">
-    <el-col :span="20" style="margin-bottom: 10px;">
-      <el-button icon="ArrowLeft" link @click="emit('cancel')">{{ $t('nav.backList') }}</el-button>
-    </el-col>
-
-    <el-col :span="14" class="part left">
-      <el-form :model="form" label-width="auto" label-position="top" style="width: 100%;">
-        <el-form-item>
-          <el-col :span="6">
-            <el-input v-model="form.name" placeholder="Name" :disabled="!isNew" />
-          </el-col>
-          <el-col :span="18">
-            <el-input v-model="form.note" placeholder="note" />
-          </el-col>
-        </el-form-item>
-
-        <div>{{ $t('rules.process') }}
-          <el-popover placement="top-start" title="Help" :width="400" trigger="hover">
-            <template #default>
-              Input data for script is a json object like:
-              <br />
-              {"thingId": "string", "topic": "string", "payload": {}, "shadow": {} }
-              <br />
-              <br />
-              "payload" is the data reported by thing, shadow is the thing shadow.
-
-              <br />
-              <br />
-              JavaScript must have function: function run(data)
-              <br />
-
-              When type is transform, function should return the result for sinks.
-              <br />
-              When type is filter, function should return true for sinks or false for ignored.
-              <br />
-              <br />
-              JQ Script reference: https://jqlang.github.io/jq/
-              <br />
-              When type is transform, jq script should return the result for sinks.
-              <br />
-              When type is filter, jq script should return a boolean result.
-            </template>
-            <template #reference>
-
-              <el-icon>
-                <QuestionFilled />
-              </el-icon>
-            </template>
-          </el-popover>
+  <div class="rule-edit-con">
+    <header class="edit-toolbar">
+      <div class="toolbar-main">
+        <el-tooltip :content="$t('nav.backList')" placement="bottom">
+          <el-button icon="ArrowLeft" link circle class="back-button" @click="emit('cancel')" />
+        </el-tooltip>
+        <div class="toolbar-title">
+          <span>{{ isNew ? $t('rules.addRule') : $t('rules.editRule') }}</span>
+          <h1>{{ form.name || $t('rules.name') }}</h1>
         </div>
-        <br />
+      </div>
+      <div class="toolbar-actions">
+        <el-button @click="emit('cancel')">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="save">{{ $t('common.save') }}</el-button>
+      </div>
+    </header>
 
-        <el-form-item v-for="p in form.process">
-          <el-col :span="8">
-            <el-select placeholder="Type" v-model="p.type">
-              <el-option label="Transform" value="transform"></el-option>
-              <el-option label="Filter" value="filter"></el-option>
-            </el-select>
-          </el-col>
-          <el-col :span="8">
-            <el-select placeholder="Script Type" v-model="p.runner">
-              <el-option label="JavaScript" value="js"></el-option>
-              <el-option label="JQ Script" value="jq"></el-option>
-            </el-select>
-          </el-col>
-
-          <el-col :span="8">
-            <el-input v-model="p.name" placeholder="Name"></el-input>
-          </el-col>
-          <el-col :span="24">
-            <el-input v-if="p.runner == 'jq'" v-model="p.jq" type="textarea" placeholder="JQ Script eg: .payload"
-              :autosize="{ minRows: 4, maxRows: 20 }" style="margin-top: 10px" />
-            <JsEditor v-if="p.runner == 'js'" v-model="p.js" class="js-editor"></JsEditor>
-          </el-col>
-        </el-form-item>
-
-        <div>{{ $t('rules.debug') }}</div>
-        <br />
-        <el-form-item>
-          <el-col :span="12">
-            <el-input v-model="form.testData.thingId" placeholder="ThingId" />
-          </el-col>
-          <el-col :span="12">
-            <el-input v-model="form.testData.topic" placeholder="Topic" />
-          </el-col>
-          <el-col :span="24">
-            <label>{{ $t('rules.payload') }}</label>
-            <JSONEditor v-model="form.testData.payload" class="json-editor" />
-          </el-col>
-          <el-col :span="24">
-            <el-button type="primary" @click="test">{{ $t('rules.test') }}</el-button>
-          </el-col>
-
-          <el-col :span="24" v-if="testResult.success != undefined">
-            <label>{{ $t('rules.result') }}</label>
-            <el-input v-if="testResult.success" v-model="testResult.output" type="textarea" placeholder="Result"
-              :autosize="{ minRow: 2, maxRow: 8 }" />
-            <div v-if="testResult.success == false" class="test-result">
-              <el-icon color="red" size="16">
-                <Warning />
-              </el-icon> &nbsp;
-              <span>{{ testResult.message }}</span>
-            </div>
-          </el-col>
-        </el-form-item>
-
-        <br />
-        <el-form-item>
-          <el-col :span="24">
-            <el-button type="primary" @click="save">{{ $t('common.save') }}</el-button>
-            <el-button @click="emit('cancel')">{{ $t('common.cancel') }}</el-button>
-          </el-col>
-        </el-form-item>
-
-      </el-form>
-    </el-col>
-
-    <el-col :span="10" class="part right">
-      <el-form :model="form" label-width="auto" label-position="top" style="width: 100%; ">
-        <div>{{ $t('rules.source') }}</div>
-        <br />
-        <div class="io">
-          <div v-for="s in form.sources" class="io-item">
-            <el-popover placement="top-start" title="Detail" :width="400" trigger="hover">
-              <template #default>
-                name: {{ s.name }}
-                <br />
-                type: {{ s.type }}
-
-                <span v-if="s.options && Object.keys(s.options).length > 0">
-                  <br />
-                  <br />
-                  Options:
-                </span>
-                <template v-if="s.options" v-for="(v, k) in s.options">
-                  <br />
-                  &nbsp; {{ k }} : {{ v }}
-                </template>
-              </template>
-              <template #reference>
-                <div>
-
-                  <el-tag>{{ s.type }}</el-tag>
-                  {{ s.name }}
-                </div>
-
-              </template>
-            </el-popover>
-            <div class="io-btn">
-              <el-button icon="Edit" circle link type="primary" @click="editSource(s)"></el-button>
-              <el-button icon="Delete" circle link type="danger" @click="delIo('source', s.name)"></el-button>
+    <div class="edit-layout">
+      <main class="edit-main">
+        <section class="editor-section basic-section">
+          <div class="section-header">
+            <div>
+              <span>Rule</span>
+              <h2>{{ $t('rules.name') }}</h2>
             </div>
           </div>
-          <el-row>
-            <!-- for add source to rule -->
-            <div v-if="ioAdd.source.show" class="io-sel">
-              <el-select v-model="ioAdd.source.selected">
-                <el-option v-for="s in ioAdd.source.availabe" :label="s.name" :value="s.name" />
-              </el-select>
-              <el-button type="primary" @click="addIo('source')">{{ $t('common.confirm') }}</el-button>
-              <el-button type="success" @click="createNewSource">{{ $t('common.new') }}</el-button>
-              <el-button @click="ioAdd.source.show = false">{{ $t('common.cancel') }}</el-button>
+          <el-form :model="form" label-width="auto" label-position="top" class="rule-form">
+            <div class="basic-grid">
+              <el-form-item :label="$t('rules.name')">
+                <el-input v-model="form.name" placeholder="Name" :disabled="!isNew" />
+              </el-form-item>
+              <el-form-item label="Note">
+                <el-input v-model="form.note" placeholder="Describe this rule" />
+              </el-form-item>
             </div>
-            <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
-              @click="toAddIo('source')"></el-button>
-          </el-row>
-        </div>
+          </el-form>
+        </section>
 
-
-        <el-divider></el-divider>
-        <div>{{ $t('rules.sink') }}</div>
-        <br />
-
-        <div class="io">
-          <div v-for="s in form.sinks" class="io-item">
-            <el-popover placement="top-start" title="Detail" :width="500" trigger="hover">
+        <section class="editor-section process-section">
+          <div class="section-header">
+            <div>
+              <span>Pipeline</span>
+              <h2>{{ $t('rules.process') }}</h2>
+            </div>
+            <el-popover placement="bottom-end" title="Help" :width="430" trigger="hover">
               <template #default>
-                name: {{ s.name }}
+                Input data for script is a json object like:
                 <br />
-                type: {{ s.type }}
+                {"thingId": "string", "topic": "string", "payload": {}, "shadow": {} }
+                <br /><br />
+                JavaScript must have function: function run(data)
+                <br /><br />
+                Transform should return the result for sinks. Filter should return true for sinks or false for ignored.
+                <br /><br />
+                JQ Script reference: https://jqlang.github.io/jq/
+              </template>
+              <template #reference>
+                <el-button link class="help-button">
+                  <el-icon><QuestionFilled /></el-icon>
+                  {{ $t('rules.help') }}
+                </el-button>
+              </template>
+            </el-popover>
+          </div>
 
-                <span v-if="s.options && Object.keys(s.options).length > 0">
-                  <br />
-                  <br />
-                  Options:
-                </span>
-                <template v-if="s.options" v-for="(v, k) in s.options">
-                  <br />
-                  &nbsp; {{ k }} : {{ v }}
-                </template>
+          <el-form :model="form" label-width="auto" label-position="top" class="rule-form">
+            <div v-for="(p, index) in form.process" :key="index" class="process-item">
+              <div class="process-index">{{ index + 1 }}</div>
+              <div class="process-body">
+                <div class="process-grid">
+                  <el-form-item label="Type">
+                    <el-select placeholder="Type" v-model="p.type">
+                      <el-option label="Transform" value="transform"></el-option>
+                      <el-option label="Filter" value="filter"></el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="Script Type">
+                    <el-select placeholder="Script Type" v-model="p.runner">
+                      <el-option label="JavaScript" value="js"></el-option>
+                      <el-option label="JQ Script" value="jq"></el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item :label="$t('rules.name')">
+                    <el-input v-model="p.name" placeholder="Name"></el-input>
+                  </el-form-item>
+                </div>
+                <el-input
+                  v-if="p.runner == 'jq'"
+                  v-model="p.jq"
+                  type="textarea"
+                  placeholder="JQ Script eg: .payload"
+                  :autosize="{ minRows: 4, maxRows: 20 }"
+                />
+                <JsEditor v-if="p.runner == 'js'" v-model="p.js" class="js-editor"></JsEditor>
+              </div>
+            </div>
+          </el-form>
+        </section>
 
-                <!-- Sink tip -->
-                <template v-if="ruleSchema.sinkTips[s.type]">
-                  <h4>Tip</h4>
-                  <div v-html="ruleSchema.sinkTips[s.type].note"></div>
-                  <label>Example: </label>
+        <section class="editor-section debug-section">
+          <div class="section-header">
+            <div>
+              <span>Verify</span>
+              <h2>{{ $t('rules.debug') }}</h2>
+            </div>
+            <el-button type="primary" plain @click="test">{{ $t('rules.test') }}</el-button>
+          </div>
+          <el-form :model="form" label-width="auto" label-position="top" class="rule-form">
+            <div class="debug-grid">
+              <el-form-item label="ThingId">
+                <el-input v-model="form.testData.thingId" placeholder="ThingId" />
+              </el-form-item>
+              <el-form-item label="Topic">
+                <el-input v-model="form.testData.topic" placeholder="Topic" />
+              </el-form-item>
+            </div>
+            <el-form-item :label="$t('rules.payload')">
+              <JSONEditor v-model="form.testData.payload" class="json-editor" />
+            </el-form-item>
+            <div v-if="testResult.success != undefined" class="test-output">
+              <label>{{ $t('rules.result') }}</label>
+              <el-input
+                v-if="testResult.success"
+                v-model="testResult.output"
+                type="textarea"
+                placeholder="Result"
+                :autosize="{ minRow: 2, maxRow: 8 }"
+              />
+              <div v-if="testResult.success == false" class="test-result">
+                <el-icon color="red" size="16"><Warning /></el-icon>
+                <span>{{ testResult.message }}</span>
+              </div>
+            </div>
+          </el-form>
+        </section>
+      </main>
+
+      <aside class="endpoint-rail">
+        <section class="endpoint-group">
+          <div class="endpoint-header">
+            <div>
+              <span>Input</span>
+              <h2>{{ $t('rules.source') }}</h2>
+            </div>
+            <el-button v-if="!ioAdd.source.show" icon="Plus" circle type="primary" size="small" @click="toAddIo('source')" />
+          </div>
+
+          <div class="endpoint-list">
+            <article v-for="s in form.sources" :key="s.name" class="endpoint-item">
+              <el-popover placement="left-start" title="Detail" :width="400" trigger="hover">
+                <template #default>
+                  name: {{ s.name }}
                   <br />
-                  <template v-for="c in ruleSchema.sinkTips[s.type].formatExamples">
-                    <code>
-                    {{ c }}
-                  </code>
-                  <br/>
+                  type: {{ s.type }}
+                  <template v-if="s.connector">
+                    <br />
+                    connector: {{ s.connector }}
+                  </template>
+                  <span v-if="s.options && Object.keys(s.options).length > 0">
+                    <br /><br />Options:
+                  </span>
+                  <template v-if="s.options" v-for="(v, k) in s.options" :key="k">
+                    <br />
+                    &nbsp; {{ k }} : {{ v }}
                   </template>
                 </template>
+                <template #reference>
+                  <div class="endpoint-copy">
+                    <el-tag effect="plain" round>{{ s.type }}</el-tag>
+                    <strong>{{ s.name }}</strong>
+                    <span v-if="s.connector">{{ s.connector }}</span>
+                  </div>
+                </template>
+              </el-popover>
+              <div class="endpoint-actions">
+                <el-button icon="Edit" circle link type="primary" @click="editSource(s)"></el-button>
+                <el-button icon="Delete" circle link type="danger" @click="delIo('source', s.name)"></el-button>
+              </div>
+            </article>
+          </div>
 
-              </template>
-              <template #reference>
-                <div>
-                  <el-tag>{{ s.type }}</el-tag>
-                  {{ s.name }}
-                </div>
-
-              </template>
-            </el-popover>
-            <div class="io-btn">
-              <el-button icon="Edit" circle link type="primary" @click="editSink(s)"></el-button>
-              <el-button icon="Delete" circle link type="danger" size="large"
-                @click="delIo('sink', s.name)"></el-button>
+          <div v-if="ioAdd.source.show" class="io-sel">
+            <el-select v-model="ioAdd.source.selected" placeholder="Source">
+              <el-option v-for="s in ioAdd.source.availabe" :key="s.name" :label="s.name" :value="s.name" />
+            </el-select>
+            <div class="io-sel-actions">
+              <el-button type="primary" size="small" @click="addIo('source')">{{ $t('common.confirm') }}</el-button>
+              <el-button type="success" plain size="small" @click="createNewSource">{{ $t('common.new') }}</el-button>
+              <el-button size="small" @click="ioAdd.source.show = false">{{ $t('common.cancel') }}</el-button>
             </div>
           </div>
-          <el-row>
-            <!-- for add sink to rule -->
-            <div v-if="ioAdd.sink.show" class="io-sel">
-              <el-select v-model="ioAdd.sink.selected">
-                <el-option v-for="s in ioAdd.sink.availabe" :label="s.name" :value="s.name" />
-              </el-select>
-              <el-button type="primary" @click="addIo('sink')">{{ $t('common.confirm') }}</el-button>
-              <el-button type="success" @click="createNewSink">{{ $t('common.new') }}</el-button>
-              <el-button @click="ioAdd.sink.show = false">{{ $t('common.cancel') }}</el-button>
+        </section>
+
+        <section class="endpoint-group">
+          <div class="endpoint-header">
+            <div>
+              <span>Output</span>
+              <h2>{{ $t('rules.sink') }}</h2>
             </div>
-            <el-button v-else icon="Plus" circle style="float: right; margin-top: 10px" type="primary" size="small"
-              @click="toAddIo('sink')"></el-button>
-          </el-row>
-        </div>
-      </el-form>
-    </el-col>
+            <el-button v-if="!ioAdd.sink.show" icon="Plus" circle type="primary" size="small" @click="toAddIo('sink')" />
+          </div>
 
-  </el-row>
+          <div class="endpoint-list">
+            <article v-for="s in form.sinks" :key="s.name" class="endpoint-item">
+              <el-popover placement="left-start" title="Detail" :width="500" trigger="hover">
+                <template #default>
+                  name: {{ s.name }}
+                  <br />
+                  type: {{ s.type }}
+                  <template v-if="s.connector">
+                    <br />
+                    connector: {{ s.connector }}
+                  </template>
+                  <span v-if="s.options && Object.keys(s.options).length > 0">
+                    <br /><br />Options:
+                  </span>
+                  <template v-if="s.options" v-for="(v, k) in s.options" :key="k">
+                    <br />
+                    &nbsp; {{ k }} : {{ v }}
+                  </template>
 
-  <!-- Add Component Edit Drawer -->
+                  <template v-if="ruleSchema.sinkTips[s.type]">
+                    <h4>Tip</h4>
+                    <div v-html="ruleSchema.sinkTips[s.type].note"></div>
+                    <label>Example: </label>
+                    <br />
+                    <template v-for="c in ruleSchema.sinkTips[s.type].formatExamples" :key="c">
+                      <code>{{ c }}</code>
+                      <br />
+                    </template>
+                  </template>
+                </template>
+                <template #reference>
+                  <div class="endpoint-copy">
+                    <el-tag effect="plain" round>{{ s.type }}</el-tag>
+                    <strong>{{ s.name }}</strong>
+                    <span v-if="s.connector">{{ s.connector }}</span>
+                  </div>
+                </template>
+              </el-popover>
+              <div class="endpoint-actions">
+                <el-button icon="Edit" circle link type="primary" @click="editSink(s)"></el-button>
+                <el-button icon="Delete" circle link type="danger" @click="delIo('sink', s.name)"></el-button>
+              </div>
+            </article>
+          </div>
+
+          <div v-if="ioAdd.sink.show" class="io-sel">
+            <el-select v-model="ioAdd.sink.selected" placeholder="Sink">
+              <el-option v-for="s in ioAdd.sink.availabe" :key="s.name" :label="s.name" :value="s.name" />
+            </el-select>
+            <div class="io-sel-actions">
+              <el-button type="primary" size="small" @click="addIo('sink')">{{ $t('common.confirm') }}</el-button>
+              <el-button type="success" plain size="small" @click="createNewSink">{{ $t('common.new') }}</el-button>
+              <el-button size="small" @click="ioAdd.sink.show = false">{{ $t('common.cancel') }}</el-button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
   <el-drawer size="700" destroy-on-close v-model="componentEditor.drawerEdit.show" 
     v-if="componentEditor.drawerEdit.show" :title="componentEditor.drawerEdit.title"
     append-to-body>
@@ -257,11 +278,10 @@
       </div>
     </template>
   </el-drawer>
-
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, shallowRef, watch } from 'vue';
+import { nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { ElNotification } from 'element-plus'
 import * as api from '@/apis';
 
@@ -279,7 +299,7 @@ const props = defineProps({
   isNew: Boolean,
 })
 
-const emit = defineEmits(["submit"]);
+const emit = defineEmits(["cancel"]);
 
 
 const form = reactive({
@@ -310,7 +330,6 @@ const form = reactive({
 })
 const testResult = ref({})
 
-const showDebug = ref(false)
 const ioAdd = reactive({
   source: {
     show: false,
@@ -566,38 +585,181 @@ const save = async () => {
 
 <style lang="scss" scoped>
 .rule-edit-con {
-  background-color: #fff;
-  padding: 20px 0 30px 20px;
-  border-radius: 5px;
+  min-width: 0;
+  color: var(--tio-text);
+}
 
-  .part {
-    border-top: 1px #eaeaea solid;
-    padding: 20px !important;
+.edit-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--tio-line);
+}
+
+.toolbar-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.toolbar-title {
+  min-width: 0;
+
+  span {
+    color: var(--tio-muted);
+    font-size: 11px;
+    font-weight: 760;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
   }
 
-  .right {
-    border-left: 1px #eaeaea solid;
+  h1 {
+    max-width: 560px;
+    margin: 2px 0 0;
+    overflow: hidden;
+    color: var(--tio-text-strong);
+    font-size: 22px;
+    font-weight: 760;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-.test-result {
-  padding: 20px;
-  border: 1px #eaeaea solid;
-  border-radius: 3px;
-  color: #666
+.back-button,
+.help-button {
+  color: var(--tio-muted);
 }
 
-.el-collapse-item__header {
-  font-weight: bold;
+.back-button.el-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--tio-line);
+  background: var(--tio-surface-soft);
 }
 
-.editor {
+.toolbar-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.edit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+.edit-main {
+  min-width: 0;
+}
+
+.editor-section {
+  margin-bottom: 14px;
+  padding: 16px;
+  border-left: 3px solid var(--tio-line);
+  border-radius: var(--tio-radius);
+  background: var(--tio-surface-soft);
+
+  &:first-child {
+    border-left-color: var(--tio-accent);
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.process-section {
+  border-left-color: var(--tio-accent-strong);
+}
+
+.debug-section {
+  border-left-color: var(--tio-muted);
+}
+
+.section-header,
+.endpoint-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  span {
+    color: var(--tio-muted);
+    font-size: 11px;
+    font-weight: 760;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 2px 0 0;
+    color: var(--tio-text-strong);
+    font-size: 17px;
+    font-weight: 720;
+  }
+}
+
+.rule-form {
   width: 100%;
-  height: 100%;
+}
+
+.basic-grid,
+.debug-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.process-section {
+  overflow: hidden;
+}
+
+.process-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--tio-line);
+
+  &:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+
+.process-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--tio-surface-soft);
+  color: var(--tio-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.process-body {
+  min-width: 0;
+}
+
+.process-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .js-editor {
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .json-editor {
@@ -612,44 +774,161 @@ const save = async () => {
   }
 }
 
+.test-output {
+  display: grid;
+  gap: 8px;
+
+  label {
+    color: var(--tio-text-strong);
+    font-size: 13px;
+    font-weight: 680;
+  }
+}
+
+.test-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--tio-radius);
+  background: var(--tio-surface-soft);
+  color: var(--tio-text);
+}
+
+.endpoint-rail {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+  padding-left: 20px;
+  border-left: 1px solid var(--tio-line);
+}
+
+.endpoint-group {
+  display: grid;
+  gap: 12px;
+}
+
+.endpoint-list {
+  display: grid;
+  gap: 6px;
+}
+
+.endpoint-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tio-line);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover,
+  &:focus-within {
+    .endpoint-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}
+
+.endpoint-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  cursor: default;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--tio-text-strong);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--tio-muted);
+    font-size: 12px;
+  }
+
+  :deep(.el-tag) {
+    justify-self: start;
+    border-color: var(--tio-line);
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+  }
+}
+
+.endpoint-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.io-sel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--tio-radius);
+  background: var(--tio-surface-soft);
+}
+
+.io-sel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tip {
-  color: #999;
+  color: var(--tio-muted);
   font-size: 14px;
 }
 
-.io {
-  margin-bottom: 20px;
-
-  .io-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    height: 60px;
-    padding: 10px;
-    border: 1px #DCDFE6 solid;
-    border-radius: 3px;
-
-    .io-btn {
-      display: none;
-    }
+@media (max-width: 1100px) {
+  .edit-layout {
+    grid-template-columns: 1fr;
   }
 
-  .io-item:hover {
-    .io-btn {
-      display: inline-block;
-    }
+  .endpoint-rail {
+    position: static;
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .edit-toolbar,
+  .section-header,
+  .endpoint-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .io-sel {
-    display: flex;
-    flex: 2;
-    justify-content: space-between;
-    margin-top: 10px;
+  .toolbar-main {
+    align-items: flex-start;
+  }
 
-    .el-button {
-      margin-left: 12px;
-    }
+  .basic-grid,
+  .debug-grid,
+  .process-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .endpoint-actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 </style>

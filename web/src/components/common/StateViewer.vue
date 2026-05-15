@@ -23,14 +23,14 @@
         mode="tree"
         :model-value="content1"
         read-only
-        class="object-view-left jse-theme-dark"
+        class="object-view-left"
       />
       <JSONEditor
         v-if="comparing"
         mode="tree"
         :model-value="content2"
         read-only
-        class="object-view-right jse-theme-dark"
+        class="object-view-right"
       />
     </div>
   </el-dialog>

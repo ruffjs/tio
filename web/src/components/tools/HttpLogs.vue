@@ -90,6 +90,8 @@ const logs = computed(() => {
 .http-logs-panel {
   width: 100%;
   height: 100%;
+  color: var(--tio-text);
+
   .http-logs-header {
     display: flex;
     flex-direction: row;
@@ -99,17 +101,17 @@ const logs = computed(() => {
     width: 100%;
     height: 32px;
     padding: 0 5px;
-    background-color: rgba($color: #000000, $alpha: 0.05);
-    border-top: solid 1px rgba($color: #000000, $alpha: 0.1);
-    border-bottom: solid 1px rgba($color: #000000, $alpha: 0.05);
+    background: var(--tio-surface-soft);
+    border-top: 1px solid var(--tio-border);
+    border-bottom: 1px solid var(--tio-border);
 
     .http-logs-title {
       line-height: 24px;
       font-size: 16px;
       font-weight: 700;
-      color: #999;
+      color: var(--tio-muted);
       .active {
-        color: #666;
+        color: var(--tio-text-strong);
       }
     }
     .http-logs-opts {
@@ -139,23 +141,23 @@ const logs = computed(() => {
       align-items: center;
 
       min-height: 25px;
-      border-bottom: dashed 1px rgba($color: #000000, $alpha: 0.1);
+      border-bottom: 1px dashed var(--tio-border);
       line-height: 24px;
       font-size: 12px;
-      font-family: "Courier New", Courier, monospace;
+      font-family: var(--tio-mono);
 
       .http-logs-time {
-        color: #aaa;
+        color: var(--tio-muted);
         font-weight: 600;
       }
       .http-logs-method {
-        color: #222;
+        color: var(--tio-text-strong);
         font-weight: 900;
         text-transform: uppercase;
       }
       .http-logs-url {
         margin: 0 10px;
-        color: #333;
+        color: var(--tio-text);
         font-weight: 500;
       }
       .http-logs-payload {

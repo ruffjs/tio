@@ -173,14 +173,16 @@ onUnmounted(() => {
         width: 85%;
         height: auto;
         padding: 2px 5px;
-        background-color: #f2f2f2;
-        border-radius: 5px;
+        border: 1px solid var(--tio-border);
+        background: var(--tio-surface-soft);
+        border-radius: var(--tio-radius);
+        color: var(--tio-text);
         font-size: 13px;
         overflow: hidden;
 
         .mqtt-message-meta {
           margin-bottom: 4px;
-          color: #999;
+          color: var(--tio-muted);
           .mqtt-message-meta-label {
             margin-right: 6px;
             font-weight: 600;
@@ -208,7 +210,7 @@ onUnmounted(() => {
         line-height: 20px;
         font-size: 12px;
         font-weight: 500;
-        color: #999;
+        color: var(--tio-muted);
       }
 
       &.left {
@@ -238,7 +240,7 @@ onUnmounted(() => {
     top: 2px;
     left: 5px;
     padding-left: 5px;
-    background-color: white;
+    background: var(--tio-surface-solid);
     .el-radio-group {
       // display: flex;
       .el-radio {

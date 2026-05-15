@@ -1,17 +1,30 @@
 <template>
   <div class="login-view">
-    <div class="login-mask"></div>
     <dialog class="login-dialog" open>
-      <el-form
-        ref="formRef"
-        v-loading="loading"
-        :model="form"
-        :rules="rules"
-        status-icon
-        label-width="80px"
-        class="demo-form"
-        @keyup.enter.native="submitForm"
-      >
+      <button class="login-theme-button" type="button" @click="toggleTheme" :title="`Switch to ${nextThemeMode}`">
+        <el-icon>
+          <Monitor v-if="themeMode === 'auto'" />
+          <Sunny v-else-if="themeMode === 'dark'" />
+          <Moon v-else />
+        </el-icon>
+      </button>
+      <div class="login-brand">
+        <img class="login-logo" :src="tioLogoUrl" alt="" aria-hidden="true" />
+        <div>
+          <h1>TIO Playground</h1>
+          <p>{{ $t('login.login') }}</p>
+        </div>
+      </div>
+        <el-form
+          ref="formRef"
+          v-loading="loading"
+          :model="form"
+          :rules="rules"
+          status-icon
+          label-position="top"
+          class="login-form"
+          @keyup.enter.native="submitForm"
+        >
         <el-form-item :label="$t('login.host')" prop="host">
           <el-input v-model.number="form.host" autocomplete="off" />
         </el-form-item>
@@ -38,7 +51,7 @@
 export default {
   name: "Login",
   inheritAttrs: false,
-  customOptions: { title: "Login TIO", zIndex: 1999, actived: false },
+  customOptions: { title: "Login TIO", zIndex: 1999, actived: false, standalone: true },
 };
 </script>
 
@@ -50,8 +63,14 @@ import { useI18n } from "vue-i18n";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import { ElNotification } from "element-plus";
 import { getUri, recreateClient } from "@/apis";
+import useTheme from "@/reactives/useTheme";
 
 const { t } = useI18n();
+const { themeMode, nextThemeMode, toggleTheme } = useTheme();
+const publicPath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const tioLogoUrl = `${publicPath}tio-logo.svg`;
 
 const loading = ref(false);
 const checkName = (_rule, value, callback) => {
@@ -119,23 +138,129 @@ const submitForm = async () => {
 
 <style scoped lang="scss">
 .login-view {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 100%;
-  height: 100%;
-  .login-mask {
-    width: 100%;
-    height: 100%;
-    background-color: rgba($color: #000000, $alpha: 0.3);
-  }
+  min-height: 100vh;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 24% 18%, var(--tio-accent-soft), transparent 30%),
+    var(--tio-bg);
+
   .login-dialog {
+    position: relative;
+    width: min(440px, calc(100vw - 32px));
+    margin: 0;
+    padding: 28px;
+    border: 1px solid var(--tio-line);
+    border-radius: var(--tio-radius-lg);
+    background: var(--tio-surface);
+    color: var(--tio-text);
+    box-shadow: none;
+  }
+
+  .login-theme-button {
     position: absolute;
-    top: 50vh;
-    width: 420px;
-    height: 240px;
-    padding: 34px 34px;
-    transform: translateY(-200px);
-    border: none;
-    border-radius: 2px;
-    box-shadow: 0 0 5px 1px rgba($color: #000000, $alpha: 0.3);
+    top: 14px;
+    right: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--tio-line);
+    border-radius: var(--tio-radius);
+    background: transparent;
+    color: var(--tio-text);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--tio-accent-strong);
+      background: var(--tio-accent-soft);
+      color: var(--tio-text-strong);
+    }
+  }
+
+  .login-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    padding-right: 44px;
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      color: var(--tio-text-strong);
+    }
+
+    p {
+      margin: 5px 0 0;
+      color: var(--tio-muted);
+      font-size: 13px;
+    }
+  }
+
+  .login-logo {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 auto;
+  }
+
+  .login-form {
+    :deep(.el-form-item) {
+      margin-bottom: 18px;
+    }
+
+    :deep(.el-form-item__label) {
+      margin-bottom: 6px;
+      color: var(--tio-muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    :deep(.el-input__wrapper) {
+      min-height: 38px;
+    }
+  }
+
+  :deep(.el-form-item:last-child) {
+    margin-top: 6px;
+    margin-bottom: 0;
+  }
+
+  :deep(.el-button) {
+    width: 100%;
+    min-height: 38px;
+  }
+}
+
+:global(:root[data-theme="light"]) {
+  .login-view {
+    background:
+      radial-gradient(circle at 24% 18%, rgba(82, 101, 125, 0.08), transparent 30%),
+      var(--tio-bg);
+  }
+}
+
+@media (max-width: 520px) {
+  .login-view {
+    padding: 16px;
+
+    .login-dialog {
+      width: 100%;
+      padding: 22px;
+    }
+
+    .login-brand {
+      align-items: flex-start;
+      gap: 12px;
+    }
   }
 }
 </style>

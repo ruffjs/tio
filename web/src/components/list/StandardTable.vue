@@ -155,7 +155,7 @@ const deleteThing = (thing) => {
     align-items: center;
     height: 40px;
     padding: 5px 10px;
-    border-bottom: solid 1px #e6e6e6;
+    border-bottom: 1px solid var(--tio-border);
     .card-thing-id {
       font-weight: 600;
     }
@@ -176,7 +176,7 @@ const deleteThing = (thing) => {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: solid 1px #f2f2f2;
+      border-bottom: 1px solid var(--tio-border);
       .card-body-prop-label {
         font-size: 13px;
         font-weight: 600;

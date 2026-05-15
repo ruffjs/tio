@@ -213,7 +213,8 @@ const handleCheckStats = async () => {
 
   width: 100%;
   height: 100%;
-  background-color: white;
+  background: var(--tio-surface-solid);
+  color: var(--tio-text);
 
   .mqtt-clients-conns-header,
   .mqtt-clients-curr-header {
@@ -224,15 +225,15 @@ const handleCheckStats = async () => {
 
     width: 100%;
     height: 32px;
-    background-color: rgba($color: #000000, $alpha: 0.05);
-    border-top: solid 1px rgba($color: #000000, $alpha: 0.1);
-    border-bottom: solid 1px rgba($color: #000000, $alpha: 0.05);
+    background: var(--tio-surface-soft);
+    border-top: 1px solid var(--tio-border);
+    border-bottom: 1px solid var(--tio-border);
   }
 
   .mqtt-clients-conns {
     width: 240px;
     height: 100%;
-    border-right: solid 1px rgba($color: #000000, $alpha: 0.1);
+    border-right: 1px solid var(--tio-border);
 
     .mqtt-clients-title {
       padding-left: 5px;
@@ -288,7 +289,7 @@ const handleCheckStats = async () => {
         line-height: 30px;
         font-size: 16px;
         font-weight: 700;
-        color: var(--el-color-info);
+        color: var(--tio-muted);
         &.active {
           color: var(--el-color-success);
         }

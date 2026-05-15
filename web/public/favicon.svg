@@ -1,0 +1,12 @@
+<svg width="32" height="32" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TIO logo">
+  <rect x="5" y="5" width="54" height="54" rx="16" fill="#F3EFE6"/>
+  <rect x="5.75" y="5.75" width="52.5" height="52.5" rx="15.25" stroke="#637287" stroke-width="1.5"/>
+  <path d="M17 19.5H47" stroke="#2F3E4F" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 19.5V42.5" stroke="#2F3E4F" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 31.5H43" stroke="#637287" stroke-width="2.75" stroke-linecap="round"/>
+  <path d="M32 38.5H21" stroke="#637287" stroke-width="2.75" stroke-linecap="round"/>
+  <circle cx="43" cy="31.5" r="4.75" fill="#F3EFE6" stroke="#637287" stroke-width="2.5"/>
+  <circle cx="21" cy="38.5" r="4.75" fill="#F3EFE6" stroke="#637287" stroke-width="2.5"/>
+  <circle cx="32" cy="44" r="4.25" fill="#637287"/>
+  <circle cx="32" cy="44" r="1.45" fill="#F3EFE6"/>
+</svg>

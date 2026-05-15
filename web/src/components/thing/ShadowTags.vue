@@ -1,23 +1,11 @@
 <template>
-  <el-card class="shadow-tags-card" shadow="never">
-    <template #header>
-      <div class="shadow-tags-card-header">
-        <span
-          >{{ $t('things.shadowTags') }}
-          </span
-        >
-        <div class="shadow-tags-card-buttons">
-          <!-- <el-button
-            v-if="data"
-            icon="View"
-            size="small"
-            @click="viewObject(data, $t('things.tagsRaw'))"
-            >{{ $t('things.viewRaw') }}</el-button
-          > -->
-          <el-button icon="Plus" size="small" @click="emit('update')">{{ $t('things.setTags') }}</el-button>
-        </div>
+  <section class="shadow-tags-card">
+    <div class="shadow-tags-card-header">
+      <span>{{ $t('things.shadowTags') }}</span>
+      <div class="shadow-tags-card-buttons">
+        <el-button icon="Plus" size="small" @click="emit('update')">{{ $t('things.setTags') }}</el-button>
       </div>
-    </template>
+    </div>
     <div v-if="tags.length" class="shadow-tags-list">
       <el-tag
         v-for="tag in tags"
@@ -53,7 +41,7 @@
         >{{ $t('things.addSomeNow') }}</el-button
       >
     </div>
-  </el-card>
+  </section>
   <ObjectViewer
     :visible="!!objectToBeView"
     :data="objectToBeView"
@@ -136,17 +124,20 @@ watch(
 <style scoped lang="scss">
 .shadow-tags-card {
   width: 100%;
-  margin-top: 10px;
+  padding: 14px 16px;
+  background: transparent;
 
   .shadow-tags-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    .shadow-tags-card-header-tag {
-      height: 18px;
-      padding: 0px 4px;
-      line-height: 16px;
-      font-size: 12px;
+    margin-bottom: 12px;
+
+    > span {
+      color: var(--tio-text-strong);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: 0.02em;
     }
   }
 
@@ -159,11 +150,16 @@ watch(
     gap: 10px;
 
     .shadow-tags-item {
-      padding: 5px 5px 2px 10px;
+      height: auto;
+      min-height: 34px;
+      padding: 4px 6px 4px 10px;
+      border-radius: var(--tio-radius);
       user-select: none;
+
       &.el-tag.is-closable {
-        align-items: start;
+        align-items: center;
       }
+
       .shadow-tags-item-label {
         line-height: 14px;
         font-size: 14px;
@@ -185,28 +181,16 @@ watch(
 
   .shadow-tags-empty {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     justify-content: center;
     align-items: center;
-
-    line-height: 30px;
+    gap: 10px;
+    min-height: 48px;
+    color: var(--tio-muted);
     font-size: 12px;
-    color: var(--el-color-info);
-  }
-}
-</style>
 
-<style lang="scss">
-.shadow-tags-card {
-  .el-card__header {
-    padding: 10px var(--el-card-padding);
-  }
-  .shadow-tags-list {
-    .shadow-tags-item {
-      height: 46px;
-      .el-tag__content {
-        height: 34px;
-      }
+    p {
+      margin: 0;
     }
   }
 }

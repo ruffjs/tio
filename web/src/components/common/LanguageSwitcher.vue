@@ -39,16 +39,25 @@ const handleCommand = (command) => {
 .language-switcher {
   display: flex;
   align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--tio-line);
+  border-radius: var(--tio-radius);
+  background: transparent;
   cursor: pointer;
-  color: #fff;
+  color: var(--tio-text);
   font-size: 12px;
+  font-weight: 650;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
   
   .el-icon {
     margin-right: 4px;
   }
   
   &:hover {
-    color: var(--el-color-primary);
+    border-color: var(--tio-accent-strong);
+    background: var(--tio-accent-soft);
+    color: var(--tio-text-strong);
   }
 }
 

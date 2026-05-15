@@ -251,7 +251,7 @@ watch(
   width: 44vw;
   // height: 60vh;
   opacity: 0;
-  box-shadow: var(--el-box-shadow-dark);
+  box-shadow: none;
   transition: right ease-in-out 0.2s, top ease-in-out 0.2s, opacity ease-in-out 0.2s;
   z-index: 10;
 
@@ -286,17 +286,18 @@ watch(
         width: 34vw;
         height: 40vh;
         padding: 5px 10px;
-        background-color: white;
+        background: var(--tio-surface-solid);
         overflow-x: hidden;
         overflow-y: auto;
-        box-shadow: 0 0 3px rgba($color: #000000, $alpha: 0.2);
+        border: 1px solid var(--tio-border);
+        box-shadow: none;
         z-index: 100;
 
         .mqtt-tpls-item {
           line-height: 24px;
           margin: 3px 0;
           padding: 5px 0;
-          border-bottom: solid 1px rgba($color: #000000, $alpha: 0.05);
+          border-bottom: 1px solid var(--tio-border);
           cursor: pointer;
           .mqtt-tpls-name {
             float: left;
@@ -309,7 +310,7 @@ watch(
             word-wrap: break-word;
             font-size: 13px;
             font-weight: 600;
-            color: #888;
+            color: var(--tio-muted);
           }
         }
       }

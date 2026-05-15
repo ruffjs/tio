@@ -1,13 +1,14 @@
 <template>
   <el-drawer
-    :model-value="!!code"
+    v-model="visible"
     :title="`${api ? api.name : 'HTTP Poster'}`"
     :modal="false"
     size="max(32vw, 570px)"
     class="http-poster"
     modal-class="http-poster-mask"
     append-to-body
-    @close="emit('close')"
+    :z-index="2100"
+    @close="handleDrawerClose"
   >
     <template #footer>
       <div style="flex: auto">
@@ -116,7 +117,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, shallowRef, watch } from "vue";
+import { reactive, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { createShadowApis } from "@/configs/thing";
 import KeyValueEditor from "@/components/common/KeyValueEditor.vue";
@@ -148,6 +149,7 @@ const props = defineProps({
 });
 const submitting = ref(false);
 const hasJSONError = ref(false);
+const visible = ref(true);
 const api = shallowRef(null);
 const params = ref([]);
 const formRef = ref();
@@ -169,6 +171,10 @@ const isError = ref(false);
 const result = ref(defaultRes);
 
 const handleOpenDoc = () => window.open(api.value.link, "_blank");
+const handleDrawerClose = () => {
+  visible.value = false;
+  emit("close");
+};
 
 const handleSubmit = async () => {
   if (!formRef.value) return;
@@ -203,8 +209,9 @@ const handleSubmit = async () => {
 };
 
 watch(
-  props,
+  () => [props.code, props.thingId, props.payload],
   () => {
+    visible.value = true;
     api.value = createShadowApis(t)[props.code] || null;
     const _params = [];
     if (api.value) {
@@ -279,7 +286,7 @@ watch(
 
 <style lang="scss">
 .http-poster-mask {
-  z-index: 10;
+  z-index: 2100;
   width: max(32vw, 570px);
   height: 100vh;
   inset: unset !important;

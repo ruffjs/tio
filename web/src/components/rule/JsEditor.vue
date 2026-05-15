@@ -13,16 +13,19 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
+import { nextTick, onMounted, ref, shallowRef, watch } from "vue";
 import codemirror from "codemirror/lib/codemirror";
+import "codemirror/theme/ambiance.css";
 import "codemirror/addon/edit/matchbrackets";
 import "codemirror/mode/javascript/javascript";
 import "codemirror/addon/hint/javascript-hint";
+import useTheme from "@/reactives/useTheme";
 
 const model = defineModel()
 
 const editRef = ref();
 const editor = shallowRef();
+const { effectiveTheme } = useTheme();
 const emit = defineEmits(["update:modelValue"]);
 
 const clear = () => {
@@ -53,6 +56,7 @@ const createEditor = async () => {
     cursorHeight: 1,
     lineWrapping: true,
     extraKeys: { Ctrl: "autocomplete" },
+    theme: effectiveTheme.value === "dark" ? "ambiance" : "default",
   });
   
   editor.value.on("change", () => {
@@ -77,6 +81,11 @@ watch(
     editor.value?.setValue(value.trim());
   }
 );
+
+watch(effectiveTheme, (value) => {
+  editor.value?.setOption("theme", value === "dark" ? "ambiance" : "default");
+  editor.value?.refresh();
+});
 
 onMounted(async () => {
   await nextTick();
@@ -108,7 +117,7 @@ const onAutoHeightCheck = (b) => {
 </style>
 <style lang="scss">
 .CodeMirror {
-  border: 1px #eaeaea solid;
-  border-radius: 3px;
+  border: 1px solid var(--tio-border);
+  border-radius: var(--tio-radius);
 }
 </style>

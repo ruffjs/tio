@@ -2,64 +2,53 @@
   <div class="subscriptions-list" v-loading="loading">
     <div
       v-for="sub in subscriptions"
+      :key="sub.id"
       :class="['subscriptions-list-item', sub.subscribed ? 'subscribed-item' : '']"
     >
+      <span class="subscriptions-list-status-dot"></span>
       <div class="subscriptions-list-topic">
-        <el-tag v-if="sub.name" size="small">{{ sub.name }}</el-tag>
-        <span>{{ sub.topic }}</span>
-      </div>
-      <div class="subscriptions-list-btns">
-        <el-button
-          v-if="sub.subscribed"
-          :disabled="!conn.client?.connected"
-          type="primary"
-          size="small"
-          class="subscriptions-list-btns-left"
-          @click="handleUnsubscribe(sub)"
-          >{{ $t('mqtt.unsubscribe') }}</el-button
-        >
-        <el-button
-          v-else
-          :disabled="!conn.client?.connected"
-          type="info"
-          size="small"
-          class="subscriptions-list-btns-left"
-          plain
-          @click="handleSubscribe(sub)"
-          >{{ $t('mqtt.subscribe') }}</el-button
-        >
-        <div class="subscriptions-list-btns-right">
-          <el-tooltip
-            :content="$t('mqtt.clickToReadMessagesOfThisSubscriptionOnly')"
-            placement="left"
-            ><el-button
-              :type="filterTopic === sub.topic ? 'primary' : ''"
-              :plain="filterTopic !== sub.topic"
-              icon="Filter"
-              size="small"
-              circle
-              plain
-              @click="handleToggleFilter(sub)"
-          /></el-tooltip>
-          <el-button
-            :disabled="!conn.client?.connected || sub.subscribed"
-            type="primary"
-            icon="Edit"
-            size="small"
-            circle
-            plain
-            @click="handleEdit(sub)"
-          />
-          <el-button
-            :disabled="sub.keep || sub.subscribed"
-            type="danger"
-            icon="Delete"
-            size="small"
-            circle
-            plain
-            @click="handleDelete(sub)"
-          />
+        <div class="subscriptions-list-topic-text">{{ sub.topic }}</div>
+        <div v-if="sub.name || filterTopic === sub.topic" class="subscriptions-list-topic-meta">
+          <el-tag v-if="sub.name" size="small">{{ sub.name }}</el-tag>
+          <span v-if="filterTopic === sub.topic" class="subscriptions-list-filtered">
+            {{ $t('mqtt.filterMessages') }}
+          </span>
         </div>
+      </div>
+      <div class="subscriptions-list-actions">
+        <el-dropdown
+          trigger="click"
+          popper-class="subscriptions-list-actions-popper"
+          @command="(command) => handleSubscriptionCommand(command, sub)"
+        >
+          <el-button class="subscriptions-list-more" link icon="MoreFilled" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                command="toggle"
+                :disabled="!conn.client?.connected"
+              >
+                {{ sub.subscribed ? $t('mqtt.unsubscribe') : $t('mqtt.subscribe') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="filter" divided>
+                {{ filterTopic === sub.topic ? $t('mqtt.clearMessageFilter') : $t('mqtt.filterMessages') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="edit"
+                :disabled="!conn.client?.connected || sub.subscribed"
+                divided
+              >
+                {{ $t('common.edit') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="delete"
+                :disabled="sub.keep || sub.subscribed"
+              >
+                {{ $t('common.delete') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </div>
@@ -176,6 +165,26 @@ const handleDelete = (sub) => {
     updateSubscriptions();
   }
 };
+const handleSubscriptionCommand = (command, sub) => {
+  switch (command) {
+    case "toggle":
+      if (sub.subscribed) {
+        handleUnsubscribe(sub);
+      } else {
+        handleSubscribe(sub);
+      }
+      break;
+    case "filter":
+      handleToggleFilter(sub);
+      break;
+    case "edit":
+      handleEdit(sub);
+      break;
+    case "delete":
+      handleDelete(sub);
+      break;
+  }
+};
 
 defineExpose({
   submitForm: (data) => {
@@ -280,52 +289,132 @@ watch(
   width: 100%;
   height: 100%;
   padding: 0;
-  border-radius: 4px;
-  background-color: white;
+  border-radius: var(--tio-radius);
+  background: var(--tio-surface-solid);
+  color: var(--tio-text);
   overflow-x: hidden;
   overflow-y: auto;
   z-index: 11;
   .subscriptions-list-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     width: 100%;
     height: auto;
-
-    margin-bottom: 6px;
-    padding: 3px 5px 8px;
-    border-left: solid 4px rgba($color: #000000, $alpha: 0.1);
-    border-radius: 4px;
-    background-color: rgba($color: #000000, $alpha: 0.05);
-    cursor: pointer;
+    min-height: 40px;
+    margin-bottom: 4px;
+    padding: 6px 4px 6px 9px;
+    border-left: 4px solid var(--tio-border);
+    border-radius: var(--tio-radius);
+    background: var(--tio-surface-soft);
+    transition: background-color 0.16s ease, border-color 0.16s ease;
 
     &:last-child {
       margin-bottom: 0;
     }
 
-    &.subscribed-item {
-      border-left-color: var(--el-color-success);
-    }
+    &:hover,
+    &:focus-within {
+      border-left-color: var(--tio-accent);
+      background: var(--tio-surface);
 
-    .subscriptions-list-topic {
-      width: 100%;
-      height: auto;
-      padding: 5px 0;
-      line-height: 15px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #888;
-      word-break: break-all;
-      word-wrap: break-word;
-      .el-tag {
-        float: right;
-        margin-left: 5px;
+      .subscriptions-list-actions {
+        opacity: 1;
+        pointer-events: auto;
       }
     }
 
-    .subscriptions-list-btns {
+    &.subscribed-item {
+      border-left-color: var(--tio-success);
+
+      .subscriptions-list-status-dot {
+        background: var(--tio-success);
+      }
+    }
+
+    .subscriptions-list-status-dot {
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--tio-muted);
+    }
+
+    .subscriptions-list-topic {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      height: auto;
+      padding: 0;
+      line-height: 1.35;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--tio-text);
+    }
+
+    .subscriptions-list-topic-meta {
       display: flex;
-      flex-direction: row;
-      justify-content: space-between;
       align-items: center;
+      gap: 6px;
+      min-height: 18px;
+      margin-top: 3px;
+
+      .el-tag {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    .subscriptions-list-topic-text {
+      overflow: hidden;
+      color: var(--tio-text);
+      font-family: var(--tio-mono);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 18px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .subscriptions-list-filtered {
+      color: var(--tio-muted);
+      font-size: 11px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .subscriptions-list-filtered {
+      color: var(--tio-accent);
+    }
+
+    .subscriptions-list-actions {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.16s ease;
+    }
+
+    .subscriptions-list-more.el-button {
+      padding: 0;
+      color: var(--tio-muted);
     }
   }
+}
+
+@media (hover: none) {
+  .subscriptions-list .subscriptions-list-item .subscriptions-list-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+</style>
+
+<style lang="scss">
+.subscriptions-list-actions-popper {
+  min-width: 150px;
 }
 </style>

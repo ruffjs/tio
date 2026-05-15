@@ -1,116 +1,75 @@
 <template>
   <div class="thing-mqtt-clients">
-    <div class="thing-mqtt-clients-title">{{ $t('things.mqttClientsOfThing') }}</div>
-    <el-collapse v-if="clients.length" v-model="activeName" accordion>
-      <el-collapse-item v-for="(c, index) in clients" :name="c.id">
-        <template #title>
-          <div
-            :class="{
-              'thing-mqtt-client-header': true,
-              connected: c.client.connected,
-            }"
-          >
-            <el-icon><Link /></el-icon>
-            <el-tooltip effect="dark" :content="c.name" placement="top-start">
-              <span>{{ c.name }}</span></el-tooltip
-            >
-          </div>
-        </template>
-        <div class="thing-mqtt-innerbtns">
-          <!-- <pre>{{ JSON.stringify(client, null, 2) }}</pre> -->
-          <el-row :gutter="10">
-            <el-col :span="24">
-              <el-button
-                v-if="c.client.connected"
-                class="thing-mqtt-innerbtn"
-                type="success"
-                size="small"
-                plain
-                @click="handleDisconnectMqttClient(c.config)"
-                >{{ $t('mqtt.disconnect') }}</el-button
-              >
-              <el-button
-                v-else
-                class="thing-mqtt-innerbtn"
-                size="small"
-                @click="handleConnectMqttClient(c.config)"
-                >{{ $t('mqtt.connectAndSubscribe') }}</el-button
-              >
-            </el-col>
-            <el-col :span="24">
-              <el-button
-                :disabled="true"
-                size="small"
-                class="thing-mqtt-innerbtn subscription-stats"
-                ><span>{{ $t('mqtt.subscription') }}</span
-                ><span
-                  >{{ getSubscribedSubs(c.subs).length }} /
-                  {{ c.subscriptions.length }}</span
-                ></el-button
-              >
-            </el-col>
-            <el-col :span="12">
-              <el-button
-                :disabled="!c.client.connected"
-                type="primary"
-                size="small"
-                class="thing-mqtt-innerbtn"
-                plain
-                @click="handleSubscribeAll(c.config, c.subs)"
-                >{{ $t('mqtt.subsAll') }}</el-button
-              >
-            </el-col>
-            <el-col :span="12">
-              <el-button
-                :disabled="!c.client.connected"
-                type="warning"
-                size="small"
-                class="thing-mqtt-innerbtn"
-                plain
-                @click="handleUnsubscribeAll(c.config, c.subs)"
-                >{{ $t('mqtt.unsubAll') }}</el-button
-              >
-            </el-col>
-            <el-col :span="24">
-              <el-badge
-                :value="c.unreadMessageCount || 0"
-                :max="999"
-                :hidden="c.unreadMessageCount == 0"
-                class="thing-mqtt-badge"
-                type="primary"
-              >
-                <el-button
-                  class="thing-mqtt-innerbtn"
-                  size="small"
-                  @click="handleShowToolPanel(c.config)"
-                >
-                  {{ $t('mqtt.showInToolPanel') }}
-                </el-button>
-              </el-badge>
-            </el-col>
-          </el-row>
+    <div class="thing-mqtt-clients-title">
+      <span class="thing-mqtt-title-label">
+        {{ $t('things.mqttClientsOfThing') }}
+        <b v-if="totalCount" class="thing-mqtt-count">{{ connectedCount }}/{{ totalCount }}</b>
+      </span>
+    </div>
+    <div v-if="clients.length" class="thing-mqtt-list">
+      <div
+        v-for="c in clients"
+        :key="c.id"
+        :class="['thing-mqtt-client', c.client.connected ? 'connected' : '']"
+      >
+        <div class="thing-mqtt-client-main">
+          <i class="thing-mqtt-status-dot"></i>
+          <el-tooltip effect="dark" :content="c.name" placement="top-start">
+            <span class="thing-mqtt-client-name">{{ c.name }}</span>
+          </el-tooltip>
         </div>
-      </el-collapse-item>
-    </el-collapse>
-    <template v-else>
-      <el-tooltip
-        :content="$t('mqtt.createClientTooltip')"
-        placement="right"
+        <div class="thing-mqtt-client-meta">
+          <span class="thing-mqtt-sub-count">
+            {{ getSubscribedSubs(c.subs).length }}/{{ c.subscriptions.length }}
+          </span>
+          <span v-if="c.unreadMessageCount" class="thing-mqtt-unread">
+            {{ c.unreadMessageCount > 99 ? "99+" : c.unreadMessageCount }}
+          </span>
+          <el-dropdown
+            trigger="click"
+            popper-class="thing-mqtt-clients-popper"
+            @command="(command) => handleClientCommand(command, c)"
+          >
+            <el-button class="thing-mqtt-more" link icon="MoreFilled" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-if="c.client.connected" command="disconnect">
+                  {{ $t('mqtt.disconnect') }}
+                </el-dropdown-item>
+                <el-dropdown-item v-else command="connect">
+                  {{ $t('mqtt.connectAndSubscribe') }}
+                </el-dropdown-item>
+                <el-dropdown-item v-if="c.client.connected" command="subscribe" divided>
+                  {{ $t('mqtt.subsAll') }}
+                </el-dropdown-item>
+                <el-dropdown-item v-if="c.client.connected" command="unsubscribe">
+                  {{ $t('mqtt.unsubAll') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="panel" :divided="c.client.connected">
+                  {{ $t('mqtt.showInToolPanel') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
+    </div>
+    <div v-else class="thing-mqtt-empty">
+      <p>{{ $t('mqtt.createClientTooltip') }}</p>
+      <el-button
+        icon="Connection"
+        size="small"
+        plain
+        @click="handleCreateMqttClient(false)"
       >
-        <el-button
-          icon="Connection"
-          class="thing-mqtt-bigbtn"
-          @click="handleCreateMqttClient(false)"
-          >{{ $t('mqtt.createClient') }}</el-button
-        ></el-tooltip
-      >
-    </template>
+        {{ $t('mqtt.createClient') }}
+      </el-button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, watch } from "vue";
-import { TH_STATUS_CHG_EVT } from "@/utils/event";
+import { computed, ref, shallowRef, watch } from "vue";
 import { TSCE_MQTT } from "@/utils/event";
 import { genConnectedCallbackToken } from "@/utils/generators";
 import {
@@ -140,11 +99,13 @@ const {
   activeToolKey,
   switchActiveTool,
   showMqttConnForm,
-  showMqttSubsForm,
 } = useLayout();
 const { onSomethingStatusChange } = useThingEvent();
 const clients = ref([]);
-const activeName = ref("");
+const totalCount = computed(() => clients.value.length);
+const connectedCount = computed(
+  () => clients.value.filter((item) => item.client.connected).length
+);
 
 const handleDisconnectMqttClient = (config) => {
   disconn(config);
@@ -167,14 +128,6 @@ const handleUnsubscribeAll = (config, subs) => {
     unsubscribe,
   });
 };
-const handleShowSubscriptions = (config) => {
-  if (
-    delegateSharedStates.value[config.id] &&
-    delegateSharedStates.value[config.id].client?.connected
-  ) {
-    showMqttSubsForm(config);
-  }
-};
 const handleShowToolPanel = (config) => {
   if (activeToolKey.value !== "mqtt") {
     switchActiveTool({ key: "mqtt" });
@@ -185,39 +138,40 @@ const handleShowToolPanel = (config) => {
 const handleCreateMqttClient = () => {
   ccbt.value = showMqttConnForm(null, selectedThingId.value);
 };
+const handleClientCommand = (command, item) => {
+  switch (command) {
+    case "connect":
+      handleConnectMqttClient(item.config);
+      break;
+    case "disconnect":
+      handleDisconnectMqttClient(item.config);
+      break;
+    case "subscribe":
+      handleSubscribeAll(item.config, item.subs);
+      break;
+    case "unsubscribe":
+      handleUnsubscribeAll(item.config, item.subs);
+      break;
+    case "panel":
+      handleShowToolPanel(item.config);
+      break;
+  }
+};
 
 watch(
   [selectedThingId, connections, delegateSharedStates],
   () => {
     clients.value = getConnConfigsByClientId(selectedThingId.value).map((config) => {
-      const {
-        id,
-        clientId,
-        name,
-        mqttVersion,
-        protocol,
-        host,
-        port,
-        subscriptions,
-      } = config;
-      const { client, subs, messages, unreadMessageCount } =
+      const { id, name, subscriptions } = config;
+      const { client, subs, unreadMessageCount } =
         delegateSharedStates.value[id] || {};
-      if (activeName.value === "" && client?.connected) {
-        activeName.value = id;
-      }
       return {
         config,
         id,
-        clientId,
         name,
-        mqttVersion,
-        protocol,
-        host,
-        port,
         client: client || { connected: false },
         subs: subs || {},
         subscriptions: subscriptions || [],
-        messages: messages || [],
         unreadMessageCount: unreadMessageCount || 0,
       };
     });
@@ -245,91 +199,127 @@ onSomethingStatusChange(({ thingId, type, about }) => {
 <style scoped lang="scss">
 .thing-mqtt-clients {
   width: 100%;
-  margin-top: 24px;
-  padding-bottom: 10px;
-  text-align: center;
+  margin-top: 4px;
+  text-align: left;
 
   .thing-mqtt-clients-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
-    height: 40px;
-    line-height: 40px;
-    text-align: center;
+    margin-bottom: 8px;
+    color: var(--tio-muted);
     font-size: 13px;
     font-weight: 700;
   }
-  .thing-mqtt-client-header {
-    display: flex;
-    flex-direction: row;
-    justify-content: start;
+
+  .thing-mqtt-count {
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--tio-surface-soft);
+    color: var(--tio-muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
 
+  .thing-mqtt-list {
+    border-top: 1px solid var(--tio-border);
+  }
+
+  .thing-mqtt-client {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
     width: 100%;
-    color: #666;
-    &.connected {
-      color: var(--el-color-success);
-    }
+    min-height: 38px;
+    border-bottom: 1px solid var(--tio-border);
+    color: var(--tio-muted);
 
-    > span {
-      flex: 1;
-      width: 0;
-      display: inline-block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    &.connected {
+      .thing-mqtt-status-dot {
+        background: var(--tio-success);
+      }
     }
   }
-  .thing-mqtt-bigbtn.el-button {
-    width: 100%;
-    height: 48px;
-    border-left: none;
-    border-right: none;
-    border-radius: 0;
+
+  .thing-mqtt-client-main {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .thing-mqtt-status-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--tio-muted);
+  }
+
+  .thing-mqtt-client-name {
+    overflow: hidden;
+    color: var(--tio-text);
+    font-size: 12px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thing-mqtt-client-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .thing-mqtt-sub-count {
+    color: var(--tio-muted);
     font-size: 12px;
   }
 
-  .thing-mqtt-innerbtns {
-    width: 100%;
-    padding: 0 10px;
+  .thing-mqtt-unread {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--tio-accent-soft);
+    color: var(--tio-accent);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 18px;
+    text-align: center;
+  }
 
-    .thing-mqtt-badge {
-      margin-top: 4px;
-      width: 100%;
+  .thing-mqtt-more.el-button {
+    padding: 0;
+    color: var(--tio-muted);
+  }
+
+  .thing-mqtt-empty {
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--tio-border);
+
+    p {
+      margin: 0 0 10px;
+      color: var(--tio-muted);
+      font-size: 12px;
+      line-height: 1.45;
     }
-    .thing-mqtt-innerbtn.el-button {
+
+    .el-button {
       width: 100%;
-      margin-bottom: 8px;
     }
   }
 }
 </style>
 
 <style lang="scss">
-.thing-mqtt-clients {
-  .el-collapse-item__header {
-    .el-collapse-item__arrow {
-      margin: 0;
-    }
-    &.is-active {
-      .el-collapse-item__arrow {
-        color: var(--el-color-success);
-      }
-    }
-  }
-  .el-collapse-item__content {
-    padding-bottom: 5px;
-  }
-  .thing-mqtt-innerbtns {
-    .thing-mqtt-innerbtn.subscription-stats.el-button {
-      cursor: default;
-      > span {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-      }
-    }
-  }
+.thing-mqtt-clients-popper {
+  min-width: 150px;
 }
 </style>
