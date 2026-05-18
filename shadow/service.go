@@ -36,6 +36,28 @@ type StateUpdateSubscribe func(thingId string, state StateUpdatedNotice)
 type StateDeltaSubscribe func(thingId string, delta DeltaStateNotice)
 type StateAcceptedSubscribe func(thingId string, msg StateAcceptedRespMsg)
 type StateRejectedSubscribe func(thingId string, msg ErrRespMsg)
+type TagsUpdateSubscribe func(thingId string, tags TagsValue)
+
+var tagUpdateSubscribers struct {
+	sync.RWMutex
+	items []TagsUpdateSubscribe
+}
+
+func SubscribeTagsUpdate(subscribe TagsUpdateSubscribe) {
+	tagUpdateSubscribers.Lock()
+	defer tagUpdateSubscribers.Unlock()
+	tagUpdateSubscribers.items = append(tagUpdateSubscribers.items, subscribe)
+}
+
+func notifyTagsUpdate(thingId string, tags TagsValue) {
+	tagUpdateSubscribers.RLock()
+	subscribers := append([]TagsUpdateSubscribe(nil), tagUpdateSubscribers.items...)
+	tagUpdateSubscribers.RUnlock()
+
+	for _, f := range subscribers {
+		f(thingId, tags)
+	}
+}
 
 type StateService interface {
 	StateDesiredSetter
@@ -482,6 +504,7 @@ func (s *shadowSvc) notifyRejected(thingId, clientToken string, err error) {
 }
 
 func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error {
+	var mergedTags TagsValue
 	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
 		cur, err := txtRepo.Get(ctx, thingId)
 		if err != nil {
@@ -495,17 +518,21 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 				fmt.Sprintf("expect version %d but got %d", cur.Version, t.Version))
 		}
 
-		mergedTags := MergeTags(cur.Tags, t.Tags)
+		mergedTags = MergeTags(cur.Tags, t.Tags)
 		cur.Version++
 		cur.Tags = mergedTags
 		_, err = txtRepo.Update(ctx, thingId, t.Version, *cur)
+		if err == nil {
+			mergedTags = cur.Tags
+		}
 		return err
 	})
 	if err != nil {
 		return err
 	}
 	// update cache
-	s.cache.UpdateTags(thingId, t.Tags)
+	s.cache.UpdateTags(thingId, mergedTags)
+	notifyTagsUpdate(thingId, mergedTags)
 
 	return nil
 }

@@ -7,15 +7,21 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector/mqtt/embed"
+	"ruff.io/tio/namespace"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/thing"
 )
 
 // AuthzMqttClient authenticates MQTT clients with either password or client certificate.
-func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thingSvc thing.Service, provision thing.Provision) embed.AuthzFn {
+func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thingSvc thing.Service, provision thing.Provision, namespaces ...[]config.Namespace) embed.AuthzFn {
 	return func(authCtx embed.AuthContext) (embed.AuthResult, bool) {
 		if result, ok := authenticateSuperUser(authCtx, superUsers); ok {
 			return result, true
+		}
+		if len(namespaces) > 0 {
+			if result, ok := authenticateNamespace(authCtx, namespaces[0]); ok {
+				return result, true
+			}
 		}
 
 		if !authCtx.Clean {
@@ -42,6 +48,21 @@ func authenticateSuperUser(authCtx embed.AuthContext, superUsers []config.UserPa
 		}
 	}
 	return embed.AuthResult{}, false
+}
+
+func authenticateNamespace(authCtx embed.AuthContext, namespaces []config.Namespace) (embed.AuthResult, bool) {
+	if authCtx.HasClientCert {
+		return embed.AuthResult{}, false
+	}
+	ns, ok := namespace.NamespaceForUser(namespaces, authCtx.Username, authCtx.Password)
+	if !ok {
+		return embed.AuthResult{}, false
+	}
+	slog.Info("Mqtt client authorized by namespace user", "user", authCtx.Username, "ns", ns, "clientId", authCtx.ClientIdentifier)
+	return embed.AuthResult{
+		Principal:  namespace.Principal(ns),
+		AuthMethod: "namespace-password",
+	}, true
 }
 
 func authenticateByCertificate(ctx context.Context, authCtx embed.AuthContext, thingSvc thing.Service) (embed.AuthResult, bool) {

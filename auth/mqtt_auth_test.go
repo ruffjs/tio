@@ -18,6 +18,7 @@ func TestAuthzMqttClient(t *testing.T) {
 	tests := []struct {
 		name          string
 		superUsers    []config.UserPassword
+		namespaces    []config.Namespace
 		thingSvc      *stubThingService
 		provision     thing.Provision
 		authCtx       embed.AuthContext
@@ -226,11 +227,51 @@ func TestAuthzMqttClient(t *testing.T) {
 			wantPrincipal: "new-thing",
 			wantMethod:    "password-provision",
 		},
+		{
+			name: "namespace user should authenticate independently",
+			namespaces: []config.Namespace{{
+				Name: "biz",
+				Users: []config.UserPassword{{
+					Name:     "$biz",
+					Password: "secret",
+				}},
+			}},
+			thingSvc: &stubThingService{things: map[string]thing.Thing{}},
+			authCtx: embed.AuthContext{
+				ClientIdentifier: "cid-biz",
+				Username:         "$biz",
+				Password:         "secret",
+				Clean:            true,
+			},
+			wantOK:        true,
+			wantPrincipal: "$ns/biz",
+			wantMethod:    "namespace-password",
+		},
+		{
+			name: "namespace user should support clean session false",
+			namespaces: []config.Namespace{{
+				Name: "biz",
+				Users: []config.UserPassword{{
+					Name:     "$biz",
+					Password: "secret",
+				}},
+			}},
+			thingSvc: &stubThingService{things: map[string]thing.Thing{}},
+			authCtx: embed.AuthContext{
+				ClientIdentifier: "cid-biz-persistent",
+				Username:         "$biz",
+				Password:         "secret",
+				Clean:            false,
+			},
+			wantOK:        true,
+			wantPrincipal: "$ns/biz",
+			wantMethod:    "namespace-password",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authz := auth.AuthzMqttClient(context.Background(), tt.superUsers, tt.thingSvc, tt.provision)
+			authz := auth.AuthzMqttClient(context.Background(), tt.superUsers, tt.thingSvc, tt.provision, tt.namespaces)
 
 			result, ok := authz(tt.authCtx)
 			require.Equal(t, tt.wantOK, ok)

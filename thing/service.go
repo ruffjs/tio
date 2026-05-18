@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -44,6 +45,42 @@ type PageQuery struct {
 	WithAuthValue  bool    `json:"withAuthValue"`
 	WithStatus     bool    `json:"withStatus"`
 	model.PageQuery
+}
+
+type LifecycleEventType string
+
+const (
+	LifecycleThingCreated LifecycleEventType = "created"
+	LifecycleThingDeleted LifecycleEventType = "deleted"
+)
+
+type LifecycleEvent struct {
+	Type  LifecycleEventType
+	Thing Thing
+	Tags  shadow.TagsValue
+}
+
+type LifecycleSubscribe func(ctx context.Context, event LifecycleEvent)
+
+var lifecycleSubscribers struct {
+	sync.RWMutex
+	items []LifecycleSubscribe
+}
+
+func SubscribeLifecycle(subscribe LifecycleSubscribe) {
+	lifecycleSubscribers.Lock()
+	defer lifecycleSubscribers.Unlock()
+	lifecycleSubscribers.items = append(lifecycleSubscribers.items, subscribe)
+}
+
+func notifyLifecycle(ctx context.Context, event LifecycleEvent) {
+	lifecycleSubscribers.RLock()
+	subscribers := append([]LifecycleSubscribe(nil), lifecycleSubscribers.items...)
+	lifecycleSubscribers.RUnlock()
+
+	for _, f := range subscribers {
+		f(ctx, event)
+	}
 }
 
 type thingSvc struct {
@@ -117,6 +154,7 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, 
 		}
 		// notify shadow service
 		t.shadowSvc.NotifyCreated(th.Id, shadow.ShadowWithEnable{Shadow: shadow.DefaultShadow(th.Id), Enabled: true})
+		notifyLifecycle(ctx, LifecycleEvent{Type: LifecycleThingCreated, Thing: res, Tags: tags})
 	}
 
 	return res, nil
@@ -149,6 +187,7 @@ func (t *thingSvc) Delete(ctx context.Context, id string) error {
 	}
 	// notify shadow service
 	t.shadowSvc.NotifyDeleted(id)
+	notifyLifecycle(ctx, LifecycleEvent{Type: LifecycleThingDeleted, Thing: Thing{Id: id}})
 	return nil
 }
 

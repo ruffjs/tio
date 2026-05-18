@@ -52,12 +52,18 @@ connector:
     superUsers:
       - name: $tio
         password: public
-      - name: $biz
-        password: public
   emqx:
     apiPrefix: http://localhost:18083
     apiUser: admin
     apiPassword: public
+
+namespaces:
+  - name: biz
+    tags:
+      ns: biz
+    users:
+      - name: $biz
+        password: public
 
 log:
   level: debug

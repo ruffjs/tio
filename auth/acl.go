@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ruff.io/tio/config"
+	"ruff.io/tio/namespace"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 )
@@ -17,7 +18,7 @@ type BindingGetter interface {
 }
 
 // TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
-func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
+func TopicAcl(bg BindingGetter, superUsers []config.UserPassword, namespaces ...[]config.Namespace) AclFn {
 	return func(clientId, username string, topic string, write bool) bool {
 		// Embeded MQTT inline client username is empty
 		if username == "" {
@@ -28,6 +29,15 @@ func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
 			if u.Name == username {
 				return true
 			}
+		}
+		if ns, ok := namespace.ParsePrincipal(username); ok {
+			if len(namespaces) > 0 && !namespace.Configured(namespaces[0], ns) {
+				return false
+			}
+			if write {
+				return false
+			}
+			return strings.HasPrefix(topic, namespace.TopicPrefixOf(ns))
 		}
 		thingTopicPrefix := shadow.TopicThingsPrefix + username + "/"
 		userThingTopicPrefix := shadow.TopicUserThingsPrefix + username + "/"

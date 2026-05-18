@@ -15,6 +15,7 @@ import (
 	"ruff.io/tio/auth"
 	"ruff.io/tio/job"
 	"ruff.io/tio/metrics"
+	"ruff.io/tio/namespace"
 	"ruff.io/tio/ntp"
 	"ruff.io/tio/rule"
 
@@ -124,7 +125,7 @@ func main() {
 	}, job.NewRepo(dbConn), connector, connector, methodHandler, shadowSvc)
 	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
 
-	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers)
+	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers, cfg.Namespaces)
 
 	// embedded mqtt broker
 	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
@@ -132,7 +133,7 @@ func main() {
 		if cfg.ProvisionSecret == "" {
 			provisionSvc = nil
 		}
-		authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc)
+		authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc, cfg.Namespaces)
 		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
 	}
 
@@ -158,6 +159,10 @@ func main() {
 	}
 	if err := mqttClient.Connect(ctx); err != nil {
 		log.Fatalf("Mqtt client start error: %v", err)
+	}
+	namespaceSvc := namespace.NewService(cfg.Namespaces, connector)
+	if err := namespaceSvc.Link(ctx, shadowSvc); err != nil {
+		log.Fatalf("Link namespace service error %v", err)
 	}
 	if err := jobCenter.Start(ctx); err != nil {
 		log.Fatalf("JobCenter start error: %v", err)

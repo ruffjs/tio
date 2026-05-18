@@ -533,3 +533,57 @@ func TestBindHandler(t *testing.T) {
 		require.Equal(t, http.StatusOK, resD.Code)
 	})
 }
+
+func TestServiceForEmqxIntegration_UsesWriteSemantics(t *testing.T) {
+	t.Parallel()
+
+	var gotWrite bool
+	var gotThingID string
+	var gotTopic string
+	ws := api.ServiceForEmqxIntegration(func(clientId, username, topic string, write bool) bool {
+		gotThingID = username
+		gotTopic = topic
+		gotWrite = write
+		return !write
+	})
+
+	container := restful.NewContainer()
+	container.ServeMux = http.NewServeMux()
+	container.Add(ws)
+	svr := httptest.NewServer(container)
+	defer svr.Close()
+
+	req, err := http.NewRequest(http.MethodGet,
+		fmt.Sprintf("%s/private/api/things/ns-user/topicAcl?topic=%s&action=subscribe", svr.URL, "$iothub/ns/biz/things/a/presence"),
+		nil)
+	require.NoError(t, err)
+
+	resp, err := svr.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+
+	require.Equal(t, "ns-user", gotThingID)
+	require.Equal(t, "$iothub/ns/biz/things/a/presence", gotTopic)
+	require.False(t, gotWrite)
+	require.Equal(t, "allow", body["result"])
+
+	req, err = http.NewRequest(http.MethodGet,
+		fmt.Sprintf("%s/private/api/things/ns-user/topicAcl?topic=%s&action=publish", svr.URL, "$iothub/ns/biz/things/a/presence"),
+		nil)
+	require.NoError(t, err)
+
+	resp, err = svr.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body = map[string]string{}
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+
+	require.True(t, gotWrite)
+	require.Equal(t, "deny", body["result"])
+}

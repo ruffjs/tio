@@ -207,7 +207,7 @@ func ServiceForEmqxIntegration(aclFn auth.AclFn) *restful.WebService {
 				_ = w.WriteHeaderAndJson(400, "", "'")
 				return
 			}
-			res := aclFn("", thingId, topic, action == "subscribe")
+			res := aclFn("", thingId, topic, action == "publish")
 			resTxt := "deny"
 			if res {
 				resTxt = "allow"

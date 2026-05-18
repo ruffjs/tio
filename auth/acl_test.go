@@ -19,11 +19,13 @@ func TestTopicAcl(t *testing.T) {
 	cases := []struct {
 		name   string
 		supers []config.UserPassword
+		nsCfg  []config.Namespace
 		user   string
 		topic  string
 		bind   struct {
 			thingId string
 		}
+		write  bool
 		result bool
 	}{
 		{
@@ -31,6 +33,7 @@ func TestTopicAcl(t *testing.T) {
 			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
 			user:   "a",
 			topic:  shadow.TopicUpdateOf("c"),
+			write:  true,
 			result: true,
 		},
 		{
@@ -38,6 +41,7 @@ func TestTopicAcl(t *testing.T) {
 			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
 			user:   "b",
 			topic:  shadow.TopicStateUpdatedOf("c"),
+			write:  true,
 			result: true,
 		},
 		{
@@ -45,6 +49,7 @@ func TestTopicAcl(t *testing.T) {
 			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
 			user:   "d",
 			topic:  shadow.TopicStateUpdatedOf("c"),
+			write:  true,
 			result: false,
 		},
 		{
@@ -52,6 +57,7 @@ func TestTopicAcl(t *testing.T) {
 			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
 			user:   "c",
 			topic:  shadow.TopicUpdateOf("c"),
+			write:  true,
 			result: true,
 		},
 		{
@@ -60,7 +66,30 @@ func TestTopicAcl(t *testing.T) {
 			user:   "e",
 			topic:  shadow.TopicUpdateOf("x"),
 			bind:   struct{ thingId string }{thingId: "x"},
+			write:  true,
 			result: true,
+		},
+		{
+			name:   "namespace user can subscribe own namespace",
+			nsCfg:  []config.Namespace{{Name: "biz"}},
+			user:   "$ns/biz",
+			topic:  "$iothub/ns/biz/things/c/presence",
+			result: true,
+		},
+		{
+			name:   "namespace user cannot subscribe other namespace",
+			nsCfg:  []config.Namespace{{Name: "biz"}},
+			user:   "$ns/biz",
+			topic:  "$iothub/ns/other/things/c/presence",
+			result: false,
+		},
+		{
+			name:   "namespace user cannot publish namespace topic",
+			nsCfg:  []config.Namespace{{Name: "biz"}},
+			user:   "$ns/biz",
+			topic:  "$iothub/ns/biz/things/c/presence",
+			write:  true,
+			result: false,
 		},
 	}
 	for _, c := range cases {
@@ -72,8 +101,8 @@ func TestTopicAcl(t *testing.T) {
 				call = mBg.Mock.On("IsBoundGateway", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
 			}
 
-			aclFn := auth.TopicAcl(mBg, c.supers)
-			r := aclFn(c.user, c.user, c.topic, true)
+			aclFn := auth.TopicAcl(mBg, c.supers, c.nsCfg)
+			r := aclFn(c.user, c.user, c.topic, c.write)
 			require.Equal(t, c.result, r, fmt.Sprintf("user %s should access %s : %t", c.user, c.topic, c.result))
 
 			call.Unset()

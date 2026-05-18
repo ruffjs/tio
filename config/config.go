@@ -43,6 +43,12 @@ type UserPassword struct {
 	Password string `json:"-"`
 }
 
+type Namespace struct {
+	Name  string            `json:"name"`
+	Tags  map[string]string `json:"tags"`
+	Users []UserPassword    `json:"users"`
+}
+
 type Redis struct {
 	Addr      string `json:"redis"`
 	Password  string `json:"-"`
@@ -88,8 +94,9 @@ type Config struct {
 		Mysql  mysql.Config  `json:"mysql"`
 		Sqlite sqlite.Config `json:"sqlite"`
 	} `json:"db"`
-	Connector       Connector `json:"connector"`
-	ProvisionSecret string    `json:"-"`
+	Connector       Connector   `json:"connector"`
+	Namespaces      []Namespace `json:"namespaces"`
+	ProvisionSecret string      `json:"-"`
 	Shadow          struct {
 		IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
 	} `json:"shadow"`
