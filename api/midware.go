@@ -11,9 +11,13 @@ import (
 func LoggingMiddleware(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
 	t := time.Now()
 	chain.ProcessFilter(req, resp)
+	route := req.SelectedRoutePath()
+	if route == "" {
+		route = req.Request.URL.Path
+	}
 	slog.Info("Request",
 		slog.String("method", req.Request.Method),
-		slog.String("uri", req.Request.RequestURI),
+		slog.String("uri", route),
 		slog.Int("status", resp.StatusCode()),
 		slog.Int64("duration_ms", time.Since(t).Milliseconds()))
 }

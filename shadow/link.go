@@ -44,7 +44,9 @@ func Link(ctx context.Context, conn StateHandler, svc Service, cfg Config) error
 					slog.Error("Shadow get request channel closed")
 					return
 				}
-				pool.Invoke(req)
+				if err := pool.Invoke(req); err != nil {
+					slog.Error("Shadow get worker invoke error", "error", err)
+				}
 			}
 		}
 	}()
@@ -72,7 +74,9 @@ func Link(ctx context.Context, conn StateHandler, svc Service, cfg Config) error
 					slog.Error("Shadow state update channel closed")
 					return
 				}
-				pool.Invoke(req)
+				if err := pool.Invoke(req); err != nil {
+					slog.Error("Shadow update worker invoke error", "error", err)
+				}
 			}
 		}
 	}()

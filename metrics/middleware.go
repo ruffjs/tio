@@ -13,7 +13,10 @@ func Middleware(req *restful.Request, resp *restful.Response, chain *restful.Fil
 	start := time.Now()
 
 	// Get route pattern
-	route := req.Request.URL.Path
+	route := req.SelectedRoutePath()
+	if route == "" {
+		route = req.Request.URL.Path
+	}
 	if route == "" {
 		route = "unknown"
 	}

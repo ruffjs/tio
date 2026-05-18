@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -76,13 +75,16 @@ func main() {
 
 	// load config
 	cfg := config.ReadConfig()
-	cfgJ, _ := json.Marshal(cfg)
 
 	// init logger
 	initLogger(cfg.Log)
 
 	slog.Info("Starting Tio", "version", Version, "gitCommit", GitCommit)
-	slog.Info("Config", "config", cfgJ)
+	slog.Info("Config",
+		"apiPort", cfg.API.Port,
+		"dbType", cfg.DB.Typ,
+		"connectorType", cfg.Connector.Typ,
+		"pprofEnabled", cfg.Pprof.Enabled)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	config.GlobalCtxCancel = cancel
@@ -181,7 +183,7 @@ func main() {
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
 	mqWs := mq.Service(ctx, connector).Filter(metrics.Middleware).Filter(api.LoggingMiddleware).Filter(azf)
-	cfgWs := config.Service(ctx, cfg)
+	cfgWs := config.Service(ctx, cfg).Filter(azf)
 
 	ruleWs := ruleApi.Service(ctx, ruleMgr).
 		Filter(api.LoggingMiddleware).Filter(azf)

@@ -36,7 +36,6 @@ func Connect(cfg Config) (*gorm.DB, error) {
 		"%s:%s@tcp(%s:%s)/%s?charset=%s&loc=%s&parseTime=True",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DB, cfg.Charset, cfg.Timezone,
 	)
-	slog.Debug("mysql dsn", "dsn", dsn)
 	logLevel := logger.Info
 	if !cfg.ShowSql {
 		logLevel = logger.Silent

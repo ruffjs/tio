@@ -45,3 +45,17 @@ web/dist-ssr
 web/*.local
 
 *.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Environment variables
+.env
+
+.claude

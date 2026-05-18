@@ -101,7 +101,9 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, 
 			return Thing{}, err
 		}
 		if tags != nil {
-			t.shadowSvc.SetTag(ctx, th.Id, shadow.TagsReq{Tags: tags})
+			if err := t.shadowSvc.SetTag(ctx, th.Id, shadow.TagsReq{Tags: tags}); err != nil {
+				return Thing{}, err
+			}
 		}
 		n, err := t.repo.Get(ctx, th.Id)
 		if err != nil {
@@ -220,7 +222,7 @@ func (t *thingSvc) UnbindFromGateway(ctx context.Context, thingIds []string, gat
 	// If gatewayThingId is empty, unbind all things
 	if len(thingIds) == 0 {
 		l, err := t.repo.Query(ctx, PageQuery{GatewayThingId: &gatewayThingId,
-			PageQuery: model.PageQuery{PageIndex: 1, PageSize: 100}})
+			PageQuery: model.PageQuery{PageIndex: 1, PageSize: MaxBindThings}})
 		if err != nil {
 			return errors.WithMessage(err, "query gateway bound things")
 		}

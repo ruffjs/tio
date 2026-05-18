@@ -101,6 +101,32 @@ func TestShadowSVc_Query(t *testing.T) {
 	require.Equal(t, map[string]any{"thingId": id, "connected": false, "color": "red", "p": 30.0}, ss.Content[0])
 }
 
+func TestShadowSvc_QueryWithWhereFilter(t *testing.T) {
+	id1 := fmt.Sprintf("for-query-filter-1-%d", time.Now().UnixNano())
+	id2 := fmt.Sprintf("for-query-filter-2-%d", time.Now().UnixNano())
+	_, err := thingSvc.Create(ctx, thing.Thing{Id: id1, Enabled: true}, nil, false)
+	require.NoError(t, err)
+	_, err = thingSvc.Create(ctx, thing.Thing{Id: id2, Enabled: true}, nil, false)
+	require.NoError(t, err)
+
+	req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{
+		Desired: shadow.StateValue{"color": "red"},
+	}}
+	_, err = svc.SetDesired(ctx, id1, req)
+	require.NoError(t, err)
+	_, err = svc.SetDesired(ctx, id2, req)
+	require.NoError(t, err)
+
+	ss, err := svc.Query(ctx, model.PageQuery{PageIndex: 1, PageSize: 10},
+		fmt.Sprintf("select thingId, `state.desired.color` as color from shadow where thingId = '%s'", id1))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(ss.Content))
+
+	got, ok := ss.Content[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, id1, got["thingId"])
+}
+
 func TestSvcImpl_Set(t *testing.T) {
 
 	t.Run("should auto create when first set desired", func(t *testing.T) {
