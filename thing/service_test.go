@@ -2,6 +2,7 @@ package thing_test
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -26,6 +27,39 @@ var (
 )
 
 var connector = shadowMock.NewConnectivity()
+
+type failingShadowSvc struct {
+	setTagErr error
+}
+
+func (s failingShadowSvc) Init(context.Context) {}
+func (s failingShadowSvc) SetDesired(context.Context, string, shadow.StateReq) (shadow.Shadow, error) {
+	return shadow.Shadow{}, nil
+}
+func (s failingShadowSvc) SetReported(context.Context, string, shadow.StateReq) (shadow.Shadow, error) {
+	return shadow.Shadow{}, nil
+}
+func (s failingShadowSvc) SubscribeUpdate(shadow.StateUpdateSubscribe) {}
+func (s failingShadowSvc) SubscribeDelta(shadow.StateDeltaSubscribe)   {}
+func (s failingShadowSvc) SubAccepted(shadow.StateAcceptedSubscribe)   {}
+func (s failingShadowSvc) SubRejected(shadow.StateRejectedSubscribe)   {}
+func (s failingShadowSvc) Create(context.Context, string) (shadow.Shadow, error) {
+	return shadow.Shadow{}, nil
+}
+func (s failingShadowSvc) Delete(context.Context, string) error { return nil }
+func (s failingShadowSvc) Query(context.Context, model.PageQuery, string) (shadow.Page, error) {
+	return shadow.Page{}, nil
+}
+func (s failingShadowSvc) Get(context.Context, string) (shadow.ShadowWithStatus, error) {
+	return shadow.ShadowWithStatus{}, nil
+}
+func (s failingShadowSvc) SetTag(context.Context, string, shadow.TagsReq) error { return s.setTagErr }
+func (s failingShadowSvc) GetFromCache(string) (shadow.ShadowWithStatus, bool) {
+	return shadow.ShadowWithStatus{}, false
+}
+func (s failingShadowSvc) NotifyCreated(string, shadow.ShadowWithEnable) {}
+func (s failingShadowSvc) NotifyDeleted(string)                          {}
+func (s failingShadowSvc) NotifyUpdate(string, bool)                     {}
 
 func NewTestSvc() (thing.Service, shadow.Service) {
 	db := mock.NewSqliteConnTest()
@@ -332,6 +366,42 @@ func TestThingSvc_QueryWithStatus(t *testing.T) {
 		require.False(t, *foundThing.Connected, "thing should be disconnected")
 		require.NotNil(t, foundThing.DisconnectedAt, "DisconnectedAt should not be nil when disconnected")
 	})
+}
+
+func TestThingSvc_QueryWithEnabledFilter(t *testing.T) {
+	svc, _, _ := NewTestSvcWithDB()
+	enabledId, _ := uuid.New().ID()
+	disabledId, _ := uuid.New().ID()
+
+	_, err := svc.Create(ctxTest, thing.Thing{Id: enabledId, Enabled: true}, nil, false)
+	require.NoError(t, err)
+	_, err = svc.Create(ctxTest, thing.Thing{Id: disabledId, Enabled: false}, nil, false)
+	require.NoError(t, err)
+
+	pq := thing.PageQuery{
+		Enabled:       model.Ref(false),
+		WithAuthValue: true,
+		PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+	}
+	page, err := svc.Query(ctxTest, pq)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(page.Content))
+	require.Equal(t, disabledId, page.Content[0].Id)
+	require.False(t, page.Content[0].Enabled)
+}
+
+func TestThingSvc_CreateUpsertPropagatesTagError(t *testing.T) {
+	_, _, db := NewTestSvcWithDB()
+	repo := thing.NewThingRepo(db)
+	svc := thing.NewSvc(repo, uuid.New(), failingShadowSvc{setTagErr: fmt.Errorf("set tag failed")}, connector)
+
+	id, _ := uuid.New().ID()
+	_, err := svc.Create(ctxTest, thing.Thing{Id: id, Enabled: true}, nil, false)
+	require.NoError(t, err)
+
+	_, err = svc.Create(ctxTest, thing.Thing{Id: id, Enabled: true}, map[string]any{"color": "red"}, true)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "set tag failed")
 }
 
 func TestIdValid(t *testing.T) {

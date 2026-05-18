@@ -89,7 +89,7 @@ type Config struct {
 		Sqlite sqlite.Config `json:"sqlite"`
 	} `json:"db"`
 	Connector       Connector `json:"connector"`
-	ProvisionSecret string
+	ProvisionSecret string    `json:"-"`
 	Shadow          struct {
 		IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
 	} `json:"shadow"`
