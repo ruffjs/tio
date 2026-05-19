@@ -78,7 +78,7 @@
       </main>
     </div>
   </div>
-  <HttpPoster v-if="posterCode" :key="posterKey" :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
+  <HttpPoster v-if="posterCode" v-model="posterVisible" :key="posterKey" :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
     @close="closePoster" />
 </template>
 
@@ -132,19 +132,23 @@ const thing = reactive({});
 const posterCode = ref("");
 const posterData = ref(null);
 const posterKey = ref(0);
+const posterVisible = ref(false);
 const updatingEnabled = ref(false);
 const metaFields = computed(() => createMetaFields(t).filter(({ key }) => key !== "enabled"));
 
 const openPoster = async (code, payload = null) => {
+  posterVisible.value = false;
   posterCode.value = "";
   posterData.value = null;
   await nextTick();
   posterData.value = payload;
   posterKey.value += 1;
   posterCode.value = code;
+  posterVisible.value = true;
 };
 
 const closePoster = () => {
+  posterVisible.value = false;
   posterCode.value = "";
   posterData.value = null;
 };

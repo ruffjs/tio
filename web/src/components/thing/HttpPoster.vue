@@ -1,11 +1,12 @@
 <template>
   <el-drawer
-    v-model="visible"
+    v-model="drawerVisible"
     :title="`${api ? api.name : 'HTTP Poster'}`"
     :modal="false"
+    direction="rtl"
     size="max(32vw, 570px)"
     class="http-poster"
-    modal-class="http-poster-mask"
+    modal-class="http-poster-overlay"
     append-to-body
     :z-index="2100"
     @close="handleDrawerClose"
@@ -117,7 +118,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, shallowRef, watch } from "vue";
+import { computed, reactive, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { createShadowApis } from "@/configs/thing";
 import KeyValueEditor from "@/components/common/KeyValueEditor.vue";
@@ -133,8 +134,12 @@ const defaultRes = JSON.stringify({
 });
 
 const { t } = useI18n();
-const emit = defineEmits(["close", "done"]);
+const emit = defineEmits(["update:modelValue", "close", "done"]);
 const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false,
+  },
   code: {
     type: String,
     requried: true,
@@ -149,7 +154,6 @@ const props = defineProps({
 });
 const submitting = ref(false);
 const hasJSONError = ref(false);
-const visible = ref(true);
 const api = shallowRef(null);
 const params = ref([]);
 const formRef = ref();
@@ -169,11 +173,17 @@ const rules = reactive({
 });
 const isError = ref(false);
 const result = ref(defaultRes);
+const drawerVisible = computed({
+  get: () => props.modelValue,
+  set: (value) => {
+    emit("update:modelValue", value);
+    if (!value) emit("close");
+  },
+});
 
 const handleOpenDoc = () => window.open(api.value.link, "_blank");
 const handleDrawerClose = () => {
-  visible.value = false;
-  emit("close");
+  drawerVisible.value = false;
 };
 
 const handleSubmit = async () => {
@@ -211,7 +221,6 @@ const handleSubmit = async () => {
 watch(
   () => [props.code, props.thingId, props.payload],
   () => {
-    visible.value = true;
     api.value = createShadowApis(t)[props.code] || null;
     const _params = [];
     if (api.value) {
@@ -285,66 +294,63 @@ watch(
 </style>
 
 <style lang="scss">
-.http-poster-mask {
-  z-index: 2100;
-  width: max(32vw, 570px);
-  height: 100vh;
-  inset: unset !important;
-  right: 0 !important;
-  .http-poster {
-    .el-drawer__header {
-      margin-bottom: 20px;
-      .el-drawer__title {
-        font-weight: 700;
+.el-overlay.http-poster-overlay {
+  background-color: transparent;
+}
+
+.http-poster {
+  .el-drawer__header {
+    margin-bottom: 20px;
+    .el-drawer__title {
+      font-weight: 700;
+    }
+  }
+  .el-drawer__body {
+    padding: 0 var(--el-drawer-padding-primary) 10px;
+  }
+  .el-form {
+    .el-form-item {
+      .el-form-item__label {
+        font-size: 12px;
+      }
+      .el-form-item__error {
+        margin-top: -2px;
+        padding-top: 0;
       }
     }
-    .el-drawer__body {
-      padding: 0 var(--el-drawer-padding-primary) 10px;
+    .el-col-1 {
+      .el-icon {
+        cursor: pointer;
+      }
     }
-    .el-form {
-      .el-form-item {
-        .el-form-item__label {
-          font-size: 12px;
-        }
-        .el-form-item__error {
-          margin-top: -2px;
-          padding-top: 0;
+    .el-col-23 {
+      .el-input-number {
+        .el-input__inner {
+          text-align: left;
         }
       }
-      .el-col-1 {
-        .el-icon {
-          cursor: pointer;
-        }
-      }
-      .el-col-23 {
-        .el-input-number {
-          .el-input__inner {
-            text-align: left;
-          }
-        }
-        .http-poster-body-json {
-          .jse-main {
-            position: relative;
-            height: auto;
-            min-height: 172px;
-            max-height: 244px;
-          }
+      .http-poster-body-json {
+        .jse-main {
+          position: relative;
+          height: auto;
+          min-height: 172px;
+          max-height: 244px;
         }
       }
     }
-    .http-poster-res {
-      .el-card__header {
-        padding: 10px var(--el-card-padding);
-      }
-      .el-card__body {
-        padding: 5px 0;
-        .http-poster-resp-json {
-          .jse-main {
-            .jse-tree-mode {
+  }
+  .http-poster-res {
+    .el-card__header {
+      padding: 10px var(--el-card-padding);
+    }
+    .el-card__body {
+      padding: 5px 0;
+      .http-poster-resp-json {
+        .jse-main {
+          .jse-tree-mode {
+            border: none;
+            .jse-contents {
               border: none;
-              .jse-contents {
-                border: none;
-              }
             }
           }
         }

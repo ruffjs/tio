@@ -88,17 +88,28 @@ watch(
 .left {
   position: fixed;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 180px;
   padding: 12px 10px;
   border-right: 1px solid var(--tio-line);
   background: var(--tio-surface-solid);
   box-shadow: none;
+  box-sizing: border-box;
 
   .menu {
-    height: calc(100vh - 72px);
+    flex: 1;
+    min-height: 0;
     border-right: 0;
     background: transparent;
+    overflow-y: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
 
     :deep(.el-menu-item) {
       height: 40px;
@@ -123,6 +134,7 @@ watch(
   }
 
   .logo-con {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     height: 56px;
