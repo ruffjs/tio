@@ -255,7 +255,6 @@ const clearQueryHistory = () => {
 };
 
 const selectFromHistory = (historyQuery) => {
-  debugger
   query.value = historyQuery;
   showHistory.value = false;
   handleSearch(false);
@@ -402,7 +401,6 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
     }
 
     .list-view-search,
-    .list-view-things,
     .sql-editor-tpls,
     .query-history,
     .list-view-empty,
@@ -478,7 +476,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
           height: 36px;
           margin: 0;
           font-size: 13px;
-          font-weight: 650;
+          font-weight: 600;
           white-space: nowrap;
 
           &.el-button--text {
@@ -507,6 +505,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         width: 100%;
         height: 100%;
         overflow: hidden;
+        background: transparent;
         border-radius: var(--tio-radius);
       }
 

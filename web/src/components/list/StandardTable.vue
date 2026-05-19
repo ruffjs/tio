@@ -21,18 +21,8 @@
       </el-table-column>
       <el-table-column prop="connected" :label="$t('things.connected')" align="center" width="120">
         <template #default="scope">
-          <el-button
-            v-if="scope.row.connected"
-            type="success"
-            size="small"
-            icon="CircleCheckFilled"
-            plain
-            round
-            >True</el-button
-          >
-          <el-button v-else type="info" size="small" icon="Warning" plain round
-            >False</el-button
-          >
+          <el-tag v-if="scope.row.connected" type="success" effect="plain" round>True</el-tag>
+          <el-tag v-else type="info" effect="plain" round>False</el-tag>
         </template>
       </el-table-column>
       <el-table-column
@@ -62,20 +52,22 @@
       >
       <el-table-column fixed="right" :label="$t('things.operations')" align="center" min-width="180">
         <template #default="scope">
-          <el-button
-            link
-            type="primary"
-            size="small"
-            :disabled="scope.row.thingId === void 0"
-            @click.prevent="viewObject(scope.row, 'Raw Data', true)"
-          >
-            {{ $t("things.viewShadow") }}
-          </el-button>
-          <DeleteButton
-            title="Are you sure to delete this Thing?"
-            :disabled="scope.row.thingId === void 0"
-            @confirm="deleteThing(scope.row)"
-          />
+          <div class="row-actions">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              :disabled="scope.row.thingId === void 0"
+              @click.prevent="viewObject(scope.row, 'Raw Data', true)"
+            >
+              {{ $t("things.viewShadow") }}
+            </el-button>
+            <DeleteButton
+              title="Are you sure to delete this Thing?"
+              :disabled="scope.row.thingId === void 0"
+              @confirm="deleteThing(scope.row)"
+            />
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -148,6 +140,20 @@ const deleteThing = (thing) => {
 .standard-thing-table {
   width: 100%;
   height: 100%;
+
+  .row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+
+  :deep(.el-table__row:hover .row-actions),
+  .row-actions:focus-within {
+    opacity: 1;
+  }
 
   .card-header {
     display: flex;

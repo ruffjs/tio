@@ -724,7 +724,7 @@ const delSink = async row => {
     margin: 0;
     color: var(--tio-text-strong);
     font-size: 24px;
-    font-weight: 760;
+    font-weight: 700;
     letter-spacing: -0.02em;
   }
 }
@@ -767,7 +767,7 @@ const delSink = async row => {
 
   b {
     color: var(--tio-text-strong);
-    font-weight: 760;
+    font-weight: 650;
   }
 }
 
@@ -801,7 +801,7 @@ const delSink = async row => {
     background: var(--tio-surface-soft);
     color: var(--tio-muted);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     text-align: center;
   }
 }
@@ -832,7 +832,7 @@ const delSink = async row => {
     background: var(--tio-surface-soft);
     color: var(--tio-muted);
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   :deep(td.el-table__cell) {
@@ -893,7 +893,7 @@ const delSink = async row => {
 }
 
 .row-more-button.el-button {
-  opacity: 0.34;
+  opacity: 0;
   transition: opacity 0.16s ease;
 }
 

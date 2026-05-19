@@ -37,18 +37,18 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
 import useLayout from "@/reactives/useLayout";
 import MqttClients from "@/components/tools/MqttClients.vue";
 import HttpLogs from "@/components/tools/HttpLogs.vue";
 import CodeSnippet from "@/components/tools/CodeSnippet.vue";
 import { tools } from "@/configs/tool";
 
-const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = useLayout();
+const { activeToolKey, activeToolHeight, switchActiveTool } = useLayout();
 </script>
 
 <style scoped lang="scss">
 .tool-box {
+  position: relative;
   border-top: 1px solid var(--tio-line);
   background: var(--tio-surface-solid);
   box-shadow: none;
@@ -61,11 +61,12 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
     z-index: 10;
   }
   .tool-tabs {
-    position: fixed;
+    position: absolute;
     bottom: 0;
+    left: 0;
     width: 100%;
     height: 30px;
-    min-width: 1080px;
+    min-width: 0;
     border-top: 1px solid var(--tio-line);
     background: var(--tio-surface-solid);
     color: var(--tio-text);
@@ -108,8 +109,10 @@ const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = us
   }
 
   .tools-container {
+    position: relative;
     width: 100%;
     height: calc(100% - 30px);
+    overflow: hidden;
     .tool-container {
       position: absolute;
       width: 100%;

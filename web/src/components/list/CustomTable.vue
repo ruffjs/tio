@@ -33,10 +33,8 @@
           min-width="100"
         >
           <template #default="scope">
-            <el-button v-if="scope.row[column.prop]" type="info" size="small" plain round
-              >True</el-button
-            >
-            <el-button v-else type="info" size="small" plain round>False</el-button>
+            <el-tag v-if="scope.row[column.prop]" type="success" effect="plain" round>True</el-tag>
+            <el-tag v-else type="info" effect="plain" round>False</el-tag>
           </template>
         </el-table-column>
         <el-table-column
@@ -88,19 +86,21 @@
         :min-width="withId ? 260 : 80"
       >
         <template #default="scope">
-          <el-button
-            link
-            type="primary"
-            size="small"
-            @click.prevent="viewObject(scope.row, 'Raw Data', true)"
-          >
-            {{ $t('things.viewShadow') }}
-          </el-button>
-          <DeleteButton
-            title="Are you sure to delete this Thing?"
-            v-if="withId"
-            @confirm="deleteThing(scope.row)"
-          />
+          <div class="row-actions">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click.prevent="viewObject(scope.row, 'Raw Data', true)"
+            >
+              {{ $t('things.viewShadow') }}
+            </el-button>
+            <DeleteButton
+              title="Are you sure to delete this Thing?"
+              v-if="withId"
+              @confirm="deleteThing(scope.row)"
+            />
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -205,5 +205,19 @@ watch(
 .custom-thing-table {
   width: 100%;
   height: 100%;
+
+  .row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+
+  :deep(.el-table__row:hover .row-actions),
+  .row-actions:focus-within {
+    opacity: 1;
+  }
 }
 </style>
