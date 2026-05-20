@@ -81,7 +81,9 @@ watch(
 .layout-shell {
   --tio-frame-left: max(0px, calc((100vw - var(--tio-content-max-width)) / 2));
   display: block;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
   padding: var(--tio-shell-gap) 0;
   background: var(--tio-outside-bg);
 
@@ -95,6 +97,7 @@ watch(
 .app-frame {
   position: relative;
   width: min(100%, var(--tio-content-max-width));
+  height: calc(100vh - var(--tio-shell-gap) * 2);
   min-height: calc(100vh - var(--tio-shell-gap) * 2);
   margin: 0 auto;
   overflow: clip;
@@ -213,6 +216,7 @@ watch(
   width: calc(100% - 180px);
   max-width: calc(100% - 180px);
   flex: 0 0 calc(100% - 180px);
+  height: calc(100vh - var(--tio-shell-gap) * 2);
 
   .top-nav-bar {
     position: fixed;
@@ -236,9 +240,10 @@ watch(
   .playground {
     width: 100%;
     min-width: 0;
-    padding: 74px 18px 42px;
-    min-height: calc(100vh - 30px);
-    overflow: hidden;
+    height: calc(100vh - var(--tio-shell-gap) * 2);
+    padding: 60px 18px 32px;
+    min-height: 0;
+    overflow: auto;
     background: var(--tio-bg);
   }
 
@@ -267,10 +272,13 @@ watch(
 .standalone .right {
   margin-left: 0;
   width: 100%;
+  height: auto;
 
   .playground {
+    height: auto;
     min-height: 100vh;
     padding: 0;
+    overflow: visible;
   }
 }
 
@@ -285,6 +293,8 @@ watch(
 }
 
 .el-main {
+  height: 100%;
+  overflow: hidden;
   padding: 0;
 }
 </style>
