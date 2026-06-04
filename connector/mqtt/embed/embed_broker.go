@@ -313,7 +313,7 @@ func initBroker(ctx context.Context, cfg MochiConfig, evtBus *eventbus.EventBus[
 			cert = readCert(cfg.KeyFile, cfg.CertFile)
 		}
 		addr = fmt.Sprintf(":%d", cfg.WssPort)
-		wss := listeners.NewTCP(listeners.Config{
+		wss := listeners.NewWebsocket(listeners.Config{
 			ID:        "tio-wss",
 			Type:      "ws",
 			Address:   addr,
