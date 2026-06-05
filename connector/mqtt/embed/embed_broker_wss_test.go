@@ -105,6 +105,66 @@ func TestEmbedBrokerWSSConnectivity(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond)
 }
 
+func TestEmbedBrokerWSSClientCertificateAuth(t *testing.T) {
+	caTLS, caCert := mustCreateCA(t)
+	serverTLS := mustCreateSignedCert(t, caTLS, caCert, false, "tio-server")
+	clientTLS := mustCreateSignedCert(t, caTLS, caCert, true, "thing-cert")
+	certFile, keyFile, clientCAFile := writeServerTLSFiles(t, serverTLS, caCert)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wssPort := getFreePort(t)
+	evtBus := eventbus.NewEventBus[connector.PresenceEvent]()
+	svr := initBroker(ctx, MochiConfig{
+		TcpPort:           getFreePort(t),
+		WsPort:            getFreePort(t),
+		WssPort:           wssPort,
+		CertFile:          certFile,
+		KeyFile:           keyFile,
+		ClientCAFile:      clientCAFile,
+		RequireClientCert: true,
+		AuthzFn: func(authCtx AuthContext) (AuthResult, bool) {
+			require.True(t, authCtx.HasClientCert)
+			require.Equal(t, "thing-cert", authCtx.CertCN)
+			return AuthResult{Principal: authCtx.CertCN}, true
+		},
+		AclFn: func(clientId, user string, topic string, write bool) bool {
+			return true
+		},
+	}, evtBus)
+	broker = &embedBroker{
+		impl:             svr,
+		presenceEventBus: evtBus,
+		ctx:              ctx,
+		cancel:           cancel,
+	}
+
+	require.NoError(t, svr.Serve())
+	t.Cleanup(func() {
+		cancel()
+		_ = svr.Close()
+		broker = nil
+	})
+
+	opts := pahomqtt.NewClientOptions().
+		AddBroker(fmt.Sprintf("wss://127.0.0.1:%d/", wssPort)).
+		SetClientID("wss-mtls-client").
+		SetConnectTimeout(3 * time.Second).
+		SetAutoReconnect(false).
+		SetTLSConfig(&tls.Config{
+			Certificates: []tls.Certificate{clientTLS},
+			RootCAs:      mustCertPool(t, caCert),
+			ServerName:   "tio-server",
+		})
+
+	cl := pahomqtt.NewClient(opts)
+	connectToken := cl.Connect()
+	require.True(t, connectToken.WaitTimeout(5*time.Second), "wss mtls connect timed out")
+	require.NoError(t, connectToken.Error())
+	require.True(t, cl.IsConnected())
+
+	cl.Disconnect(250)
+}
+
 func getFreePort(t *testing.T) int {
 	t.Helper()
 
