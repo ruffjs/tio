@@ -26,8 +26,8 @@ func TestEmbedBrokerConnectivity(t *testing.T) {
 	port := 21883
 	brk := embed.InitBroker(embed.MochiConfig{
 		TcpPort: port,
-		AuthzFn: func(authCtx embed.AuthContext) (embed.AuthResult, bool) {
-			return embed.AuthResult{Principal: authCtx.Username}, true
+		AuthzFn: func(authCtx connector.AuthContext) (connector.AuthResult, bool) {
+			return connector.AuthResult{Principal: authCtx.Username}, true
 		},
 		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true

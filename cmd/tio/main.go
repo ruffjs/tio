@@ -20,6 +20,7 @@ import (
 
 	"ruff.io/tio"
 	"ruff.io/tio/api"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/connector/mqtt/client"
 	"ruff.io/tio/connector/mqtt/embed"
 
@@ -246,7 +247,7 @@ func autoMigrate(conn *gorm.DB) {
 
 func startMqttBroker(ctx context.Context,
 	cfg config.InnerMqttBroker,
-	authzFn embed.AuthzFn,
+	authzFn connector.AuthzFn,
 	aclFn auth.AclFn,
 ) embed.Broker {
 	return embed.InitBroker(embed.MochiConfig{

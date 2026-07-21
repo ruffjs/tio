@@ -6,18 +6,15 @@ import (
 	"strings"
 
 	"ruff.io/tio/config"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 )
 
 type AclFn = func(clientId, username string, topic string, write bool) bool
 
-type BindingGetter interface {
-	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
-}
-
 // TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
-func TopicAcl(bg BindingGetter, superUsers []config.UserPassword) AclFn {
+func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword) AclFn {
 	return func(clientId, username string, topic string, write bool) bool {
 		// Embeded MQTT inline client username is empty
 		if username == "" {

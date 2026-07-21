@@ -37,8 +37,8 @@ func TestEmbedBrokerWSSConnectivity(t *testing.T) {
 		CertFile:     certFile,
 		KeyFile:      keyFile,
 		ClientCAFile: clientCAFile,
-		AuthzFn: func(authCtx AuthContext) (AuthResult, bool) {
-			return AuthResult{Principal: authCtx.Username}, true
+		AuthzFn: func(authCtx connector.AuthContext) (connector.AuthResult, bool) {
+			return connector.AuthResult{Principal: authCtx.Username}, true
 		},
 		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true
@@ -122,10 +122,10 @@ func TestEmbedBrokerWSSClientCertificateAuth(t *testing.T) {
 		KeyFile:           keyFile,
 		ClientCAFile:      clientCAFile,
 		RequireClientCert: true,
-		AuthzFn: func(authCtx AuthContext) (AuthResult, bool) {
+		AuthzFn: func(authCtx connector.AuthContext) (connector.AuthResult, bool) {
 			require.True(t, authCtx.HasClientCert)
 			require.Equal(t, "thing-cert", authCtx.CertCN)
-			return AuthResult{Principal: authCtx.CertCN}, true
+			return connector.AuthResult{Principal: authCtx.CertCN}, true
 		},
 		AclFn: func(clientId, user string, topic string, write bool) bool {
 			return true

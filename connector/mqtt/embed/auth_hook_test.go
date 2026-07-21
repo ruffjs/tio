@@ -15,6 +15,7 @@ import (
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
 	"github.com/stretchr/testify/require"
+	"ruff.io/tio/connector"
 )
 
 func TestAuthHookUsesCertificateCNAsPrincipal(t *testing.T) {
@@ -45,10 +46,10 @@ func TestAuthHookUsesCertificateCNAsPrincipal(t *testing.T) {
 	})
 
 	hook := &authHook{
-		authzFn: func(authCtx AuthContext) (AuthResult, bool) {
+		authzFn: func(authCtx connector.AuthContext) (connector.AuthResult, bool) {
 			require.True(t, authCtx.HasClientCert)
 			require.Equal(t, "thing-cert", authCtx.CertCN)
-			return AuthResult{Principal: authCtx.CertCN}, true
+			return connector.AuthResult{Principal: authCtx.CertCN}, true
 		},
 		aclFn: func(clientId, user string, topic string, write bool) bool { return true },
 	}

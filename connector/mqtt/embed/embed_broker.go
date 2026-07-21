@@ -32,21 +32,6 @@ import (
 
 const presenceEventName = "presence"
 
-type AuthContext struct {
-	ClientIdentifier string
-	Username         string
-	Password         string
-	Clean            bool
-	HasClientCert    bool
-	CertCN           string
-}
-
-type AuthResult struct {
-	Principal  string
-	AuthMethod string
-}
-
-type AuthzFn func(authCtx AuthContext) (AuthResult, bool)
 type AclFn func(clientId, user string, topic string, write bool) bool
 type MochiConfig struct {
 	TcpPort           int
@@ -57,7 +42,7 @@ type MochiConfig struct {
 	KeyFile           string
 	ClientCAFile      string
 	RequireClientCert bool
-	AuthzFn           AuthzFn
+	AuthzFn           connector.AuthzFn
 	AclFn             AclFn
 	Storage           config.InnerMqttStorage
 	SuperUsers        []config.UserPassword

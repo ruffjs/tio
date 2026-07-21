@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/auth"
 	"ruff.io/tio/config"
-	"ruff.io/tio/connector/mqtt/embed"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 	"ruff.io/tio/thing"
@@ -20,7 +20,7 @@ func TestAuthzMqttClient(t *testing.T) {
 		superUsers    []config.UserPassword
 		thingSvc      *stubThingService
 		provision     thing.Provision
-		authCtx       embed.AuthContext
+		authCtx       connector.AuthContext
 		wantOK        bool
 		wantPrincipal string
 		wantMethod    string
@@ -32,11 +32,10 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-1": {Id: "dev-1", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: "pw-1"},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-1",
 				Username:         "dev-1",
 				Password:         "pw-1",
-				Clean:            true,
 			},
 			wantOK:        true,
 			wantPrincipal: "dev-1",
@@ -49,10 +48,9 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-cert": {Id: "dev-cert", Enabled: true, AuthType: thing.AuthTypeCertificate},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
 				Username:         "dev-cert",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "dev-cert",
 			},
@@ -67,11 +65,10 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-cert": {Id: "dev-cert", Enabled: true, AuthType: thing.AuthTypeCertificate},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
 				Username:         "dev-cert",
 				Password:         "pw",
-				Clean:            true,
 			},
 			wantOK: false,
 		},
@@ -82,10 +79,9 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-cert": {Id: "dev-cert", Enabled: true, AuthType: thing.AuthTypeCertificate},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
 				Username:         "other-user",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "dev-cert",
 			},
@@ -98,9 +94,8 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-1": {Id: "dev-1", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: "pw-1"},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-1",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "dev-1",
 			},
@@ -113,9 +108,8 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-cert": {Id: "dev-cert", Enabled: true, AuthType: thing.AuthTypeCertificate},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
-				Clean:            true,
 				HasClientCert:    true,
 			},
 			wantOK: false,
@@ -127,9 +121,8 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-cert": {Id: "dev-cert", Enabled: false, AuthType: thing.AuthTypeCertificate},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "dev-cert",
 			},
@@ -140,9 +133,8 @@ func TestAuthzMqttClient(t *testing.T) {
 			thingSvc: &stubThingService{
 				things: map[string]thing.Thing{},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-cert",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "missing-cert",
 			},
@@ -155,11 +147,10 @@ func TestAuthzMqttClient(t *testing.T) {
 					"dev-1": {Id: "dev-1", Enabled: false, AuthType: thing.AuthTypePassword, AuthValue: "pw-1"},
 				},
 			},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-1",
 				Username:         "dev-1",
 				Password:         "pw-1",
-				Clean:            true,
 			},
 			wantOK: false,
 		},
@@ -170,26 +161,10 @@ func TestAuthzMqttClient(t *testing.T) {
 				Password: "secret",
 			}},
 			thingSvc: &stubThingService{things: map[string]thing.Thing{}},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-admin",
-				Clean:            true,
 				HasClientCert:    true,
 				CertCN:           "admin",
-			},
-			wantOK: false,
-		},
-		{
-			name: "thing should reject clean session false",
-			thingSvc: &stubThingService{
-				things: map[string]thing.Thing{
-					"dev-1": {Id: "dev-1", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: "pw-1"},
-				},
-			},
-			authCtx: embed.AuthContext{
-				ClientIdentifier: "cid-1",
-				Username:         "dev-1",
-				Password:         "pw-1",
-				Clean:            false,
 			},
 			wantOK: false,
 		},
@@ -200,11 +175,10 @@ func TestAuthzMqttClient(t *testing.T) {
 				Password: "secret",
 			}},
 			thingSvc: &stubThingService{things: map[string]thing.Thing{}},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-admin",
 				Username:         "admin",
 				Password:         "secret",
-				Clean:            true,
 			},
 			wantOK:        true,
 			wantPrincipal: "admin",
@@ -216,11 +190,10 @@ func TestAuthzMqttClient(t *testing.T) {
 				getErr: fmt.Errorf("missing: %w", model.ErrNotFound),
 			},
 			provision: stubProvision{ok: true},
-			authCtx: embed.AuthContext{
+			authCtx: connector.AuthContext{
 				ClientIdentifier: "cid-provision",
 				Username:         "new-thing",
 				Password:         "Hxxx",
-				Clean:            true,
 			},
 			wantOK:        true,
 			wantPrincipal: "new-thing",

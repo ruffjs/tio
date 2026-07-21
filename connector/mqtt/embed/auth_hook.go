@@ -7,13 +7,15 @@ import (
 	"net"
 	"reflect"
 
+	"ruff.io/tio/connector"
+
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
 )
 
 type authHook struct {
 	mqtt.HookBase
-	authzFn AuthzFn
+	authzFn connector.AuthzFn
 	aclFn   AclFn
 }
 
@@ -95,12 +97,16 @@ func unwrapTLSConnValue(v reflect.Value) (*tls.Conn, bool) {
 }
 
 func (a *authHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) bool {
+	if !pk.Connect.Clean {
+		slog.Info("Mqtt client not authorized: things cannot use cleanSession false", "user", string(pk.Connect.Username), "clientId", pk.Connect.ClientIdentifier)
+		return false
+	}
+
 	certCN, hasClientCert := extractCNFromCert(cl)
-	result, ok := a.authzFn(AuthContext{
+	result, ok := a.authzFn(connector.AuthContext{
 		ClientIdentifier: pk.Connect.ClientIdentifier,
 		Username:         string(pk.Connect.Username),
 		Password:         string(pk.Connect.Password),
-		Clean:            pk.Connect.Clean,
 		HasClientCert:    hasClientCert,
 		CertCN:           certCN,
 	})
