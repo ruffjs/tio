@@ -58,6 +58,39 @@ connector:
     apiPrefix: http://localhost:18083
     apiUser: admin
     apiPassword: public
+  nats:
+    server:
+      serverName: tio-node-1
+      clusterName: tio
+      port: 4222
+      clusterPort: 6222
+      clusterAdvertise: ""
+      routes: []
+      mqttPort: 1883
+      wsPort: 8083
+      storeDir: ./data/nats/tio-node-1
+      jetStreamMaxMemory: 268435456
+      jetStreamMaxStore: 1073741824
+      mqttStreamReplicas: 1
+      presenceReplicas: 1
+      clusterUser: $tio-route
+      clusterPassword: public
+      clientTls: {}
+      mqttTls: {}
+      websocketTls: {}
+      routeTls: {}
+    appClient:
+      user: $tio-app
+      password: public
+    systemClient:
+      user: $tio-sys
+      password: public
+    mqttPublisher:
+      user: $tio-mqtt-publisher
+      password: public
+    superUsers:
+      - name: $biz
+        password: public
 
 log:
   level: debug
