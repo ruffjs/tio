@@ -189,7 +189,7 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 					Allow: []string{"$iothub.>"},
 				},
 				Subscribe: &server.SubjectPermission{
-					Allow: []string{"$iothub.>", "$MQTT.sub.>"},
+					Allow: []string{"$iothub.>", "$MQTT.sub.>", "_INBOX.>"},
 				},
 			}
 		}

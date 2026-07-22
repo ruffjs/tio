@@ -687,7 +687,7 @@ const handleConnect = async (test = false) => {
       const data = { ...form };
       data.properties = emptyToNull(data.properties);
       if (data.userrole === "server") {
-        data.username = `\$${data.username}`;
+        data.username = `\$${data.username.replace(/^\$+/, '')}`;
       }
       // console.log("data", data);
       if (test) {
