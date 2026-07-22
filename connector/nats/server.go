@@ -171,6 +171,8 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 			return nil, fmt.Errorf("build MQTT TLS config: %w", err)
 		}
 		opts.MQTT.TLSConfig = tlsCfg
+		opts.MQTT.TLSMap = cfg.MqttTLS.RequireClientCert
+		opts.MQTT.TLSTimeout = 5.0
 	}
 
 	if !tlsConfigEmpty(cfg.WebsocketTLS) {
@@ -214,6 +216,7 @@ func buildTLSConfig(cfg config.NatsTLSConfig) (*tls.Config, error) {
 
 	tlsCfg := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}
 
 	if cfg.CAFile != "" {
