@@ -14,3 +14,8 @@ Task 12: complete (commit cc1269f, final cleanup, demos migrated, old MQTT clien
 Task 10: complete (commit 9b569fd, 15/15 acceptance tests pass, auth permissions bug fixed)
 Task 11: complete (commits af5973a..800d294, 6/6 cluster tests pass, docker-compose deployed)
 Review fixes: complete (commit 7cfaf98 — PresenceReplicas, graceful shutdown, mTLS interface, dead code, config.yaml)
+Presence refactor: complete (commit 2545c8e — owner-only writes, OnLocalPresence callback, eventbus removed)
+ACL integration: complete (commit a354329 — BindingGetter.GetBoundThingIds, gateway permissions in thingPermissions)
+Cross-instance Close: complete (commit b2ca6bd — broadcast fire-and-forget via $tio.control.disconnect)
+Rule engine source/sink: complete (commit e4210f6 — NATS source/sink for MQTT topic ingestion/publishing)
+WebSocket fixes: complete (commit 44e0a4d — WsPort() method, dynamic port allocation, integration tests)
