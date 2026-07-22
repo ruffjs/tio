@@ -253,12 +253,12 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 
 	var allowedTopicPayload []byte
 	var deniedTopicPayload []byte
-	err = certClient.Subscribe(ctx, shadow.TopicDeltaStateOf(certThingID), 0, func(_ mqtt.Client, m mqtt.Message) {
+	err = certClient.Subscribe(shadow.TopicDeltaStateOf(certThingID), 0, func(_ mqtt.Client, m mqtt.Message) {
 		allowedTopicPayload = append([]byte(nil), m.Payload()...)
 	})
 	require.NoError(t, err)
 
-	err = certClient.Subscribe(ctx, shadow.TopicDeltaStateOf(otherThingID), 0, func(_ mqtt.Client, m mqtt.Message) {
+	err = certClient.Subscribe(shadow.TopicDeltaStateOf(otherThingID), 0, func(_ mqtt.Client, m mqtt.Message) {
 		deniedTopicPayload = append([]byte(nil), m.Payload()...)
 	})
 	require.NoError(t, err)

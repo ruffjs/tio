@@ -70,6 +70,14 @@ func (s *NatsServer) ClientURL() string {
 	return s.server.ClientURL()
 }
 
+func (s *NatsServer) MqttPort() int {
+	v, err := s.server.Varz(nil)
+	if err != nil {
+		return 0
+	}
+	return v.MQTT.Port
+}
+
 func (s *NatsServer) Server() *server.Server {
 	return s.server
 }

@@ -1,54 +1,35 @@
 api:
-  # Http rest api port
-  port: 18080
-  # Basic authentication for http api
-  # If there is no configuration, there is no authentication
-  # basicAuth:
-  #   name: admin
-  #   password: public
+  port: 0
 
 db:
-  type: sqlite # sqlite or mysql
+  type: sqlite
   sqlite:
-    filePath: ":memory:" # filepath or ":memory:"
-  # mysql:
-  #   host: 127.0.0.1
-  #   port: 3306
-  #   user: root
-  #   password: 123
-  #   db: tio
-  #   charset: utf8
-  #   timezone: Asia%2FShanghai
-  #   maxIdleConns: 4
-  #   maxOpenConns: 10
-  #   connMaxLifetime: 60
+    filePath: ":memory:"
 
 connector:
-  # Configuration for tio to connect mqtt broker
-  mqttClient:
-    clientId: tio
-    host: localhost
-    port: 11883
-    user: tio
-    password: public
-
-  # Currently, supported:
-  # - emqx -- outer mqtt broker
-  # - embed -- embedded mqtt broker
-  type: embed
-
-  # If connector.type is embed,
-  # an mqtt broker server will be launched using the following configuration,
-  mqttBroker:
-    tcpPort: 11883
-    tcpSslPort: 18883
-    certFile: ../demos/mtls/certs/server-cert.pem
-    keyFile: ../demos/mtls/certs/server-key.pem
-    clientCaFile: ../demos/mtls/certs/ca.pem
-    requireClientCert: true
-    wsPort: 8083
-    superUsers: # users can publish and subscribe all topics
-      - name: tio
-        password: public
-      - name: biz
-        password: public
+  type: nats
+  nats:
+    server:
+      serverName: test-node
+      clusterName: test
+      port: -1
+      clusterPort: 0
+      mqttPort: -1
+      wsPort: 0
+      storeDir: ""
+      jetStreamMaxMemory: 0
+      jetStreamMaxStore: 0
+      mqttStreamReplicas: 1
+      presenceReplicas: 1
+    appClient:
+      user: $tio-app
+      password: test
+    systemClient:
+      user: $tio-sys
+      password: test
+    mqttPublisher:
+      user: $tio-mqtt-pub
+      password: test
+    superUsers:
+      - name: $biz
+        password: test

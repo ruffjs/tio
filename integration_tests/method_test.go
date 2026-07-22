@@ -49,9 +49,9 @@ func TestMethodInvoke(t *testing.T) {
 				Message:     "OK from device",
 				Code:        200,
 			}
-			b, _ := json.Marshal(resp)
-			err := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
-			require.NoError(t, err, "device unable to publish method response")
+		b, _ := json.Marshal(resp)
+		pubErr := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
+		require.NoError(t, pubErr, "device unable to publish method response")
 		})
 	}()
 

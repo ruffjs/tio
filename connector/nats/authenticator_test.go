@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/shadow"
 )
 
 func TestNatsAuthenticator_InternalAppClientAuth(t *testing.T) {
@@ -112,7 +111,7 @@ func TestNatsAuthenticator_DynamicThingPasswordAuth(t *testing.T) {
 	require.NoError(t, err)
 	defer nc.Close()
 
-	thingTopic := shadow.TopicThingsPrefix + "thing-1/shadows/name/default/update"
+	thingTopic := "$iothub.things.thing-1.shadows.name.default.update"
 	err = nc.Publish(thingTopic, []byte("test"))
 	require.NoError(t, err)
 }
@@ -189,7 +188,7 @@ func TestNatsAuthenticator_ThingCannotAccessOtherThingTopics(t *testing.T) {
 	require.NoError(t, err)
 	defer nc.Close()
 
-	otherThingTopic := shadow.TopicThingsPrefix + "thing-b/shadows/name/default/update"
+	otherThingTopic := "$iothub.things.thing-b.shadows.name.default.update"
 	err = nc.Publish(otherThingTopic, []byte("test"))
 	require.NoError(t, err)
 
@@ -238,15 +237,16 @@ func TestNatsAuthenticator_ThingPermissions(t *testing.T) {
 	require.NotNil(t, perms.Subscribe)
 
 	expectedPublish := []string{
-		shadow.TopicThingsPrefix + "test-thing/>",
-		shadow.TopicUserThingsPrefix + "test-thing/>",
+		"$iothub.things.test-thing.>",
+		"$iothub.user.things.test-thing.>",
 	}
 	require.Equal(t, expectedPublish, perms.Publish.Allow)
 
 	expectedSubscribe := []string{
-		shadow.TopicThingsPrefix + "test-thing/>",
-		shadow.TopicUserThingsPrefix + "test-thing/>",
+		"$iothub.things.test-thing.>",
+		"$iothub.user.things.test-thing.>",
 		"$MQTT.sub.>",
+		"$iothub.events.things.>",
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
 }

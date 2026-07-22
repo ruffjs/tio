@@ -30,9 +30,8 @@ func TestShadowSetDesired(t *testing.T) {
 		}
 	}`)
 
-	// thing subscribe and response
 	thingClient := newThingClient(ctx, thingId, t)
-	err := thingClient.Subscribe(ctx, shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
+	err := thingClient.Subscribe(shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var req shadow.DeltaStateNotice
 		err := json.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal delta state")
@@ -40,7 +39,7 @@ func TestShadowSetDesired(t *testing.T) {
 		require.Equal(t, req.State["color"], "red-for-set-desired", "delta state is not valid")
 	})
 	require.NoError(t, err)
-	err = thingClient.Subscribe(ctx, shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
+	err = thingClient.Subscribe(shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var req shadow.StateUpdatedNotice
 		err := json.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
@@ -50,7 +49,6 @@ func TestShadowSetDesired(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// method invoke by http api
 	req, _ := http.NewRequest(http.MethodPut,
 		fmt.Sprintf("%s/api/v1/things/%s/shadows/default/state/desired", httpSvr.URL, thingId), methodBody)
 	req.Header.Set("Content-Type", "application/json")
@@ -79,16 +77,15 @@ func TestShadowSetReported(t *testing.T) {
 	}
 	stateReqBytes, _ := json.Marshal(stateReq)
 
-	// thing subscribe and response
 	thingClient := newThingClient(ctx, thingId, t)
-	err := thingClient.Subscribe(ctx, shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
+	err := thingClient.Subscribe(shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var n shadow.DeltaStateNotice
 		err := json.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal delta state")
 		slog.Debug("device receive delta state", "n", n)
 	})
 	require.NoError(t, err)
-	err = thingClient.Subscribe(ctx, shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
+	err = thingClient.Subscribe(shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var n shadow.StateUpdatedNotice
 		err := json.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
@@ -100,7 +97,7 @@ func TestShadowSetReported(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = thingClient.Subscribe(ctx, shadow.TopicUpdateAcceptedOf(thingId), 1, func(c mqtt.Client, m mqtt.Message) {
+	err = thingClient.Subscribe(shadow.TopicUpdateAcceptedOf(thingId), 1, func(c mqtt.Client, m mqtt.Message) {
 		var resp shadow.StateAcceptedResp
 		err := json.Unmarshal(m.Payload(), &resp)
 		require.NoError(t, err, "device unable to unmarshal accepted message")
@@ -109,9 +106,8 @@ func TestShadowSetReported(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	pubTk := thingClient.Publish(shadow.TopicUpdateOf(thingId), 1, false, stateReqBytes)
-	pubTk.Wait()
-	require.NoError(t, pubTk.Error())
+	err = thingClient.Publish(shadow.TopicUpdateOf(thingId), 1, false, stateReqBytes)
+	require.NoError(t, err)
 
 	thingClient.Disconnect()
 	cancel()

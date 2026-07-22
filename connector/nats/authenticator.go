@@ -6,7 +6,6 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/shadow"
 
 	server "github.com/nats-io/nats-server/v2/server"
 )
@@ -185,15 +184,28 @@ func (a *NatsAuthenticator) extractCertCN(c server.ClientAuthentication) string 
 }
 
 func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions {
-	thingPrefix := shadow.TopicThingsPrefix + thingId + "/>"
-	userPrefix := shadow.TopicUserThingsPrefix + thingId + "/>"
+	for _, su := range a.superUsers {
+		if su.Name == thingId {
+			return &server.Permissions{
+				Publish: &server.SubjectPermission{
+					Allow: []string{"$iothub.>"},
+				},
+				Subscribe: &server.SubjectPermission{
+					Allow: []string{"$iothub.>", "$MQTT.sub.>"},
+				},
+			}
+		}
+	}
+
+	thingPrefix := "$iothub.things." + thingId + ".>"
+	userPrefix := "$iothub.user.things." + thingId + ".>"
 
 	return &server.Permissions{
 		Publish: &server.SubjectPermission{
 			Allow: []string{thingPrefix, userPrefix},
 		},
 		Subscribe: &server.SubjectPermission{
-			Allow: []string{thingPrefix, userPrefix, "$MQTT.sub.>"},
+			Allow: []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"},
 		},
 	}
 }
