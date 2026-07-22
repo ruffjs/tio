@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -26,7 +27,7 @@ func (c *Connector) IsConnected(thingId string) (bool, error) {
 	return rec.Connected, nil
 }
 
-func (c *Connector) OnConnect() <-chan connector.PresenceEvent {
+func (c *Connector) SubscribePresence(ctx context.Context) <-chan connector.PresenceEvent {
 	return c.presenceBus.Subscribe(presenceEventBusKey)
 }
 

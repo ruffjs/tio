@@ -217,3 +217,5 @@ func (c *Connector) Server() *NatsServer              { return c.natsSvr }
 func (c *Connector) AppConn() *nats.Conn              { return c.natsConn }
 func (c *Connector) SysConn() *nats.Conn              { return c.sysConn }
 func (c *Connector) JetStream() nats.JetStreamContext { return c.js }
+
+var _ connector.Connector = (*Connector)(nil)

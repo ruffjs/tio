@@ -14,7 +14,6 @@ import (
 
 type Operation int
 
-const DefaultQos = 1
 const (
 	OpGet Operation = iota
 	OpUpdate
@@ -82,7 +81,7 @@ var _ StateHandler = (*shadowHandler)(nil)
 
 func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, error) {
 	outCh := make(chan GetReqMsg, MsgChanCap)
-	err := h.client.Subscribe(ctx, TopicAllGet(), DefaultQos, func(msg connector.Message) {
+	err := h.client.QueueSubscribe(ctx, TopicAllGet(), "tio-shadow", func(msg connector.Message) {
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
@@ -113,7 +112,7 @@ func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, err
 
 func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg, error) {
 	outCh := make(chan StateReqMsg, MsgChanCap)
-	err := h.client.Subscribe(ctx, TopicAllUpdate(), DefaultQos, func(msg connector.Message) {
+	err := h.client.QueueSubscribe(ctx, TopicAllUpdate(), "tio-shadow", func(msg connector.Message) {
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {
@@ -158,7 +157,7 @@ func (h *shadowHandler) RejectedResp(ctx context.Context, resp ErrRespMsg) error
 	if err != nil {
 		return err
 	}
-	err = h.client.Publish(topic, DefaultQos, false, j)
+	err = h.client.PublishReliable(topic, j)
 	return err
 }
 
@@ -176,7 +175,7 @@ func (h *shadowHandler) AcceptedResp(ctx context.Context, resp StateAcceptedResp
 	if err != nil {
 		return err
 	}
-	err = h.client.Publish(topic, DefaultQos, false, j)
+	err = h.client.PublishReliable(topic, j)
 	return err
 }
 
@@ -186,7 +185,7 @@ func (h *shadowHandler) StateDeltaNotify(ctx context.Context, msg DeltaStateNoti
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}
-	err = h.client.Publish(topic, DefaultQos, false, j)
+	err = h.client.PublishReliable(topic, j)
 	return err
 }
 
@@ -197,7 +196,7 @@ func (h *shadowHandler) StateUpdatedNotify(ctx context.Context, msg StateUpdated
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}
-	err = h.client.Publish(topic, DefaultQos, false, j)
+	err = h.client.PublishReliable(topic, j)
 	return err
 }
 

@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"ruff.io/tio/connector"
+
 	"github.com/nats-io/nats.go"
 )
-
-type Message interface {
-	Topic() string
-	Payload() []byte
-}
 
 type natsMessage struct {
 	topic   string
@@ -21,18 +18,18 @@ type natsMessage struct {
 func (m *natsMessage) Topic() string   { return m.topic }
 func (m *natsMessage) Payload() []byte { return m.payload }
 
-func (c *Connector) Subscribe(ctx context.Context, topic string, callback func(msg Message)) error {
+func (c *Connector) Subscribe(ctx context.Context, topic string, callback func(msg connector.Message)) error {
 	return c.subscribe(ctx, topic, "", callback, false)
 }
 
-func (c *Connector) QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg Message)) error {
+func (c *Connector) QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg connector.Message)) error {
 	if queue == "" {
 		return errors.New("queue group name must not be empty")
 	}
 	return c.subscribe(ctx, topic, queue, callback, true)
 }
 
-func (c *Connector) subscribe(ctx context.Context, topic, queue string, callback func(msg Message), isQueue bool) error {
+func (c *Connector) subscribe(ctx context.Context, topic, queue string, callback func(msg connector.Message), isQueue bool) error {
 	subjects, err := MqttSubscriptionToNatsSubjects(topic)
 	if err != nil {
 		return fmt.Errorf("convert topic %q: %w", topic, err)

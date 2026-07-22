@@ -229,7 +229,7 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 	offlineThingTasks := map[string][]Task{}
 
 	tick := time.NewTicker(time.Millisecond * 50)
-	onConn := r.conn.OnConnect()
+	onConn := r.conn.SubscribePresence(r.ctx)
 	for {
 		select {
 		case <-r.ctx.Done():

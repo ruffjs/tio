@@ -117,9 +117,10 @@ func TestPresenceDisconnectEvent(t *testing.T) {
 func TestPresenceMultipleSubscribersReceiveEvent(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
-	ch1 := c.OnConnect()
-	ch2 := c.OnConnect()
-	ch3 := c.OnConnect()
+	ctx := context.Background()
+	ch1 := c.SubscribePresence(ctx)
+	ch2 := c.SubscribePresence(ctx)
+	ch3 := c.SubscribePresence(ctx)
 
 	nc := connectDevice(t, c, "dev3")
 	defer nc.Close()

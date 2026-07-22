@@ -6,18 +6,14 @@ import (
 	"time"
 )
 
-// presence topic
 const (
-	// for event
 	TopicEventPresenceTmpl = "$iothub/events/things/{thingId}/presence"
 	TopicEventPresenceAll  = "$iothub/events/things/+/presence"
 
-	// for retain message
 	TopicPresenceTmpl = "$iothub/things/{thingId}/presence"
 	TopicPresenceAll  = "$iothub/things/+/presence"
 )
 
-// event type
 const (
 	EventConnected    = "connected"
 	EventDisconnected = "disconnected"
@@ -38,19 +34,9 @@ type Connector interface {
 	PubSub
 }
 
-type PublishData struct {
-	QoS      uint // optional
-	Retained bool // optional, work for MQTT
-	Payload  []byte
-}
-
 type Message interface {
-	Qos() byte
-	Retained() bool
 	Topic() string
-	MessageID() uint16
 	Payload() []byte
-	Ack()
 }
 
 type PubSub interface {
@@ -59,11 +45,14 @@ type PubSub interface {
 }
 
 type Publisher interface {
-	Publish(topic string, qos byte, retained bool, payload []byte) error
+	Publish(topic string, payload []byte) error
+	PublishReliable(topic string, payload []byte) error
+	PublishRetained(topic string, payload []byte) error
 }
 
 type Subscriber interface {
-	Subscribe(ctx context.Context, topic string, qos byte, callback func(msg Message)) error
+	Subscribe(ctx context.Context, topic string, callback func(msg Message)) error
+	QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg Message)) error
 }
 
 type Connectivity interface {
@@ -76,7 +65,7 @@ type Connectivity interface {
 
 type ConnectChecker interface {
 	IsConnected(thingId string) (bool, error)
-	OnConnect() <-chan PresenceEvent
+	SubscribePresence(ctx context.Context) <-chan PresenceEvent
 	ClientInfo(thingId string) (ClientInfo, error)
 	AllClientInfo() ([]ClientInfo, error)
 }

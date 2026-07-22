@@ -157,7 +157,7 @@ func (h *mqttMethod) doInvokeMethod(ctx context.Context,
 	outCh := h.addPending(msg.ThingId, msg.Req.ClientToken)
 	defer h.removePending(msg.ThingId, msg.Req.ClientToken)
 
-	if err = h.connector.Publish(topic, 1, false, j); err != nil {
+	if err = h.connector.PublishReliable(topic, j); err != nil {
 		return MethodResp{}, errors.WithMessage(err, "send method request")
 	}
 	//ok := token.WaitTimeout(time.Second * time.Duration(msg.RespTimeout))
@@ -213,7 +213,7 @@ func (h *mqttMethod) addWaiting(thingId, clientToken string) <-chan bool {
 }
 
 func (h *mqttMethod) subscribeThingOnline(ctx context.Context) {
-	presenceEvtCh := h.connector.OnConnect()
+	presenceEvtCh := h.connector.SubscribePresence(ctx)
 	go func() {
 		for e := range presenceEvtCh {
 			if e.EventType == connector.EventConnected {
@@ -236,7 +236,7 @@ func (h *mqttMethod) subscribeThingOnline(ctx context.Context) {
 
 func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {
 	topic := TopicMethodAllResponse()
-	err := h.connector.Subscribe(ctx, topic, 1, func(msg connector.Message) {
+	err := h.connector.Subscribe(ctx, topic, func(msg connector.Message) {
 		go func() {
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
 			if err != nil {

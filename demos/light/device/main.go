@@ -14,7 +14,6 @@ import (
 	"ruff.io/tio/shadow"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/connector/mqtt/client"
 )
 
@@ -150,7 +149,7 @@ func updateShadowReported(payload map[string]any) {
 	reqJson, _ := json.Marshal(r)
 	slog.Info("[Set Shadow Reported]", "request", toJsonStr(r))
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update", thingId)
-	mqttClient.Publish(topic, mq.DefaultQos, false, reqJson)
+	mqttClient.Publish(topic, 1, false, reqJson)
 }
 
 // receiveShadowDeltaNotice Receive shadow delta notify for device control and configuration
@@ -248,7 +247,7 @@ func regularlyReportState() {
 
 			// report
 			data, _ := json.Marshal(map[string]any{"power": lightState["power"], "voltage": lightState["voltage"]})
-			tk := mqttClient.Publish(topic, mq.DefaultQos, false, data)
+			tk := mqttClient.Publish(topic, 1, false, data)
 			tk.Wait()
 			if tk.Error() != nil {
 				slog.Error("[Report Property] error", "error", tk.Error())

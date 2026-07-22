@@ -80,9 +80,9 @@ func TestConfigureAuthTwiceFails(t *testing.T) {
 func TestPublishNatsCore(t *testing.T) {
 	c := newTestConnector(t)
 
-	received := make(chan Message, 1)
+	received := make(chan connector.Message, 1)
 	ctx := context.Background()
-	if err := c.Subscribe(ctx, "$iothub/things/dev1/data", func(msg Message) { received <- msg }); err != nil {
+	if err := c.Subscribe(ctx, "$iothub/things/dev1/data", func(msg connector.Message) { received <- msg }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -104,12 +104,12 @@ func TestPublishNatsCore(t *testing.T) {
 func TestPublishReliableAndRetained(t *testing.T) {
 	c := newTestConnector(t)
 
-	reliableReceived := make(chan Message, 1)
-	retainedReceived := make(chan Message, 1)
+	reliableReceived := make(chan connector.Message, 1)
+	retainedReceived := make(chan connector.Message, 1)
 
 	ctx := context.Background()
-	_ = c.Subscribe(ctx, "$iothub/things/dev1/rel", func(msg Message) { reliableReceived <- msg })
-	_ = c.Subscribe(ctx, "$iothub/things/dev1/ret", func(msg Message) { retainedReceived <- msg })
+	_ = c.Subscribe(ctx, "$iothub/things/dev1/rel", func(msg connector.Message) { reliableReceived <- msg })
+	_ = c.Subscribe(ctx, "$iothub/things/dev1/ret", func(msg connector.Message) { retainedReceived <- msg })
 	time.Sleep(50 * time.Millisecond)
 
 	if err := c.PublishReliable("$iothub/things/dev1/rel", []byte("qos1")); err != nil {
@@ -185,7 +185,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	received := make(chan struct{}, n)
 
 	ctx := context.Background()
-	_ = c.Subscribe(ctx, "$iothub/things/dev1/concurrent/#", func(msg Message) { received <- struct{}{} })
+	_ = c.Subscribe(ctx, "$iothub/things/dev1/concurrent/#", func(msg connector.Message) { received <- struct{}{} })
 	time.Sleep(50 * time.Millisecond)
 
 	for i := 0; i < n; i++ {

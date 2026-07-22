@@ -10,11 +10,6 @@ import (
 	"ruff.io/tio/pkg/eventbus"
 )
 
-type Message interface {
-	Topic() string
-	Payload() []byte
-}
-
 type PublishedMessage struct {
 	Topic   string
 	Payload []byte
@@ -24,7 +19,7 @@ type PublishedMessage struct {
 type subscription struct {
 	topic    string
 	queue    string
-	callback func(msg Message)
+	callback func(msg connector.Message)
 	ctx      context.Context
 }
 
@@ -81,7 +76,7 @@ func (m *MockConnector) PublishRetained(topic string, payload []byte) error {
 	return nil
 }
 
-func (m *MockConnector) Subscribe(ctx context.Context, topic string, callback func(msg Message)) error {
+func (m *MockConnector) Subscribe(ctx context.Context, topic string, callback func(msg connector.Message)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.subscriptions = append(m.subscriptions, subscription{
@@ -92,7 +87,7 @@ func (m *MockConnector) Subscribe(ctx context.Context, topic string, callback fu
 	return nil
 }
 
-func (m *MockConnector) QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg Message)) error {
+func (m *MockConnector) QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg connector.Message)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.subscriptions = append(m.subscriptions, subscription{
@@ -257,8 +252,8 @@ var _ interface {
 	Publish(string, []byte) error
 	PublishReliable(string, []byte) error
 	PublishRetained(string, []byte) error
-	Subscribe(context.Context, string, func(msg Message)) error
-	QueueSubscribe(context.Context, string, string, func(msg Message)) error
+	Subscribe(context.Context, string, func(msg connector.Message)) error
+	QueueSubscribe(context.Context, string, string, func(msg connector.Message)) error
 	Start(context.Context) error
 	Close(string) error
 	Remove(string) error
@@ -268,4 +263,4 @@ var _ interface {
 	AllClientInfo() ([]connector.ClientInfo, error)
 } = (*MockConnector)(nil)
 
-var _ Message = (*MockMessage)(nil)
+var _ connector.Message = (*MockMessage)(nil)

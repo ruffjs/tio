@@ -28,10 +28,10 @@ func TestPublishRecordsMessage(t *testing.T) {
 
 func TestSubscribeReceivesSimulatedMessages(t *testing.T) {
 	c := NewMockConnector()
-	var received []Message
+	var received []connector.Message
 	var mu sync.Mutex
 
-	err := c.Subscribe(context.Background(), "foo/bar", func(msg Message) {
+	err := c.Subscribe(context.Background(), "foo/bar", func(msg connector.Message) {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
@@ -49,10 +49,10 @@ func TestSubscribeReceivesSimulatedMessages(t *testing.T) {
 
 func TestWildcardPlusSubscribe(t *testing.T) {
 	c := NewMockConnector()
-	var received []Message
+	var received []connector.Message
 	var mu sync.Mutex
 
-	_ = c.Subscribe(context.Background(), "foo/+/bar", func(msg Message) {
+	_ = c.Subscribe(context.Background(), "foo/+/bar", func(msg connector.Message) {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
@@ -69,10 +69,10 @@ func TestWildcardPlusSubscribe(t *testing.T) {
 
 func TestHashWildcard(t *testing.T) {
 	c := NewMockConnector()
-	var received []Message
+	var received []connector.Message
 	var mu sync.Mutex
 
-	_ = c.Subscribe(context.Background(), "foo/#", func(msg Message) {
+	_ = c.Subscribe(context.Background(), "foo/#", func(msg connector.Message) {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
@@ -92,12 +92,12 @@ func TestQueueSubscribeDistributes(t *testing.T) {
 	var count1, count2 int
 	var mu sync.Mutex
 
-	_ = c.QueueSubscribe(context.Background(), "q/topic", "group1", func(msg Message) {
+	_ = c.QueueSubscribe(context.Background(), "q/topic", "group1", func(msg connector.Message) {
 		mu.Lock()
 		count1++
 		mu.Unlock()
 	})
-	_ = c.QueueSubscribe(context.Background(), "q/topic", "group1", func(msg Message) {
+	_ = c.QueueSubscribe(context.Background(), "q/topic", "group1", func(msg connector.Message) {
 		mu.Lock()
 		count2++
 		mu.Unlock()
@@ -150,7 +150,7 @@ func TestContextCancellation(t *testing.T) {
 	var mu sync.Mutex
 
 	ctx, cancel := context.WithCancel(context.Background())
-	_ = c.Subscribe(ctx, "cancel/topic", func(msg Message) {
+	_ = c.Subscribe(ctx, "cancel/topic", func(msg connector.Message) {
 		mu.Lock()
 		received++
 		mu.Unlock()
@@ -203,7 +203,7 @@ func TestReset(t *testing.T) {
 
 	_ = c.Publish("t", []byte("data"))
 	c.SetConnected("thing1", true)
-	_ = c.Subscribe(context.Background(), "t", func(msg Message) {})
+	_ = c.Subscribe(context.Background(), "t", func(msg connector.Message) {})
 
 	c.Reset()
 

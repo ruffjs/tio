@@ -23,7 +23,7 @@ func NewConnectivity() *Connectivity {
 	return &Connectivity{}
 }
 
-func (g *Connectivity) OnConnect() <-chan connector.PresenceEvent {
+func (g *Connectivity) SubscribePresence(ctx context.Context) <-chan connector.PresenceEvent {
 	panic("implement me")
 }
 

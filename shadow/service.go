@@ -184,7 +184,7 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 }
 
 func (s *shadowSvc) syncConnStatus(ctx context.Context) error {
-	connEventCh := s.connectorChecker.OnConnect()
+	connEventCh := s.connectorChecker.SubscribePresence(ctx)
 
 	if err := s.doFirstSyncStatus(ctx); err != nil {
 		return err

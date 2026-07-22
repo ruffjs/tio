@@ -2,15 +2,12 @@ package shadow_test
 
 import (
 	"encoding/json"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/stretchr/testify/mock"
 	"ruff.io/tio/connector"
-	mq "ruff.io/tio/connector/mqtt"
-	mockmq "ruff.io/tio/connector/mqtt/mock"
+	"ruff.io/tio/connector/mock"
 	"ruff.io/tio/pkg/model"
 
 	"github.com/stretchr/testify/require"
@@ -41,13 +38,6 @@ func TestTopicMethodAllResponse(t *testing.T) {
 
 func TestDirectMethodHandler_Invoke(t *testing.T) {
 	t.Parallel()
-
-	// mock mqtt client
-	mockMqtt := mockmq.NewMqttClient("", nil, nil)
-
-	// mock subscribe
-	mockMqtt.On("Subscribe", mock.Anything, shadow.TopicMethodAllResponse(), mq.DefaultQos, mock.Anything).Return(nil)
-	mockMqtt.On("Subscribe", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	cases := []struct {
 		timeoutMs int
@@ -102,7 +92,6 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 			},
 			err: model.ErrDirectMethodTimeout,
 		},
-
 		{
 			timeoutMs: 500,
 			req: shadow.MethodReqMsg{
@@ -126,52 +115,33 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 		},
 	}
 
-	d := make(chan struct{})
-	close(d)
-	token := &mockmq.Token{DoneCh: d}
 	for _, c := range cases {
-		mockAdapter := mockmq.NewAdapter(mockMqtt)
-		presenceCh := make(chan connector.PresenceEvent)
-		var outCh <-chan connector.PresenceEvent = presenceCh
-		mockAdapter.On("OnConnect").Return(outCh)
+		mc := mock.NewMockConnector()
+		_ = mc.Start(ctx)
 
-		reqTopic := shadow.TopicMethodRequest(c.req.ThingId, c.req.Method)
-		respTopic := shadow.TopicMethodResponse(c.req.ThingId, c.req.Method)
-
-		pubCall := mockMqtt.On("Publish", reqTopic, mock.Anything, false, mock.Anything).Return(token)
-		pubRespCall := mockMqtt.On("Publish", respTopic, mock.Anything, false, mock.Anything).Return(token)
-		// var onlineCall *mock.Call
-		var xxCall *mock.Call
 		if c.req.ConnTimeout > 0 {
-			// onlineCall = mockMqtt.On("IsConnected", c.req.ThingId).Return(false, nil)
-			xxCall = mockAdapter.On("IsConnected", c.req.ThingId).Return(false, nil)
+			mc.SetConnected(c.req.ThingId, false)
 		} else {
-			// onlineCall = mockMqtt.On("IsConnected", c.req.ThingId).Return(true, nil)
-			xxCall = mockAdapter.On("IsConnected", c.req.ThingId).Return(true, nil)
+			mc.SetConnected(c.req.ThingId, true)
 		}
 
-		handler := shadow.NewMethodHandler(&mockAdapter)
+		handler := shadow.NewMethodHandler(mc)
 		err := handler.InitMethodHandler(ctx)
 		require.NoError(t, err)
 
-		// mock thing return method response
 		go func() {
 			respJson, _ := json.Marshal(c.resp)
 			cCopy := c
-			// mock thing is online
 			if cCopy.req.ConnTimeout > 0 && cCopy.err == nil {
-				// wait for connect
 				time.Sleep(time.Millisecond * time.Duration(cCopy.req.ConnTimeout*100))
-				presenceCh <- connector.PresenceEvent{ThingId: cCopy.req.ThingId, ClientId: cCopy.req.ThingId, EventType: connector.EventConnected}
+				mc.SimulatePresence(connector.PresenceEvent{ThingId: cCopy.req.ThingId, ClientId: cCopy.req.ThingId, EventType: connector.EventConnected})
+				mc.SetConnected(cCopy.req.ThingId, true)
 			}
-			// wait for method invoking
 			time.Sleep(time.Millisecond * time.Duration(cCopy.timeoutMs))
-			mockMqtt.Publish(respTopic, 0, false, respJson)
-			slog.Info("Send mock method response")
-			pubRespCall.Unset()
+			respTopic := shadow.TopicMethodResponse(cCopy.req.ThingId, cCopy.req.Method)
+			mc.SimulateMessage(respTopic, respJson)
 		}()
 
-		// check response
 		resp, err := handler.InvokeMethod(ctx, c.req)
 		if c.err != nil {
 			require.Truef(t, errors.Is(err, c.err), "should throw error %v", c.err)
@@ -179,9 +149,5 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 			require.NoError(t, err, "should no error for %s", c.req.ThingId)
 			require.Equal(t, c.resp, resp, "response should be")
 		}
-
-		pubCall.Unset()
-		// onlineCall.Unset()
-		xxCall.Unset()
 	}
 }

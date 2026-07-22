@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"ruff.io/tio/connector"
 )
 
 func TestBroadcastSubscribeBothReceive(t *testing.T) {
@@ -13,10 +15,10 @@ func TestBroadcastSubscribeBothReceive(t *testing.T) {
 
 	var countA, countB int32
 	ctx := context.Background()
-	if err := c.Subscribe(ctx, "$iothub/things/dev1/broadcast", func(msg Message) { atomic.AddInt32(&countA, 1) }); err != nil {
+	if err := c.Subscribe(ctx, "$iothub/things/dev1/broadcast", func(msg connector.Message) { atomic.AddInt32(&countA, 1) }); err != nil {
 		t.Fatalf("Subscribe A: %v", err)
 	}
-	if err := c.Subscribe(ctx, "$iothub/things/dev1/broadcast", func(msg Message) { atomic.AddInt32(&countB, 1) }); err != nil {
+	if err := c.Subscribe(ctx, "$iothub/things/dev1/broadcast", func(msg connector.Message) { atomic.AddInt32(&countB, 1) }); err != nil {
 		t.Fatalf("Subscribe B: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -39,10 +41,10 @@ func TestQueueSubscribeDistributesMessages(t *testing.T) {
 
 	var countA, countB int32
 	ctx := context.Background()
-	if err := c.QueueSubscribe(ctx, "$iothub/things/dev1/queue", "workers", func(msg Message) { atomic.AddInt32(&countA, 1) }); err != nil {
+	if err := c.QueueSubscribe(ctx, "$iothub/things/dev1/queue", "workers", func(msg connector.Message) { atomic.AddInt32(&countA, 1) }); err != nil {
 		t.Fatalf("QueueSubscribe A: %v", err)
 	}
-	if err := c.QueueSubscribe(ctx, "$iothub/things/dev1/queue", "workers", func(msg Message) { atomic.AddInt32(&countB, 1) }); err != nil {
+	if err := c.QueueSubscribe(ctx, "$iothub/things/dev1/queue", "workers", func(msg connector.Message) { atomic.AddInt32(&countB, 1) }); err != nil {
 		t.Fatalf("QueueSubscribe B: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -66,7 +68,7 @@ func TestHashSubscriptionReceivesDescendants(t *testing.T) {
 
 	received := make(chan string, 10)
 	ctx := context.Background()
-	if err := c.Subscribe(ctx, "$iothub/things/dev1/foo/#", func(msg Message) { received <- msg.Topic() }); err != nil {
+	if err := c.Subscribe(ctx, "$iothub/things/dev1/foo/#", func(msg connector.Message) { received <- msg.Topic() }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -115,7 +117,7 @@ func TestContextCancellationUnsubscribes(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var received int32
-	if err := c.Subscribe(ctx, "$iothub/things/dev1/cancelme", func(msg Message) { atomic.AddInt32(&received, 1) }); err != nil {
+	if err := c.Subscribe(ctx, "$iothub/things/dev1/cancelme", func(msg connector.Message) { atomic.AddInt32(&received, 1) }); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -146,7 +148,7 @@ func TestRepeatedSubscribeCancel(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
-		if err := c.Subscribe(ctx, "$iothub/things/dev1/repeat", func(msg Message) {}); err != nil {
+		if err := c.Subscribe(ctx, "$iothub/things/dev1/repeat", func(msg connector.Message) {}); err != nil {
 			t.Fatalf("Subscribe %d: %v", i, err)
 		}
 		cancel()
@@ -161,7 +163,7 @@ func TestRepeatedSubscribeCancel(t *testing.T) {
 
 func TestQueueSubscribeEmptyQueueFails(t *testing.T) {
 	c := newTestConnector(t)
-	err := c.QueueSubscribe(context.Background(), "$iothub/things/dev1/x", "", func(msg Message) {})
+	err := c.QueueSubscribe(context.Background(), "$iothub/things/dev1/x", "", func(msg connector.Message) {})
 	if err == nil {
 		t.Fatal("expected error for empty queue group")
 	}
@@ -169,7 +171,7 @@ func TestQueueSubscribeEmptyQueueFails(t *testing.T) {
 
 func TestSubscribeInvalidTopicFails(t *testing.T) {
 	c := newTestConnector(t)
-	err := c.Subscribe(context.Background(), "$iothub/things/dev1/", func(msg Message) {})
+	err := c.Subscribe(context.Background(), "$iothub/things/dev1/", func(msg connector.Message) {})
 	if err == nil {
 		t.Fatal("expected error for trailing-slash topic")
 	}
@@ -185,7 +187,7 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < subs; i++ {
-		if err := c.Subscribe(ctx, "$iothub/things/dev1/stress/#", func(msg Message) { atomic.AddInt32(&totalReceived, 1) }); err != nil {
+		if err := c.Subscribe(ctx, "$iothub/things/dev1/stress/#", func(msg connector.Message) { atomic.AddInt32(&totalReceived, 1) }); err != nil {
 			t.Fatalf("Subscribe: %v", err)
 		}
 	}

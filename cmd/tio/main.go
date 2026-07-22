@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"ruff.io/tio/auth"
-	"ruff.io/tio/job"
 	"ruff.io/tio/metrics"
 	"ruff.io/tio/ntp"
 	"ruff.io/tio/rule"
@@ -21,22 +20,18 @@ import (
 	"ruff.io/tio"
 	"ruff.io/tio/api"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/connector/mqtt/client"
-	"ruff.io/tio/connector/mqtt/embed"
+	natsConn "ruff.io/tio/connector/nats"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
 	"ruff.io/tio/config"
-	mq "ruff.io/tio/connector/mqtt"
 	"ruff.io/tio/db/mysql"
 	"ruff.io/tio/db/sqlite"
 
 	"ruff.io/tio/shadow"
 	shadowWire "ruff.io/tio/shadow/wire"
 
-	jobApi "ruff.io/tio/job/api"
-	jobWire "ruff.io/tio/job/wire"
 	ruleApi "ruff.io/tio/rule/api"
 	shadowApi "ruff.io/tio/shadow/api"
 	"ruff.io/tio/thing"
@@ -74,17 +69,14 @@ func main() {
 	config.Version = Version
 	config.GitCommit = GitCommit
 
-	// load config
 	cfg := config.ReadConfig()
 
-	// init logger
 	initLogger(cfg.Log)
 
 	slog.Info("Starting Tio", "version", Version, "gitCommit", GitCommit)
 	slog.Info("Config",
 		"apiPort", cfg.API.Port,
 		"dbType", cfg.DB.Typ,
-		"connectorType", cfg.Connector.Typ,
 		"pprofEnabled", cfg.Pprof.Enabled)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,7 +88,6 @@ func main() {
 		}
 	}()
 
-	// start pprof api server
 	if cfg.Pprof.Enabled {
 		go func() {
 			api.StartPprofApiServer(ctx, cfg.Pprof.Port)
@@ -106,47 +97,39 @@ func main() {
 	dbConn := newDb(cfg)
 	autoMigrate(dbConn)
 
-	// mqtt client and connector for tio interacts with message broker
+	natsConnector, err := natsConn.NewConnector(cfg.Connector.Nats)
+	if err != nil {
+		log.Fatalf("Create NATS connector error: %v", err)
+	}
 
-	mqttClient := client.NewClient(cfg.Connector.MqttClient)
-	connector := mq.InitConnector(cfg.Connector, mqttClient)
+	var conn connector.Connector = natsConnector
 
-	methodHandler := shadow.NewMethodHandler(connector)
-	shadowStateHandler := shadow.NewShadowHandler(connector)
-	ntpHandler := ntp.NewNtpHandler(connector)
+	methodHandler := shadow.NewMethodHandler(conn)
+	shadowStateHandler := shadow.NewShadowHandler(conn)
+	ntpHandler := ntp.NewNtpHandler(conn)
 
-	// services
-	shadowSvc := shadowWire.InitSvc(dbConn, connector, cfg.Shadow)
-	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, connector)
+	shadowSvc := shadowWire.InitSvc(dbConn, natsConnector, cfg.Shadow)
+	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, natsConnector)
 
-	jobCenter := job.NewCenter(job.CenterOptions{
-		ScheduleInterval:       time.Millisecond * 100,
-		CheckJobStatusInterval: time.Millisecond * 100,
-	}, job.NewRepo(dbConn), connector, connector, methodHandler, shadowSvc)
-	jobMgrSvc := jobWire.InitSvc(dbConn, jobCenter)
+	provisionSvc := thing.NewProvision(thingSvc, cfg.ProvisionSecret)
+	if cfg.ProvisionSecret == "" {
+		provisionSvc = nil
+	}
+	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.Nats.SuperUsers, thingSvc, provisionSvc)
+	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.Nats.SuperUsers)
 
-	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers)
-
-	// embedded mqtt broker
-	if cfg.Connector.Typ == config.ConnectorMqttEmbed {
-		provisionSvc := thing.NewProvision(thingSvc, cfg.ProvisionSecret)
-		if cfg.ProvisionSecret == "" {
-			provisionSvc = nil
-		}
-		authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc)
-		startMqttBroker(ctx, cfg.Connector.MqttBroker, authzFn, aclFn)
+	if err := natsConnector.ConfigureAuth(authzFn, aclFn); err != nil {
+		log.Fatalf("Configure NATS auth error: %v", err)
+	}
+	if err := natsConnector.Start(ctx); err != nil {
+		log.Fatalf("NATS connector start error: %v", err)
 	}
 
 	shadowSvc.Init(ctx)
 
-	// boot data integration rule
 	ruleMgr := rule.NewRuleMgr()
 	ruleMgr.Boot(ctx, shadowSvc)
 
-	// init
-	if err := connector.Start(ctx); err != nil {
-		log.Fatalf("Mqtt connector start error: %v", err)
-	}
 	if err := methodHandler.InitMethodHandler(ctx); err != nil {
 		log.Fatalf("Init method handler error: %v", err)
 	}
@@ -157,14 +140,6 @@ func main() {
 	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, cfg.Shadow); err != nil {
 		log.Fatalf("Link shadow service to connector error %v", err)
 	}
-	if err := mqttClient.Connect(ctx); err != nil {
-		log.Fatalf("Mqtt client start error: %v", err)
-	}
-	if err := jobCenter.Start(ctx); err != nil {
-		log.Fatalf("JobCenter start error: %v", err)
-	}
-
-	// htt api
 
 	httpCon := restful.NewContainer()
 
@@ -179,11 +154,6 @@ func main() {
 		Filter(metrics.Middleware).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
-	jobWs := jobApi.Service(ctx, jobMgrSvc, thingWs).
-		Filter(metrics.Middleware).
-		Filter(api.LoggingMiddleware).
-		Filter(azf)
-	mqWs := mq.Service(ctx, connector).Filter(metrics.Middleware).Filter(api.LoggingMiddleware).Filter(azf)
 	cfgWs := config.Service(ctx, cfg).Filter(azf)
 
 	ruleWs := ruleApi.Service(ctx, ruleMgr).
@@ -192,11 +162,8 @@ func main() {
 	metricsWs := metrics.Service()
 
 	httpCon.Add(thingWs)
-	httpCon.Add(mqWs)
-	httpCon.Add(jobWs)
 	httpCon.Add(cfgWs)
 	httpCon.Add(ruleWs)
-	httpCon.Add(thingApi.ServiceForEmqxIntegration(aclFn))
 	httpCon.Add(metricsWs)
 	httpCon.Add(restfulspec.NewOpenAPIService(api.OpenapiConfig(httpCon)))
 	if cfg.API.Cors {
@@ -204,7 +171,6 @@ func main() {
 	}
 	startHttpSvr(ctx, cfg, httpCon)
 
-	// wait some seconds before shutting down
 	time.Sleep(1 * time.Second)
 }
 
@@ -236,35 +202,11 @@ func autoMigrate(conn *gorm.DB) {
 		&thing.Entity{},
 		&shadow.Entity{},
 		&shadow.ConnStatusEntity{},
-		&job.Entity{},
-		&job.TaskEntity{},
 	)
 	if err != nil {
 		log.Fatalf("auto migrate db error: %v", err)
 	}
 	time.Sleep(time.Millisecond * 100)
-}
-
-func startMqttBroker(ctx context.Context,
-	cfg config.InnerMqttBroker,
-	authzFn connector.AuthzFn,
-	aclFn auth.AclFn,
-) embed.Broker {
-	return embed.InitBroker(embed.MochiConfig{
-		TcpPort:           cfg.TcpPort,
-		TcpSslPort:        cfg.TcpSslPort,
-		WsPort:            cfg.WsPort,
-		WssPort:           cfg.WssPort,
-		KeyFile:           cfg.KeyFile,
-		CertFile:          cfg.CertFile,
-		ClientCAFile:      cfg.ClientCAFile,
-		RequireClientCert: cfg.RequireClientCert,
-		Storage:           cfg.Storage,
-		AuthzFn:           authzFn,
-		AclFn:             aclFn,
-		SuperUsers:        cfg.SuperUsers,
-		MaximumInflight:   cfg.MaximumInflight,
-	})
 }
 
 func newDb(cfg config.Config) *gorm.DB {

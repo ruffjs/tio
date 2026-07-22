@@ -2,28 +2,14 @@ package ntp
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"time"
 
 	"ruff.io/tio/connector"
-
-	"encoding/json"
-
 	"ruff.io/tio/pkg/model"
 )
-
-// Client publish a message `NtpReq` to server via topic `TopicReq`
-// Server publish a message `NtpResp` to client via topic `TopicResp`
-
-// Assume client receive time is clientRecvTime , the client can calculate the current time through this formula:
-// calculationTime = ( serverRecvTime + serverSendTime + clientRecvTime - clientSendTime ) / 2
-
-// timeSpendForReq = client ==> server
-// timeSpendForResp = server ==> client
-// When timeSpendForReq and timeSpendForResp are close, the calculation time is very accurate.
-
-const DefaultQos = 1
 
 const (
 	TopicThingsPrefix = "$iothub/things/"
@@ -32,7 +18,6 @@ const (
 	TopicRespTmpl     = TopicThingsPrefix + "{thingId}/ntp/resp"
 )
 
-// Resp All time is unix time in ms
 type Resp struct {
 	ClientSendTime int64 `json:"clientSendTime"`
 	ServerRecvTime int64 `json:"serverRecvTime"`
@@ -65,7 +50,7 @@ type ntpHandler struct {
 
 func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 	topic := TopicReqAll
-	err := h.client.Subscribe(ctx, topic, DefaultQos, func(msg connector.Message) {
+	err := h.client.QueueSubscribe(ctx, topic, "tio-ntp", func(msg connector.Message) {
 		go func() {
 			serverRecvTime := time.Now().UnixMilli()
 			thingId, err := model.GetThingIdFromTopic(msg.Topic())
@@ -89,7 +74,7 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 			if err != nil {
 				slog.Error("Marshal ntp response", "response", res, "error", err, "topic", msg.Topic())
 			}
-			if err := h.client.Publish(TopicResp(thingId), 0, false, j); err != nil {
+			if err := h.client.Publish(TopicResp(thingId), j); err != nil {
 				slog.Error("Ntp handler publish result error", "error", err, "topic", msg.Topic())
 			}
 		}()
