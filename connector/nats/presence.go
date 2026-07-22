@@ -66,8 +66,9 @@ func (c *Connector) initPresence() error {
 	c.presenceBus = eventbus.NewEventBus[connector.PresenceEvent]()
 
 	kv, err := c.js.CreateKeyValue(&nats.KeyValueConfig{
-		Bucket:  presenceKVBucket,
-		History: 5,
+		Bucket:   presenceKVBucket,
+		History:  5,
+		Replicas: c.cfg.Server.PresenceReplicas,
 	})
 	if err != nil {
 		return fmt.Errorf("create presence KV bucket: %w", err)

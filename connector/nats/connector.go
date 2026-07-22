@@ -176,12 +176,16 @@ func (c *Connector) cleanupLocked() error {
 		c.cancel = nil
 	}
 	if c.natsConn != nil {
-		c.natsConn.Drain()
+		if err := c.natsConn.Drain(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 		c.natsConn.Close()
 		c.natsConn = nil
 	}
 	if c.sysConn != nil {
-		c.sysConn.Drain()
+		if err := c.sysConn.Drain(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 		c.sysConn.Close()
 		c.sysConn = nil
 	}

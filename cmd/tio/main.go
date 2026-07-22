@@ -124,6 +124,11 @@ func main() {
 	if err := natsConnector.Start(ctx); err != nil {
 		log.Fatalf("NATS connector start error: %v", err)
 	}
+	defer func() {
+		if err := natsConnector.Shutdown(); err != nil {
+			slog.Error("NATS connector shutdown error", "error", err)
+		}
+	}()
 
 	shadowSvc.Init(ctx)
 

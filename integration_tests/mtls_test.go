@@ -234,7 +234,7 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 	}, nil, true)
 	require.NoError(t, err)
 
-	presenceCh := connector.OnConnect()
+	presenceCh := connector.SubscribePresence(ctx)
 	certClient := newThingMTLSClient(certThingID)
 	require.NoError(t, certClient.Connect(ctx))
 	t.Cleanup(certClient.Disconnect)

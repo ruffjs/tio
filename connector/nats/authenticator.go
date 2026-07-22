@@ -2,7 +2,6 @@ package nats
 
 import (
 	"log/slog"
-	"strings"
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
@@ -208,8 +207,4 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 			Allow: []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"},
 		},
 	}
-}
-
-func topicToNatsSubject(topic string) string {
-	return strings.ReplaceAll(topic, ".", "/")
 }
