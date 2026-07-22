@@ -273,6 +273,10 @@ func (s *stubThingService) IsBoundGateway(context.Context, string, string) (bool
 	panic("unexpected call")
 }
 
+func (s *stubThingService) GetBoundThingIds(context.Context, string) ([]string, error) {
+	panic("unexpected call")
+}
+
 type stubProvision struct {
 	ok bool
 }

@@ -237,7 +237,7 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 
 	waitConnected(t, certThingID)
 
-	info, err := connector.ClientInfo(certThingID)
+	info, err := mtlsConnector.ClientInfo(certThingID)
 	require.NoError(t, err)
 	require.Equal(t, certThingID, info.Username)
 
@@ -259,8 +259,8 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, connector.Publish(shadow.TopicDeltaStateOf(certThingID), 0, false, payload))
-	require.NoError(t, connector.Publish(shadow.TopicDeltaStateOf(otherThingID), 0, false, payload))
+	require.NoError(t, mtlsConnector.Publish(shadow.TopicDeltaStateOf(certThingID), 0, false, payload))
+	require.NoError(t, mtlsConnector.Publish(shadow.TopicDeltaStateOf(otherThingID), 0, false, payload))
 	require.Eventually(t, func() bool {
 		return len(allowedTopicPayload) > 0
 	}, 3*time.Second, 50*time.Millisecond)

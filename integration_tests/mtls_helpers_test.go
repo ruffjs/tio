@@ -9,7 +9,7 @@ import (
 	tioconnector "ruff.io/tio/connector"
 )
 
-var connector = &testConnectorWrapper{}
+var mtlsConnector = &testConnectorWrapper{}
 
 type testConnectorWrapper struct{}
 

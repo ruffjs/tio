@@ -118,7 +118,7 @@ func main() {
 	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.Nats.SuperUsers, thingSvc, provisionSvc)
 	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.Nats.SuperUsers)
 
-	if err := natsConnector.ConfigureAuth(authzFn, aclFn); err != nil {
+	if err := natsConnector.ConfigureAuth(authzFn, aclFn, thingSvc); err != nil {
 		log.Fatalf("Configure NATS auth error: %v", err)
 	}
 	if err := natsConnector.Start(ctx); err != nil {

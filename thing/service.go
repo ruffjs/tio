@@ -33,6 +33,7 @@ type Service interface {
 	BindToGateway(ctx context.Context, thingIds []string, gatewayThingId string) error
 	UnbindFromGateway(ctx context.Context, thingIds []string, gatewayThingId string) error
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
+	GetBoundThingIds(ctx context.Context, gatewayThingId string) ([]string, error)
 }
 
 type Page = model.PageData[ThingWithConnStatus]
@@ -312,6 +313,21 @@ func (t *thingSvc) IsBoundGateway(ctx context.Context, thingId, gatewayThingId s
 
 func (t *thingSvc) delBoundCache(thingId string) {
 	gatewayBindCache.Delete(thingId)
+}
+
+func (t *thingSvc) GetBoundThingIds(ctx context.Context, gatewayThingId string) ([]string, error) {
+	l, err := t.repo.Query(ctx, PageQuery{
+		GatewayThingId: &gatewayThingId,
+		PageQuery:      model.PageQuery{PageIndex: 1, PageSize: MaxBindThings},
+	})
+	if err != nil {
+		return nil, errors.WithMessage(err, "query gateway bound things")
+	}
+	ids := make([]string, 0, len(l.Content))
+	for _, th := range l.Content {
+		ids = append(ids, th.Thing.Id)
+	}
+	return ids, nil
 }
 
 func (t *thingSvc) UpdateAuthValue(ctx context.Context, id string, authValue string) error {

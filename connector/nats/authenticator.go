@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"context"
 	"log/slog"
 
 	"ruff.io/tio/config"
@@ -18,6 +19,7 @@ const (
 type NatsAuthenticator struct {
 	authzFn       connector.AuthzFn
 	aclFn         connector.AclFn
+	bindingGetter connector.BindingGetter
 	superUsers    []config.UserPassword
 	appClient     config.NatsClientConfig
 	sysClient     config.NatsClientConfig
@@ -29,12 +31,14 @@ type NatsAuthenticator struct {
 func NewNatsAuthenticator(
 	authzFn connector.AuthzFn,
 	aclFn connector.AclFn,
+	bindingGetter connector.BindingGetter,
 	superUsers []config.UserPassword,
 	appClient, sysClient, mqttPublisher config.NatsClientConfig,
 ) *NatsAuthenticator {
 	return &NatsAuthenticator{
 		authzFn:       authzFn,
 		aclFn:         aclFn,
+		bindingGetter: bindingGetter,
 		superUsers:    superUsers,
 		appClient:     appClient,
 		sysClient:     sysClient,
@@ -199,12 +203,29 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 	thingPrefix := "$iothub.things." + thingId + ".>"
 	userPrefix := "$iothub.user.things." + thingId + ".>"
 
+	pubAllow := []string{thingPrefix, userPrefix}
+	subAllow := []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"}
+
+	if a.bindingGetter != nil {
+		boundIds, err := a.bindingGetter.GetBoundThingIds(context.Background(), thingId)
+		if err != nil {
+			slog.Error("get bound things for gateway permissions", "gateway", thingId, "error", err)
+		} else {
+			for _, bid := range boundIds {
+				boundPub := "$iothub.things." + bid + ".>"
+				boundUser := "$iothub.user.things." + bid + ".>"
+				pubAllow = append(pubAllow, boundPub, boundUser)
+				subAllow = append(subAllow, boundPub, boundUser)
+			}
+		}
+	}
+
 	return &server.Permissions{
 		Publish: &server.SubjectPermission{
-			Allow: []string{thingPrefix, userPrefix},
+			Allow: pubAllow,
 		},
 		Subscribe: &server.SubjectPermission{
-			Allow: []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"},
+			Allow: subAllow,
 		},
 	}
 }

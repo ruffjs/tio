@@ -23,7 +23,7 @@ func newPresenceTestConnector(t *testing.T) *Connector {
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
-	if err := c.ConfigureAuth(usernameAuthzFn, allowAllAclFn); err != nil {
+	if err := c.ConfigureAuth(usernameAuthzFn, allowAllAclFn, nil); err != nil {
 		t.Fatalf("ConfigureAuth: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

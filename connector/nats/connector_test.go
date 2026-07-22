@@ -33,7 +33,7 @@ func newTestConnector(t *testing.T) *Connector {
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
-	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err != nil {
+	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn, nil); err != nil {
 		t.Fatalf("ConfigureAuth: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -69,10 +69,10 @@ func TestConfigureAuthTwiceFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
-	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err != nil {
+	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn, nil); err != nil {
 		t.Fatalf("first ConfigureAuth: %v", err)
 	}
-	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err == nil {
+	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn, nil); err == nil {
 		t.Fatal("expected second ConfigureAuth to fail")
 	}
 }
@@ -145,7 +145,7 @@ func TestConnectorCleanShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
-	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err != nil {
+	if err := c.ConfigureAuth(allowAllAuthzFn, allowAllAclFn, nil); err != nil {
 		t.Fatalf("ConfigureAuth: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

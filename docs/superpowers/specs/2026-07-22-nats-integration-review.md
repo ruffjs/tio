@@ -4,6 +4,8 @@
 **审查范围：** `e56f273..HEAD`（14 个提交）
 **对照文档：** [NATS 集成设计](./2026-07-21-nats-integration-design.md)
 
+> **更新（2026-07-22）：** 问题 #1、#2、#4、#5、#16、#17 已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。重构采用 owner-only 写 + 回调通知，去掉了 eventbus、SubscribePresence 和 CAS。下文这些问题的"建议"部分仅作为历史记录保留，实际方案以重构计划为准。
+
 ## 总体评估
 
 核心 NATS Connector 已实现，全部测试通过（223 单元 + 16 集成）。Connector 接口、Topic 转换、内嵌 Server、MQTT Publisher、认证器、消费者适配均正确。但 **多实例协调存在严重缺失**、**规则引擎集成完全缺失**、**配置清理不完整**。
@@ -30,6 +32,8 @@
 
 ### 1. Presence CAS 未实现（§7.1）
 
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。** 重构后采用 owner-only 写（按 `server.name` 过滤），每个实例只写自己设备的 KV，常规情况下无竞争，不需要 CAS。仅在 failover（owner 崩溃）时由 reconciliation 写其他 owner 的条目。
+
 **文件：** `connector/nats/presence.go:135, 187`
 
 `handleConnectEvent` 和 `handleDisconnectEvent` 使用 `c.kv.Put()` — 直接覆盖，非 compare-and-set。
@@ -44,6 +48,8 @@
 ---
 
 ### 2. 跨实例 Presence 分发缺失（§7.1 步骤 2 & 5）
+
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。** 重构后去掉 eventbus 和 `$tio.events.presence.>`，跨实例通知由 KV replication + `IsConnected()` 读 KV 实现。`SubscribePresence` 被删除，替换为 `OnLocalPresence` 回调（仅通知本进程消费者）。
 
 **文件：** `connector/nats/presence.go:204-221`
 
@@ -82,6 +88,8 @@
 
 ### 4. `SubscribePresence` 忽略 ctx（§4, §6.5）
 
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。** `SubscribePresence` 整个方法被删除，eventbus 被移除，替换为 `OnLocalPresence(handler)` 回调，不存在 channel 泄漏问题。
+
 **文件：** `connector/nats/connectivity.go:30-32`
 
 ```go
@@ -112,6 +120,8 @@ func (c *Connector) SubscribePresence(ctx context.Context) <-chan connector.Pres
 ---
 
 ### 5. Reconciliation 仅限本地（§7.1）
+
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。** 重构后 reconciliation 只处理 failover：通过 `$SYS.REQ.SERVER.PING` 查询存活 server，将已挂 owner 的设备标记为 disconnected。不再需要跨节点 CONNZ 聚合或两轮逻辑。
 
 **文件：** `connector/nats/presence.go:236-302`
 
@@ -258,6 +268,8 @@ if err := c.Close(thingId); err != nil && !errors.Is(err, ErrNotConnected) { ret
 
 ### 16. 启动时无全量 reconciliation（§7.1）
 
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 部分取代。** 重构后 reconciliation 的职责从"全量比对 KV 与实际连接"变为"检测已挂 owner server 并清理 stale 条目"。启动时仍应执行一次 reconciliation（检测此前崩溃的 owner），但不需要全量 CONNZ 聚合。
+
 **设计要求：**
 > 启动完成后必须先做一次全量 reconciliation，再向业务层报告 ready
 
@@ -266,6 +278,8 @@ if err := c.Close(thingId); err != nil && !errors.Is(err, ErrNotConnected) { ret
 ---
 
 ### 17. EventBus 慢消费者策略不完整（§7.1）
+
+> **已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代。** eventbus 从 connector 中完全移除，不再有慢消费者问题。`OnLocalPresence` 回调是同步单点通知，不存在 fan-out。
 
 **文件：** `pkg/eventbus/eventbus.go:48-60`
 
@@ -278,17 +292,70 @@ if err := c.Close(thingId); err != nil && !errors.Is(err, ErrNotConnected) { ret
 
 ## 问题优先级汇总
 
-| 优先级 | 编号 | 问题 | 影响范围 |
+> 标记 **[重构]** 的问题已被 [Presence 重构计划](./2026-07-22-presence-refactor-plan.md) 取代，不需要在当前实现中修复。
+
+| 优先级 | 编号 | 问题 | 影响范围 | 状态 |
+|---|---|---|---|---|
+| **P0** | #6 | 规则引擎 source/sink 缺失 | 规则引擎无法摄取设备消息 | 待修复 |
+| **P0** | #1 | Presence CAS 未实现 | 多实例 presence 状态损坏 | **[重构]** 取代 |
+| **P0** | #2 | 跨实例 presence 分发缺失 | 多实例下内部消费者收不到跨节点事件 | **[重构]** 取代 |
+| **P0** | #3 | 跨实例 Close 未实现 | 多实例下 thing.Delete 失效 | 待修复 |
+| **P1** | #4 | SubscribePresence 忽略 ctx | 订阅者泄漏 | **[重构]** 取代 |
+| **P1** | #5 | Reconciliation 仅限本地 | 多实例下状态修正失效 | **[重构]** 取代 |
+| **P1** | #7 | ACL 函数未调用 | Gateway 绑定功能失效 | 待修复 |
+| **P2** | #8 | 默认配置 type 错误 | 配置误导 | 待修复 |
+| **P2** | #9 | 旧配置类型未清理 | 代码冗余 | 待修复 |
+| **P2** | #10 | metrics/mqtthook.go 死代码 | 不必要的依赖保留 | 待修复 |
+| **P2** | #11 | 旧 docker-compose 未更新 | 部署文档误导 | 待修复 |
+| **P3** | #12 | KV bucket 校验缺失 | 生产就绪性 | 待修复 |
+| **P3** | #13 | Remove() 忽略 Close 错误 | 错误处理不完整 | 待修复 |
+| **P3** | #14 | 集群配置缺少 clusterAdvertise | 集群路由无法建立 | 待修复 |
+| **P3** | #15 | 集群配置缺少 route mTLS | 安全性 | 待修复 |
+| **P3** | #16 | 启动时无全量 reconciliation | 状态修正延迟 | **[重构]** 部分取代 |
+| **P3** | #17 | EventBus 慢消费者策略 | 生产就绪性 | **[重构]** 取代 |
+
+---
+
+## 附录：嵌入式 NATS Server 监控能力评估
+
+### 嵌入 vs. 外置的监控差异
+
+嵌入式 NATS server 与 standalone 使用**同一份代码**，监控能力完全相同。唯一区别是谁管理进程生命周期。server 内部的 monitoring HTTP server、system request handler、JetStream management API 全部正常工作。
+
+### 各监控工具兼容性
+
+| 工具 | 协议 | 嵌入式可用性 | 说明 |
 |---|---|---|---|
-| **P0** | #6 | 规则引擎 source/sink 缺失 | 规则引擎无法摄取设备消息 |
-| **P0** | #1 | Presence CAS 未实现 | 多实例 presence 状态损坏 |
-| **P0** | #2 | 跨实例 presence 分发缺失 | 多实例下内部消费者收不到跨节点事件 |
-| **P0** | #3 | 跨实例 Close 未实现 | 多实例下 thing.Delete 失效 |
-| **P1** | #4 | SubscribePresence 忽略 ctx | 订阅者泄漏 |
-| **P1** | #5 | Reconciliation 仅限本地 | 多实例下状态修正失效 |
-| **P1** | #7 | ACL 函数未调用 | Gateway 绑定功能失效 |
-| **P2** | #8 | 默认配置 type 错误 | 配置误导 |
-| **P2** | #9 | 旧配置类型未清理 | 代码冗余 |
-| **P2** | #10 | metrics/mqtthook.go 死代码 | 不必要的依赖保留 |
-| **P2** | #11 | 旧 docker-compose 未更新 | 部署文档误导 |
-| **P3** | #12-17 | KV 校验、Remove 错误处理、clusterAdvertise、route mTLS、启动 reconciliation、慢消费者策略 | 生产就绪性 |
+| **nats-top** | HTTP (`/varz`, `/connz`, `/subsz`...) | ✅ 可用 | 需设置 `opts.HTTPPort`（如 8222），当前未配置 |
+| **Prometheus exporter** | HTTP (scrape `/varz` 等) | ✅ 可用 | 同上，需开启 HTTP monitor port |
+| **survey** | NATS 协议 (`$SYS.REQ.SERVER.*`) | ✅ 可用 | SystemAccount 已配置为 `TIO_SYS`，用 sysConn 凭据连接即可，不依赖 HTTP 端口 |
+
+### 当前实现状态
+
+`connector/nats/server.go:86-95` 中未设置 `HTTPPort`/`MonitorPort`，HTTP 监控端点当前关闭。survey 走 NATS 协议内的 `$SYS.REQ.*` system request，不依赖 HTTP 端口，SystemAccount 已存在，当前可用。
+
+### 建议
+
+在 `NatsServerConfig` 中新增 `MonitorPort` 字段并在 `buildServerOptions` 中设置，以便运维团队可选用 nats-top 和 Prometheus exporter：
+
+```go
+// config/config.go - NatsServerConfig
+MonitorPort int `json:"monitorPort"` // NATS HTTP monitoring port (默认 8222)
+
+// connector/nats/server.go - buildServerOptions
+opts.HTTPPort = cfg.MonitorPort
+```
+
+默认配置中可设为 8222 或 0（关闭）。多实例部署时每个节点使用不同端口映射。
+
+### 嵌入式 vs. 外置 NATS 监控总结
+
+以下监控能力**不因嵌入/外置而改变**：
+
+- HTTP monitoring endpoints（`/varz`, `/connz`, `/subsz`, `/routez`, `/accountz` 等）
+- System request 响应（`$SYS.REQ.*` subjects）
+- JetStream management API（`$JS.API.*`）
+- Server profiling（`opts.ProfPort`）
+- System events 发布（`$SYS.ACCOUNT.*.CONNECT/DISCONNECT`）
+
+嵌入式模式下唯一需要做的是显式开启 HTTP monitor port。不存在"嵌入模式砍掉了监控"的问题。

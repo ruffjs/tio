@@ -89,3 +89,8 @@ func (m *mockBindingGetter) IsBoundGateway(ctx context.Context, thingId string, 
 	r := m.Called(ctx, thingId, gatewayThingId)
 	return r.Bool(0), r.Error(1)
 }
+
+func (m *mockBindingGetter) GetBoundThingIds(ctx context.Context, gatewayThingId string) ([]string, error) {
+	r := m.Called(ctx, gatewayThingId)
+	return r.Get(0).([]string), r.Error(1)
+}
