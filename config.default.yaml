@@ -24,40 +24,7 @@ db:
     showSql: true
 
 connector:
-  type: embed
-  mqttClient:
-    clientId: $tio
-    host: localhost
-    port: 1883
-    user: $tio
-    password: public
-    cleanSession: false
-  mqttBroker:
-    tcpPort: 1883
-    # tcpSslPort: 8883
-    wsPort: 8083
-    # certFile: ./server-cert.pem
-    # keyFile: ./server-key.pem
-    # clientCaFile: ./ca.pem
-    # requireClientCert: true
-    # mqtt storage, if left blank, the storage is disabled
-    # https://github.com/mochi-mqtt/server?tab=readme-ov-file#badger-db
-    storage: 
-      type: file  # file or redis
-      filePath: "./embed-mqtt.db" # when type is file
-      redis:
-        addr: 127.0.0.1:6379
-        db: 1
-        password:
-    superUsers:
-      - name: $tio
-        password: public
-      - name: $biz
-        password: public
-  emqx:
-    apiPrefix: http://localhost:18083
-    apiUser: admin
-    apiPassword: public
+  type: nats
   nats:
     server:
       serverName: tio-node-1
@@ -75,9 +42,13 @@ connector:
       presenceReplicas: 1
       clusterUser: $tio-route
       clusterPassword: public
+      # Client TLS (NATS app/system client listener)
       clientTls: {}
+      # MQTT device listener TLS; when configured, mqttPort uses TLS
       mqttTls: {}
+      # WebSocket TLS; when empty, WebSocket runs in plaintext mode
       websocketTls: {}
+      # Cluster route TLS; requires caFile, certFile, and keyFile
       routeTls: {}
     appClient:
       user: $tio-app

@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 	cfg.Connector.Nats.Server.StoreDir = storeDir
 	cfg.Connector.Nats.Server.Port = -1
 	cfg.Connector.Nats.Server.MqttPort = -1
-	cfg.Connector.Nats.Server.WsPort = 0
+	cfg.Connector.Nats.Server.WsPort = -1
 	cfg.Connector.Nats.Server.ClusterPort = 0
 
 	dbConn, err = sqlite.Connect(sqlite.Config{FilePath: ":memory:"})

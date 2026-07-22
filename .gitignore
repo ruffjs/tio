@@ -59,3 +59,4 @@ node_modules/
 .env
 
 .claude
+data/

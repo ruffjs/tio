@@ -78,6 +78,14 @@ func (s *NatsServer) MqttPort() int {
 	return v.MQTT.Port
 }
 
+func (s *NatsServer) WsPort() int {
+	v, err := s.server.Varz(nil)
+	if err != nil {
+		return 0
+	}
+	return v.Websocket.Port
+}
+
 func (s *NatsServer) Server() *server.Server {
 	return s.server
 }
@@ -130,7 +138,7 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 		}
 	}
 
-	if cfg.WsPort > 0 {
+	if cfg.WsPort != 0 {
 		wsOpts := server.WebsocketOpts{
 			Port: cfg.WsPort,
 		}
