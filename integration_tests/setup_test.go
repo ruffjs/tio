@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"ruff.io/tio/auth"
+	"ruff.io/tio/connector"
 	natsConn "ruff.io/tio/connector/nats"
 	"ruff.io/tio/db/sqlite"
 	mq "ruff.io/tio/internal/mqtttest"
@@ -77,6 +78,10 @@ func TestMain(m *testing.M) {
 	if err := natsConnector.Start(testCtx); err != nil {
 		log.Fatal(err)
 	}
+
+	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
+		go shadowSvc.HandleLocalPresence(ci)
+	})
 
 	shadowSvc.Init(testCtx)
 

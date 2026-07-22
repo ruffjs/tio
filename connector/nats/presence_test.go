@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -86,9 +87,6 @@ func TestPresenceConnectEvent(t *testing.T) {
 	if rec.ThingId != "dev1" {
 		t.Fatalf("thingId = %q", rec.ThingId)
 	}
-	if rec.Generation != 1 {
-		t.Fatalf("generation = %d, want 1", rec.Generation)
-	}
 }
 
 func TestPresenceDisconnectEvent(t *testing.T) {
@@ -114,46 +112,53 @@ func TestPresenceDisconnectEvent(t *testing.T) {
 	}
 }
 
-func TestPresenceMultipleSubscribersReceiveEvent(t *testing.T) {
+func TestPresenceOnLocalPresenceCallback(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
-	ctx := context.Background()
-	ch1 := c.SubscribePresence(ctx)
-	ch2 := c.SubscribePresence(ctx)
-	ch3 := c.SubscribePresence(ctx)
+	var received []connector.ClientInfo
+	var mu sync.Mutex
+	done := make(chan struct{})
+
+	c.OnLocalPresence(func(ci connector.ClientInfo) {
+		mu.Lock()
+		received = append(received, ci)
+		mu.Unlock()
+		if ci.Connected && ci.Username == "dev3" {
+			select {
+			case done <- struct{}{}:
+			default:
+			}
+		}
+	})
 
 	nc := connectDevice(t, c, "dev3")
 	defer nc.Close()
 
-	waitForPresence(t, c, "dev3", true)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for OnLocalPresence callback")
+	}
 
-	for i, ch := range []<-chan connector.PresenceEvent{ch1, ch2, ch3} {
-		select {
-		case evt := <-ch:
-			if evt.ThingId != "dev3" {
-				t.Fatalf("subscriber %d: thingId = %q", i, evt.ThingId)
-			}
-			if evt.EventType != connector.EventConnected {
-				t.Fatalf("subscriber %d: eventType = %q", i, evt.EventType)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("subscriber %d: timeout waiting for event", i)
+	mu.Lock()
+	found := false
+	for _, ci := range received {
+		if ci.Username == "dev3" && ci.Connected {
+			found = true
+			break
 		}
+	}
+	mu.Unlock()
+	if !found {
+		t.Fatal("expected connected callback for dev3")
 	}
 }
 
-func TestPresenceGenerationTracking(t *testing.T) {
+func TestPresenceReconnectUpdatesRecord(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
 	nc1 := connectDevice(t, c, "dev4")
 	waitForPresence(t, c, "dev4", true)
-
-	entry1, _ := c.kv.Get(presenceKeyPrefix + "dev4")
-	var rec1 PresenceRecord
-	json.Unmarshal(entry1.Value(), &rec1)
-	if rec1.Generation != 1 {
-		t.Fatalf("first gen = %d, want 1", rec1.Generation)
-	}
 
 	nc1.Close()
 	waitForPresence(t, c, "dev4", false)
@@ -165,9 +170,6 @@ func TestPresenceGenerationTracking(t *testing.T) {
 	entry2, _ := c.kv.Get(presenceKeyPrefix + "dev4")
 	var rec2 PresenceRecord
 	json.Unmarshal(entry2.Value(), &rec2)
-	if rec2.Generation != 2 {
-		t.Fatalf("second gen = %d, want 2", rec2.Generation)
-	}
 	if !rec2.Connected {
 		t.Fatal("expected connected=true after reconnect")
 	}

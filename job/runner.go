@@ -229,7 +229,8 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 	offlineThingTasks := map[string][]Task{}
 
 	tick := time.NewTicker(time.Millisecond * 50)
-	onConn := r.conn.SubscribePresence(r.ctx)
+	retryTick := time.NewTicker(2 * time.Second)
+	defer retryTick.Stop()
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -277,15 +278,14 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 				}
 			}
 			continue
-		case e := <-onConn:
-			if e.EventType == connector.EventConnected {
-				slog.Debug("JobRunner got thing online", "thingId", e.ThingId)
-				if l, ok := offlineThingTasks[e.ThingId]; ok {
-					delete(offlineThingTasks, e.ThingId)
+		case <-retryTick.C:
+			for thingId, l := range offlineThingTasks {
+				if online, err := r.conn.IsConnected(thingId); err == nil && online {
+					delete(offlineThingTasks, thingId)
 					for _, t := range l {
 						curQ.Push(&t)
 					}
-					slog.Debug("JobRunner got thing online, put back tasks done", "thingId", e.ThingId, "taskCount", len(l))
+					slog.Debug("JobRunner retry: thing online, put back tasks", "thingId", thingId, "taskCount", len(l))
 				}
 			}
 		case <-r.getPendingTasksOfSysReqCh:

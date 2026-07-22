@@ -214,9 +214,6 @@ func TestDeviceRejectsInvalidServerCertificate(t *testing.T) {
 }
 
 func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	certThingID := "mtls-client"
 	otherThingID := ID()
 
@@ -234,18 +231,11 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 	}, nil, true)
 	require.NoError(t, err)
 
-	presenceCh := connector.SubscribePresence(ctx)
 	certClient := newThingMTLSClient(certThingID)
-	require.NoError(t, certClient.Connect(ctx))
+	require.NoError(t, certClient.Connect(context.Background()))
 	t.Cleanup(certClient.Disconnect)
 
-	select {
-	case evt := <-presenceCh:
-		require.Equal(t, certThingID, evt.ThingId)
-		require.Equal(t, certThingID, evt.ClientId)
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for presence event")
-	}
+	waitConnected(t, certThingID)
 
 	info, err := connector.ClientInfo(certThingID)
 	require.NoError(t, err)

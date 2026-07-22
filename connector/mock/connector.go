@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/eventbus"
 )
 
 type PublishedMessage struct {
@@ -34,7 +33,7 @@ type MockConnector struct {
 	subscriptions   []subscription
 
 	connectedThings map[string]bool
-	presenceBus     *eventbus.EventBus[connector.PresenceEvent]
+	presenceHandler connector.PresenceHandler
 
 	queueCounters map[string]*atomic.Uint64
 }
@@ -42,7 +41,6 @@ type MockConnector struct {
 func NewMockConnector() *MockConnector {
 	return &MockConnector{
 		connectedThings: make(map[string]bool),
-		presenceBus:     eventbus.NewEventBus[connector.PresenceEvent](),
 		queueCounters:   make(map[string]*atomic.Uint64),
 	}
 }
@@ -122,8 +120,10 @@ func (m *MockConnector) IsConnected(thingId string) (bool, error) {
 	return m.connectedThings[thingId], nil
 }
 
-func (m *MockConnector) SubscribePresence(ctx context.Context) <-chan connector.PresenceEvent {
-	return m.presenceBus.Subscribe("presence")
+func (m *MockConnector) OnLocalPresence(handler connector.PresenceHandler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.presenceHandler = handler
 }
 
 func (m *MockConnector) ClientInfo(thingId string) (connector.ClientInfo, error) {
@@ -206,8 +206,10 @@ func (m *MockConnector) SimulateMessage(topic string, payload []byte) {
 	}
 }
 
-func (m *MockConnector) SimulatePresence(evt connector.PresenceEvent) {
-	m.presenceBus.Publish("presence", evt)
+func (m *MockConnector) SimulatePresence(ci connector.ClientInfo) {
+	if m.presenceHandler != nil {
+		m.presenceHandler(ci)
+	}
 }
 
 func (m *MockConnector) SetConnected(thingId string, connected bool) {
@@ -258,7 +260,7 @@ var _ interface {
 	Close(string) error
 	Remove(string) error
 	IsConnected(string) (bool, error)
-	SubscribePresence(context.Context) <-chan connector.PresenceEvent
+	OnLocalPresence(connector.PresenceHandler)
 	ClientInfo(string) (connector.ClientInfo, error)
 	AllClientInfo() ([]connector.ClientInfo, error)
 } = (*MockConnector)(nil)

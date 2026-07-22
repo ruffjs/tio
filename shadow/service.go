@@ -26,6 +26,7 @@ const (
 
 type Service interface {
 	Init(ctx context.Context)
+	HandleLocalPresence(ci connector.ClientInfo)
 	StateService
 	CrudService
 	TagsService
@@ -140,7 +141,9 @@ func NewSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
 }
 
 func (s *shadowSvc) Init(ctx context.Context) {
-	svcSingleton.syncConnStatus(ctx)
+	if err := s.doFirstSyncStatus(ctx); err != nil {
+		slog.Error("sync conn status on init", "error", err)
+	}
 }
 
 func (s *shadowSvc) SubscribeUpdate(subscribe StateUpdateSubscribe) {
@@ -183,30 +186,13 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 	return ss, err
 }
 
-func (s *shadowSvc) syncConnStatus(ctx context.Context) error {
-	connEventCh := s.connectorChecker.SubscribePresence(ctx)
-
-	if err := s.doFirstSyncStatus(ctx); err != nil {
-		return err
+func (s *shadowSvc) HandleLocalPresence(ci connector.ClientInfo) {
+	err := s.repo.UpdateConnStatus(context.Background(), []connector.ClientInfo{ci})
+	if err != nil {
+		slog.Error("update conn error", "clientId", ci.ClientId, "error", err)
+	} else {
+		s.cache.UpdateConnStatus(ci.ClientId, ci)
 	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case e := <-connEventCh:
-				c := toClientInfo(e)
-				err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{c})
-				if err != nil {
-					slog.Error("update conn error", "clientId", c.ClientId, "error", err)
-				} else {
-					s.cache.UpdateConnStatus(c.ClientId, c)
-				}
-			}
-		}
-	}()
-	return nil
 }
 
 func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
@@ -568,24 +554,4 @@ func DeepCopyMap(src map[string]any) map[string]any {
 		}
 	}
 	return tgt
-}
-
-func toClientInfo(e connector.PresenceEvent) connector.ClientInfo {
-	conn := false
-	if e.EventType == connector.EventConnected {
-		conn = true
-	}
-	t := time.UnixMilli(e.Timestamp)
-	c := connector.ClientInfo{
-		ClientId:         e.ThingId,
-		Connected:        conn,
-		DisconnectReason: e.DisconnectReason,
-		RemoteAddr:       e.RemoteAddr,
-	}
-	if conn {
-		c.ConnectedAt = &t
-	} else {
-		c.DisconnectedAt = &t
-	}
-	return c
 }

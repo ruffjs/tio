@@ -75,16 +75,10 @@ func topicMethodPrefix(thingId, methodName string) string {
 type mqttMethod struct {
 	connector connector.Connector
 	pending   sync.Map // thingId -> clientToken -> pendingResp, pending for response receive
-	waiting   sync.Map // thingId -> clientToken -> waitingResp, waiting for thing be online
 }
 
 type pendingResp struct {
 	respChan chan MethodResp
-	done     chan struct{}
-}
-
-type waitingResp struct {
-	respChan chan bool
 	done     chan struct{}
 }
 
@@ -101,8 +95,6 @@ func (h *mqttMethod) InitMethodHandler(ctx context.Context) error {
 	} else {
 		slog.Info("Method response subscribe started")
 	}
-	h.subscribeThingOnline(ctx)
-	slog.Info("Method thing online subscribe started")
 	return nil
 }
 
@@ -114,35 +106,10 @@ func (h *mqttMethod) InvokeMethod(
 	if err != nil {
 		return MethodResp{}, errors.WithMessage(err, "could not get online status")
 	}
-	if online {
-		return h.doInvokeMethod(ctx, msg)
-	}
-	if msg.ConnTimeout <= 0 {
+	if !online {
 		return MethodResp{}, model.ErrDirectMethodThingOffline
 	}
-
-	// wait for the thing to be online.
-	outCh := h.addWaiting(msg.ThingId, msg.Req.ClientToken)
-	defer h.removeWaiting(msg.ThingId, msg.Req.ClientToken)
-
-	select {
-	case <-time.After(time.Second * time.Duration(msg.ConnTimeout)):
-		return MethodResp{},
-			errors.Wrapf(model.ErrDirectMethodTimeout, "wait %d seconds for thing online", msg.ConnTimeout)
-	case <-ctx.Done():
-		return MethodResp{}, errors.Errorf("interrupted by context done")
-	case online, ok := <-outCh:
-		if !ok {
-			return MethodResp{}, errors.Errorf("out channel closed")
-		}
-		if online {
-			// wait the thing to subscribe method request topic
-			time.Sleep(time.Millisecond * 500)
-			return h.doInvokeMethod(ctx, msg)
-		} else {
-			return MethodResp{}, errors.Errorf("out channel returned by thing is offline")
-		}
-	}
+	return h.doInvokeMethod(ctx, msg)
 }
 
 func (h *mqttMethod) doInvokeMethod(ctx context.Context,
@@ -193,45 +160,6 @@ func (h *mqttMethod) addPending(thingId, clientToken string) <-chan MethodResp {
 	tokenMap, _ := h.pending.LoadOrStore(thingId, new(sync.Map))
 	tokenMap.(*sync.Map).Store(clientToken, pendingResp{respChan: outCh, done: make(chan struct{})})
 	return outCh
-}
-
-func (h *mqttMethod) removeWaiting(thingId, clientToken string) {
-	if pResp, ok := h.waiting.Load(thingId); ok {
-		if tkResp, ok := pResp.(*sync.Map).Load(clientToken); ok {
-			close(tkResp.(waitingResp).done)
-			pResp.(*sync.Map).Delete(clientToken)
-		}
-	}
-}
-
-// return a chan to receive if thing is connected
-func (h *mqttMethod) addWaiting(thingId, clientToken string) <-chan bool {
-	outCh := make(chan bool)
-	tokenMap, _ := h.waiting.LoadOrStore(thingId, new(sync.Map))
-	tokenMap.(*sync.Map).Store(clientToken, waitingResp{respChan: outCh, done: make(chan struct{})})
-	return outCh
-}
-
-func (h *mqttMethod) subscribeThingOnline(ctx context.Context) {
-	presenceEvtCh := h.connector.SubscribePresence(ctx)
-	go func() {
-		for e := range presenceEvtCh {
-			if e.EventType == connector.EventConnected {
-				if tokenResp, ok := h.waiting.Load(e.ThingId); ok {
-					// notify all request (one request mapping to one client token) that thing is online
-					tokenResp.(*sync.Map).Range(func(key, value any) bool {
-						v := value.(waitingResp)
-						select {
-						case <-v.done:
-						case v.respChan <- true:
-						case <-ctx.Done():
-						}
-						return true
-					})
-				}
-			}
-		}
-	}()
 }
 
 func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {

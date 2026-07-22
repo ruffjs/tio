@@ -8,7 +8,6 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/eventbus"
 
 	"github.com/nats-io/nats.go"
 	server "github.com/nats-io/nats-server/v2/server"
@@ -25,7 +24,7 @@ type Connector struct {
 	js         nats.JetStreamContext
 	kv         nats.KeyValue
 
-	presenceBus *eventbus.EventBus[connector.PresenceEvent]
+	presenceHandler connector.PresenceHandler
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -221,5 +220,9 @@ func (c *Connector) Server() *NatsServer              { return c.natsSvr }
 func (c *Connector) AppConn() *nats.Conn              { return c.natsConn }
 func (c *Connector) SysConn() *nats.Conn              { return c.sysConn }
 func (c *Connector) JetStream() nats.JetStreamContext { return c.js }
+
+func (c *Connector) OnLocalPresence(handler connector.PresenceHandler) {
+	c.presenceHandler = handler
+}
 
 var _ connector.Connector = (*Connector)(nil)

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"ruff.io/tio/connector"
 	"ruff.io/tio/connector/mock"
 	"ruff.io/tio/pkg/model"
 
@@ -90,28 +89,7 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 					}{Color: "red"},
 				},
 			},
-			err: model.ErrDirectMethodTimeout,
-		},
-		{
-			timeoutMs: 500,
-			req: shadow.MethodReqMsg{
-				ThingId: "444444", Method: "mmmm1",
-				ConnTimeout: 1,
-				RespTimeout: 1,
-				Req: shadow.MethodReq{
-					ClientToken: "444444",
-					Data: struct {
-						Color string `json:"color"`
-					}{Color: "red"},
-				},
-			},
-			resp: shadow.MethodResp{
-				ClientToken: "444444",
-				Data:        "xkl",
-				Code:        200,
-				Message:     "OK",
-			},
-			err: nil,
+			err: model.ErrDirectMethodThingOffline,
 		},
 	}
 
@@ -132,11 +110,6 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 		go func() {
 			respJson, _ := json.Marshal(c.resp)
 			cCopy := c
-			if cCopy.req.ConnTimeout > 0 && cCopy.err == nil {
-				time.Sleep(time.Millisecond * time.Duration(cCopy.req.ConnTimeout*100))
-				mc.SimulatePresence(connector.PresenceEvent{ThingId: cCopy.req.ThingId, ClientId: cCopy.req.ThingId, EventType: connector.EventConnected})
-				mc.SetConnected(cCopy.req.ThingId, true)
-			}
 			time.Sleep(time.Millisecond * time.Duration(cCopy.timeoutMs))
 			respTopic := shadow.TopicMethodResponse(cCopy.req.ThingId, cCopy.req.Method)
 			mc.SimulateMessage(respTopic, respJson)

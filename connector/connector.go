@@ -55,17 +55,19 @@ type Subscriber interface {
 	QueueSubscribe(ctx context.Context, topic, queue string, callback func(msg Message)) error
 }
 
+type PresenceHandler func(ci ClientInfo)
+
 type Connectivity interface {
 	ConnectChecker
 
 	Start(ctx context.Context) error
 	Close(thingId string) error
 	Remove(thingId string) error
+	OnLocalPresence(handler PresenceHandler)
 }
 
 type ConnectChecker interface {
 	IsConnected(thingId string) (bool, error)
-	SubscribePresence(ctx context.Context) <-chan PresenceEvent
 	ClientInfo(thingId string) (ClientInfo, error)
 	AllClientInfo() ([]ClientInfo, error)
 }

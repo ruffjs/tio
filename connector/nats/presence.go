@@ -9,25 +9,22 @@ import (
 	"time"
 
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/eventbus"
 
 	server "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
 const (
-	presenceKVBucket     = "TIO_PRESENCE"
-	presenceKeyPrefix    = "presence."
-	presenceEventBusKey  = "presence"
-	reconcileInterval    = 10 * time.Second
-	sysConnectSubj       = "$SYS.ACCOUNT." + AppAccountName + ".CONNECT"
-	sysDisconnectSubj    = "$SYS.ACCOUNT." + AppAccountName + ".DISCONNECT"
+	presenceKVBucket  = "TIO_PRESENCE"
+	presenceKeyPrefix = "presence."
+	reconcileInterval = 10 * time.Second
+	sysConnectSubj    = "$SYS.ACCOUNT." + AppAccountName + ".CONNECT"
+	sysDisconnectSubj = "$SYS.ACCOUNT." + AppAccountName + ".DISCONNECT"
 )
 
 type PresenceRecord struct {
 	ThingId    string `json:"thingId"`
 	Connected  bool   `json:"connected"`
-	Generation int64  `json:"generation"`
 	ServerId   string `json:"serverId"`
 	ClientId   string `json:"clientId"`
 	RemoteAddr string `json:"remoteAddr"`
@@ -63,8 +60,6 @@ type sysDisconnectEvent struct {
 }
 
 func (c *Connector) initPresence() error {
-	c.presenceBus = eventbus.NewEventBus[connector.PresenceEvent]()
-
 	kv, err := c.js.CreateKeyValue(&nats.KeyValueConfig{
 		Bucket:   presenceKVBucket,
 		History:  5,
@@ -97,32 +92,20 @@ func (c *Connector) handleConnectEvent(msg *nats.Msg) {
 		return
 	}
 
+	if evt.Server.Name != c.cfg.Server.ServerName {
+		return
+	}
+
 	thingId := evt.Client.User
 	if thingId == "" || strings.HasPrefix(thingId, "$") {
 		return
 	}
 
-	serverId := evt.Server.Name
-	if serverId == "" {
-		serverId = evt.Server.ID
-	}
-
-	key := presenceKeyPrefix + thingId
-	var gen int64
-	if existing, err := c.kv.Get(key); err == nil {
-		var rec PresenceRecord
-		if json.Unmarshal(existing.Value(), &rec) == nil {
-			gen = rec.Generation
-		}
-	}
-	gen++
-
 	now := time.Now()
 	rec := PresenceRecord{
 		ThingId:    thingId,
 		Connected:  true,
-		Generation: gen,
-		ServerId:   serverId,
+		ServerId:   evt.Server.Name,
 		ClientId:   evt.Client.MQTTClient,
 		RemoteAddr: evt.Client.Host,
 		Timestamp:  now.UnixMilli(),
@@ -133,20 +116,23 @@ func (c *Connector) handleConnectEvent(msg *nats.Msg) {
 		slog.Error("marshal presence record", "error", err)
 		return
 	}
+	key := presenceKeyPrefix + thingId
 	if _, err := c.kv.Put(key, data); err != nil {
 		slog.Error("put presence record", "key", key, "error", err)
 		return
 	}
 
-	presenceEvt := connector.PresenceEvent{
-		Timestamp:  now.UnixMilli(),
-		EventType:  connector.EventConnected,
-		ThingId:    thingId,
-		ClientId:   evt.Client.MQTTClient,
-		RemoteAddr: evt.Client.Host,
-	}
+	c.publishMqttPresence(thingId, now, connector.EventConnected, rec)
 
-	c.publishPresence(thingId, presenceEvt)
+	if c.presenceHandler != nil {
+		c.presenceHandler(connector.ClientInfo{
+			ClientId:    thingId,
+			Username:    thingId,
+			Connected:   true,
+			ConnectedAt: &now,
+			RemoteAddr:  evt.Client.Host,
+		})
+	}
 }
 
 func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
@@ -156,60 +142,58 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 		return
 	}
 
+	if evt.Server.Name != c.cfg.Server.ServerName {
+		return
+	}
+
 	thingId := evt.Client.User
 	if thingId == "" || strings.HasPrefix(thingId, "$") {
 		return
 	}
 
-	key := presenceKeyPrefix + thingId
-	existing, err := c.kv.Get(key)
-	if err != nil {
-		return
-	}
-
-	var rec PresenceRecord
-	if json.Unmarshal(existing.Value(), &rec) != nil {
-		return
-	}
-
-	if !rec.Connected {
-		return
-	}
-
 	now := time.Now()
-	rec.Connected = false
-	rec.Timestamp = now.UnixMilli()
+	rec := PresenceRecord{
+		ThingId:    thingId,
+		Connected:  false,
+		ServerId:   evt.Server.Name,
+		ClientId:   evt.Client.MQTTClient,
+		RemoteAddr: evt.Client.Host,
+		Timestamp:  now.UnixMilli(),
+	}
 
 	data, err := json.Marshal(rec)
 	if err != nil {
 		slog.Error("marshal presence record", "error", err)
 		return
 	}
+	key := presenceKeyPrefix + thingId
 	if _, err := c.kv.Put(key, data); err != nil {
 		slog.Error("put presence record on disconnect", "key", key, "error", err)
 		return
 	}
 
-	presenceEvt := connector.PresenceEvent{
-		Timestamp:        now.UnixMilli(),
-		EventType:        connector.EventDisconnected,
-		ThingId:          thingId,
-		ClientId:         evt.Client.MQTTClient,
-		RemoteAddr:       evt.Client.Host,
-		DisconnectReason: evt.Reason,
-	}
+	c.publishMqttPresence(thingId, now, connector.EventDisconnected, rec)
 
-	c.publishPresence(thingId, presenceEvt)
+	if c.presenceHandler != nil {
+		c.presenceHandler(connector.ClientInfo{
+			ClientId:         thingId,
+			Username:         thingId,
+			Connected:        false,
+			DisconnectedAt:   &now,
+			DisconnectReason: evt.Reason,
+			RemoteAddr:       evt.Client.Host,
+		})
+	}
 }
 
-func (c *Connector) publishPresence(thingId string, evt connector.PresenceEvent) {
-	c.presenceBus.Publish(presenceEventBusKey, evt)
-
-	payload, err := json.Marshal(evt)
-	if err != nil {
-		slog.Error("marshal presence event for MQTT", "error", err)
-		return
-	}
+func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType string, rec PresenceRecord) {
+	payload, _ := json.Marshal(connector.PresenceEvent{
+		Timestamp:  ts.UnixMilli(),
+		EventType:  eventType,
+		ThingId:    thingId,
+		ClientId:   rec.ClientId,
+		RemoteAddr: rec.RemoteAddr,
+	})
 
 	if c.mqttPub != nil {
 		if err := c.mqttPub.Publish(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
@@ -239,6 +223,8 @@ func (c *Connector) reconcile() {
 		return
 	}
 
+	aliveServers := c.queryAliveServers()
+
 	opts := server.ConnzOptions{Username: true}
 	connz, err := c.natsSvr.Server().Connz(&opts)
 	if err != nil {
@@ -261,44 +247,83 @@ func (c *Connector) reconcile() {
 		return
 	}
 
-	kvConnected := make(map[string]bool)
-	if err != nats.ErrNoKeysFound {
-		for _, key := range keys {
-			if !strings.HasPrefix(key, presenceKeyPrefix) {
+	for _, key := range keys {
+		if !strings.HasPrefix(key, presenceKeyPrefix) {
+			continue
+		}
+		entry, err := c.kv.Get(key)
+		if err != nil {
+			continue
+		}
+		var rec PresenceRecord
+		if json.Unmarshal(entry.Value(), &rec) != nil {
+			continue
+		}
+
+		shouldDisconnect := false
+		if rec.Connected && !aliveServers[rec.ServerId] {
+			shouldDisconnect = true
+		}
+		if rec.Connected && aliveServers[rec.ServerId] && !activeUsers[rec.ThingId] {
+			shouldDisconnect = true
+		}
+
+		if shouldDisconnect {
+			now := time.Now()
+			rec.Connected = false
+			rec.Timestamp = now.UnixMilli()
+			data, _ := json.Marshal(rec)
+			if _, err := c.kv.Put(key, data); err != nil {
+				slog.Error("reconcile: put stale presence", "key", key, "error", err)
 				continue
 			}
-			entry, err := c.kv.Get(key)
-			if err != nil {
-				continue
+
+			c.publishMqttPresence(rec.ThingId, now, connector.EventDisconnected, rec)
+
+			if c.presenceHandler != nil {
+				c.presenceHandler(connector.ClientInfo{
+					ClientId:         rec.ThingId,
+					Username:         rec.ThingId,
+					Connected:        false,
+					DisconnectedAt:   &now,
+					DisconnectReason: "reconciled stale presence",
+					RemoteAddr:       rec.RemoteAddr,
+				})
 			}
-			var rec PresenceRecord
-			if json.Unmarshal(entry.Value(), &rec) != nil {
-				continue
-			}
-			if rec.Connected {
-				kvConnected[rec.ThingId] = true
+		}
+	}
+}
+
+func (c *Connector) queryAliveServers() map[string]bool {
+	result := make(map[string]bool)
+
+	if c.natsSvr != nil {
+		v, err := c.natsSvr.Server().Varz(nil)
+		if err == nil && v != nil {
+			result[v.Name] = true
+		}
+	}
+
+	reply, err := c.sysConn.Request("$SYS.REQ.SERVER.PING", nil, 2*time.Second)
+	if err == nil {
+		var servers struct {
+			Servers []struct {
+				Name string `json:"name"`
+			} `json:"servers"`
+		}
+		if json.Unmarshal(reply.Data, &servers) == nil {
+			for _, s := range servers.Servers {
+				result[s.Name] = true
 			}
 		}
 	}
 
-	for thingId := range kvConnected {
-		if !activeUsers[thingId] {
-			key := presenceKeyPrefix + thingId
-			existing, err := c.kv.Get(key)
-			if err != nil {
-				continue
-			}
-			var rec PresenceRecord
-			if json.Unmarshal(existing.Value(), &rec) != nil {
-				continue
-			}
-			if !rec.Connected {
-				continue
-			}
-			rec.Connected = false
-			rec.Timestamp = time.Now().UnixMilli()
-			data, _ := json.Marshal(rec)
-			_, _ = c.kv.Put(key, data)
+	if len(result) == 0 && c.natsSvr != nil {
+		v, _ := c.natsSvr.Server().Varz(nil)
+		if v != nil {
+			result[v.Name] = true
 		}
 	}
+
+	return result
 }

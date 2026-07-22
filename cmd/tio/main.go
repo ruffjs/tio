@@ -130,6 +130,10 @@ func main() {
 		}
 	}()
 
+	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
+		go shadowSvc.HandleLocalPresence(ci)
+	})
+
 	shadowSvc.Init(ctx)
 
 	ruleMgr := rule.NewRuleMgr()

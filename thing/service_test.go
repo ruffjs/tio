@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tioconn "ruff.io/tio/connector"
 	"ruff.io/tio/db/mock"
 	"ruff.io/tio/shadow"
 
@@ -33,6 +34,7 @@ type failingShadowSvc struct {
 }
 
 func (s failingShadowSvc) Init(context.Context) {}
+func (s failingShadowSvc) HandleLocalPresence(tioconn.ClientInfo) {}
 func (s failingShadowSvc) SetDesired(context.Context, string, shadow.StateReq) (shadow.Shadow, error) {
 	return shadow.Shadow{}, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"ruff.io/tio/connector"
 
@@ -114,34 +113,30 @@ func TestQueueSubscribeDistributes(t *testing.T) {
 	mu.Unlock()
 }
 
-func TestPresenceFanOut(t *testing.T) {
+func TestOnLocalPresenceCallback(t *testing.T) {
 	c := NewMockConnector()
 
-	ch1 := c.SubscribePresence(context.Background())
-	ch2 := c.SubscribePresence(context.Background())
+	var received []connector.ClientInfo
+	var mu sync.Mutex
 
-	evt := connector.PresenceEvent{
-		Timestamp: time.Now().UnixMilli(),
-		EventType: connector.EventConnected,
-		ThingId:   "thing1",
+	c.OnLocalPresence(func(ci connector.ClientInfo) {
+		mu.Lock()
+		received = append(received, ci)
+		mu.Unlock()
+	})
+
+	ci := connector.ClientInfo{
 		ClientId:  "client1",
+		Username:  "thing1",
+		Connected: true,
 	}
+	c.SimulatePresence(ci)
 
-	c.SimulatePresence(evt)
-
-	select {
-	case got := <-ch1:
-		assert.Equal(t, "thing1", got.ThingId)
-	case <-time.After(time.Second):
-		t.Fatal("ch1 did not receive presence event")
-	}
-
-	select {
-	case got := <-ch2:
-		assert.Equal(t, "thing1", got.ThingId)
-	case <-time.After(time.Second):
-		t.Fatal("ch2 did not receive presence event")
-	}
+	mu.Lock()
+	require.Len(t, received, 1)
+	assert.Equal(t, "thing1", received[0].Username)
+	assert.True(t, received[0].Connected)
+	mu.Unlock()
 }
 
 func TestContextCancellation(t *testing.T) {

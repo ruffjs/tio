@@ -1,7 +1,6 @@
 package nats
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -25,10 +24,6 @@ func (c *Connector) IsConnected(thingId string) (bool, error) {
 		return false, fmt.Errorf("unmarshal presence for %q: %w", thingId, err)
 	}
 	return rec.Connected, nil
-}
-
-func (c *Connector) SubscribePresence(ctx context.Context) <-chan connector.PresenceEvent {
-	return c.presenceBus.Subscribe(presenceEventBusKey)
 }
 
 func (c *Connector) ClientInfo(thingId string) (connector.ClientInfo, error) {
@@ -123,12 +118,14 @@ func (c *Connector) Close(thingId string) error {
 }
 
 func (c *Connector) Remove(thingId string) error {
+	_ = c.Close(thingId)
+
+	time.Sleep(100 * time.Millisecond)
+
 	key := presenceKeyPrefix + thingId
 	if c.kv != nil {
-		_ = c.kv.Purge(key)
+		_ = c.kv.Delete(key)
 	}
-
-	_ = c.Close(thingId)
 
 	if c.mqttPub != nil {
 		_ = c.mqttPub.Publish(connector.TopicPresence(thingId), 1, true, nil)

@@ -3,7 +3,6 @@
 package integration_tests
 
 import (
-	"context"
 	"fmt"
 
 	mq "ruff.io/tio/internal/mqtttest"
@@ -14,15 +13,8 @@ var connector = &testConnectorWrapper{}
 
 type testConnectorWrapper struct{}
 
-func (w *testConnectorWrapper) SubscribePresence(ctx context.Context) <-chan tioconnector.PresenceEvent {
-	ch := natsConnector.SubscribePresence(ctx)
-	out := make(chan tioconnector.PresenceEvent, 100)
-	go func() {
-		for e := range ch {
-			out <- e
-		}
-	}()
-	return out
+func (w *testConnectorWrapper) IsConnected(thingId string) (bool, error) {
+	return natsConnector.IsConnected(thingId)
 }
 
 func (w *testConnectorWrapper) ClientInfo(thingId string) (tioconnector.ClientInfo, error) {
