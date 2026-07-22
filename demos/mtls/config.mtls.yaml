@@ -1,0 +1,50 @@
+# mTLS Demo 配置文件
+# 使用方式：cp config.mtls.yaml config.yaml && go run cmd/tio/main.go
+# 注意：启用 mTLS 后，所有 MQTT 连接都需要使用 TLS 和客户端证书
+
+api:
+  port: 9000
+  basicAuth:
+    name: admin
+    password: public
+
+db:
+  type: sqlite
+  sqlite:
+    filePath: tio.sqlite
+    showSql: true
+
+connector:
+  type: nats
+  nats:
+    server:
+      serverName: tio-node-1
+      clusterName: tio
+      port: 4222
+      mqttPort: 8883              # MQTT over TLS 端口
+      wsPort: 0                   # 禁用 WebSocket（mTLS demo 不需要）
+      monitorPort: 8222
+      storeDir: ./data/nats/tio-node-1
+      mqttStreamReplicas: 1
+      presenceReplicas: 1
+      # MQTT TLS 配置（双向认证）
+      mqttTls:
+        certFile: "./demos/mtls/certs/server-cert.pem"
+        keyFile: "./demos/mtls/certs/server-key.pem"
+        caFile: "./demos/mtls/certs/ca.pem"
+        requireClientCert: true
+    appClient:
+      user: $tio-app
+      password: public
+    systemClient:
+      user: $tio-sys
+      password: public
+    mqttPublisher:
+      user: $tio-mqtt-publisher
+      password: public
+    superUsers:
+      - name: $biz
+        password: public
+
+log:
+  level: debug

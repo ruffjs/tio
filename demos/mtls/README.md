@@ -45,17 +45,79 @@ cd demos/mtls/certs
 
 ### 2. 配置 tio 服务器
 
-确保 `config.yaml` 中已启用 SSL/TLS 端口配置：
+tio 使用 NATS 作为 MQTT 网关。NATS 的 MQTT 端口只有一个，配置 TLS 后该端口即使用 TLS。
+
+**方式一：创建单独的 mTLS 配置文件**（推荐，不影响普通 MQTT 连接）
+
+创建 `config.mtls.yaml`：
+
+```yaml
+api:
+  port: 9000
+  basicAuth:
+    name: admin
+    password: public
+
+db:
+  type: sqlite
+  sqlite:
+    filePath: tio.sqlite
+
+connector:
+  type: nats
+  nats:
+    server:
+      serverName: tio-node-1
+      clusterName: tio
+      port: 4222
+      mqttPort: 8883              # MQTT over TLS 端口
+      wsPort: 8083
+      monitorPort: 8222
+      storeDir: ./data/nats/tio-node-1
+      mqttStreamReplicas: 1
+      presenceReplicas: 1
+      # MQTT TLS 配置（双向认证）
+      mqttTls:
+        certFile: "./demos/mtls/certs/server-cert.pem"
+        keyFile: "./demos/mtls/certs/server-key.pem"
+        caFile: "./demos/mtls/certs/ca.pem"
+        requireClientCert: true
+    appClient:
+      user: $tio-app
+      password: public
+    systemClient:
+      user: $tio-sys
+      password: public
+    mqttPublisher:
+      user: $tio-mqtt-publisher
+      password: public
+    superUsers:
+      - name: $biz
+        password: public
+
+log:
+  level: debug
+```
+
+**方式二：修改现有 config.yaml**
+
+在现有 `config.yaml` 的 `connector.nats.server` 下添加 `mqttTls` 配置，并将 `mqttPort` 改为 `8883`：
 
 ```yaml
 connector:
-  mqttBroker:
-    tcpSslPort: 8883
-    certFile: "./demos/mtls/certs/server-cert.pem"
-    keyFile: "./demos/mtls/certs/server-key.pem"
-    clientCaFile: "./demos/mtls/certs/ca.pem"
-    requireClientCert: true
+  type: nats
+  nats:
+    server:
+      # ... 其他配置 ...
+      mqttPort: 8883              # 改为 TLS 端口
+      mqttTls:
+        certFile: "./demos/mtls/certs/server-cert.pem"
+        keyFile: "./demos/mtls/certs/server-key.pem"
+        caFile: "./demos/mtls/certs/ca.pem"
+        requireClientCert: true
 ```
+
+> **注意**：启用 mTLS 后，所有 MQTT 连接都需要使用 TLS 和客户端证书。如果需要同时支持普通密码连接和证书连接，请使用方式一并运行两个 tio 实例。
 
 ### 3. 创建证书设备
 
@@ -87,7 +149,16 @@ curl -X POST http://localhost:9000/api/v1/things \
 
 ### 4. 启动 tio 服务
 
+> **注意**：tio 目前只支持读取 `config.yaml`，不支持命令行指定配置文件。如需测试 mTLS，请备份原 config.yaml 后替换为 mTLS 配置。
+
 ```bash
+# 备份原配置（可选）
+cp config.yaml config.yaml.bak
+
+# 使用 mTLS 配置
+cp config.mtls.yaml config.yaml
+
+# 启动 tio
 go run cmd/tio/main.go
 ```
 
