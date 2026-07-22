@@ -87,11 +87,11 @@ func (a *NatsAuthenticator) registerInternalAppUser(c server.ClientAuthenticatio
 		Account:   a.appAcc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$iothub.>", "$tio.>"},
+				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "$KV.>"},
 				Deny:  []string{"$tio.control.>"},
 			},
 			Subscribe: &server.SubjectPermission{
-				Allow: []string{"$iothub.>", "$tio.>"},
+				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "_INBOX.>", "$KV.>"},
 				Deny:  []string{"$tio.control.>"},
 			},
 		},

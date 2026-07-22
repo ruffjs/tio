@@ -8,6 +8,7 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/eventbus"
 
 	"github.com/nats-io/nats.go"
 	server "github.com/nats-io/nats-server/v2/server"
@@ -22,6 +23,9 @@ type Connector struct {
 	natsConn   *nats.Conn
 	sysConn    *nats.Conn
 	js         nats.JetStreamContext
+	kv         nats.KeyValue
+
+	presenceBus *eventbus.EventBus[connector.PresenceEvent]
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -82,6 +86,12 @@ func (c *Connector) Start(ctx context.Context) error {
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
+
+	if err := c.initPresence(); err != nil {
+		c.cleanupLocked()
+		return err
+	}
+
 	c.started = true
 	return nil
 }
