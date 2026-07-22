@@ -130,10 +130,21 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 		}
 	}
 
-	if cfg.WsPort > 0 || cfg.WsPort == -1 {
-		opts.Websocket = server.WebsocketOpts{
+	if cfg.WsPort > 0 {
+		wsOpts := server.WebsocketOpts{
 			Port: cfg.WsPort,
 		}
+		if !tlsConfigEmpty(cfg.WebsocketTLS) {
+			tlsCfg, err := buildTLSConfig(cfg.WebsocketTLS)
+			if err != nil {
+				return nil, fmt.Errorf("build WebSocket TLS config: %w", err)
+			}
+			wsOpts.TLSConfig = tlsCfg
+		} else {
+			// nats-server requires either TLS or NoTLS=true for WebSocket
+			wsOpts.NoTLS = true
+		}
+		opts.Websocket = wsOpts
 	}
 
 	if !tlsConfigEmpty(cfg.ClientTLS) {
