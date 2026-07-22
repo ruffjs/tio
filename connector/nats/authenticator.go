@@ -18,7 +18,6 @@ const (
 
 type NatsAuthenticator struct {
 	authzFn       connector.AuthzFn
-	aclFn         connector.AclFn
 	bindingGetter connector.BindingGetter
 	superUsers    []config.UserPassword
 	appClient     config.NatsClientConfig
@@ -30,14 +29,12 @@ type NatsAuthenticator struct {
 
 func NewNatsAuthenticator(
 	authzFn connector.AuthzFn,
-	aclFn connector.AclFn,
 	bindingGetter connector.BindingGetter,
 	superUsers []config.UserPassword,
 	appClient, sysClient, mqttPublisher config.NatsClientConfig,
 ) *NatsAuthenticator {
 	return &NatsAuthenticator{
 		authzFn:       authzFn,
-		aclFn:         aclFn,
 		bindingGetter: bindingGetter,
 		superUsers:    superUsers,
 		appClient:     appClient,

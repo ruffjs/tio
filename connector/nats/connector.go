@@ -38,7 +38,7 @@ func NewConnector(cfg config.NatsConfig) (*Connector, error) {
 	return &Connector{cfg: cfg}, nil
 }
 
-func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, aclFn connector.AclFn, bg connector.BindingGetter) error {
+func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, bg connector.BindingGetter) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.configured {
@@ -47,7 +47,6 @@ func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, aclFn connector.Acl
 
 	c.auth = NewNatsAuthenticator(
 		authzFn,
-		aclFn,
 		bg,
 		c.cfg.SuperUsers,
 		c.cfg.AppClient,

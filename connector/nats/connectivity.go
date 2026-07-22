@@ -140,8 +140,6 @@ func (c *Connector) Close(thingId string) error {
 func (c *Connector) Remove(thingId string) error {
 	_ = c.Close(thingId)
 
-	time.Sleep(100 * time.Millisecond)
-
 	key := presenceKeyPrefix + thingId
 	if c.kv != nil {
 		_ = c.kv.Delete(key)

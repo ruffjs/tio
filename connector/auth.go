@@ -17,8 +17,6 @@ type AuthResult struct {
 
 type AuthzFn func(authCtx AuthContext) (AuthResult, bool)
 
-type AclFn func(clientId, username, topic string, write bool) bool
-
 type BindingGetter interface {
 	IsBoundGateway(ctx context.Context, thingId, gatewayThingId string) (bool, error)
 	GetBoundThingIds(ctx context.Context, gatewayThingId string) ([]string, error)

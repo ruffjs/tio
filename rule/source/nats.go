@@ -3,7 +3,6 @@ package source
 import (
 	"context"
 	"log/slog"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,6 +26,7 @@ type MqttConfig struct {
 
 type mqttImpl struct {
 	ctx      context.Context
+	cancel   context.CancelFunc
 	name     string
 	config   MqttConfig
 	conn     connector.Connector
@@ -43,17 +43,15 @@ func newMqtt(ctx context.Context, name string, cfg map[string]any, _ ruleconnect
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, errors.WithMessage(err, "decode config")
 	}
+	subCtx, cancel := context.WithCancel(ctx)
 	m := &mqttImpl{
-		ctx:    ctx,
+		ctx:    subCtx,
+		cancel: cancel,
 		name:   name,
 		config: ac,
 		conn:   mainConn,
 		status: rmodel.StatusNotStarted(),
 	}
-
-	runtime.SetFinalizer(m, func(obj Source) {
-		slog.Debug("Rule source is being garbage collected", "type", obj.Type(), "name", obj.Name())
-	})
 
 	return m, nil
 }
@@ -86,6 +84,7 @@ func (m *mqttImpl) Stop() {
 		return
 	}
 	m.started = false
+	m.cancel()
 	m.status = rmodel.StatusNotStarted()
 	slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
 }

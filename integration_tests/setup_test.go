@@ -70,9 +70,8 @@ func TestMain(m *testing.M) {
 	thingSvc = thingWire.InitSvc(testCtx, dbConn, shadowSvc, natsConnector)
 
 	authzFn := auth.AuthzMqttClient(testCtx, cfg.Connector.Nats.SuperUsers, thingSvc, nil)
-	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.Nats.SuperUsers)
 
-	if err := natsConnector.ConfigureAuth(authzFn, aclFn, thingSvc); err != nil {
+	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
 		log.Fatal(err)
 	}
 	if err := natsConnector.Start(testCtx); err != nil {

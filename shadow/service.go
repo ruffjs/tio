@@ -111,6 +111,7 @@ type shadowSvc struct {
 	cache               Cache
 	cfg                 Config
 	connectorChecker    connector.ConnectChecker
+	ctx                 context.Context
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
 	acceptedSubscribers []StateAcceptedSubscribe
@@ -141,6 +142,7 @@ func NewSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
 }
 
 func (s *shadowSvc) Init(ctx context.Context) {
+	s.ctx = ctx
 	if err := s.doFirstSyncStatus(ctx); err != nil {
 		slog.Error("sync conn status on init", "error", err)
 	}
@@ -187,7 +189,11 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 }
 
 func (s *shadowSvc) HandleLocalPresence(ci connector.ClientInfo) {
-	err := s.repo.UpdateConnStatus(context.Background(), []connector.ClientInfo{ci})
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{ci})
 	if err != nil {
 		slog.Error("update conn error", "clientId", ci.ClientId, "error", err)
 	} else {

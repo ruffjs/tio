@@ -188,6 +188,13 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 		return
 	}
 
+	key := presenceKeyPrefix + thingId
+
+	// If the key was already removed (e.g. via Remove), don't recreate it.
+	if _, err := c.kv.Get(key); err == nats.ErrKeyNotFound {
+		return
+	}
+
 	now := time.Now()
 	rec := PresenceRecord{
 		ThingId:    thingId,
@@ -203,7 +210,6 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 		slog.Error("marshal presence record", "error", err)
 		return
 	}
-	key := presenceKeyPrefix + thingId
 	if _, err := c.kv.Put(key, data); err != nil {
 		slog.Error("put presence record on disconnect", "key", key, "error", err)
 		return
@@ -301,7 +307,7 @@ func (c *Connector) reconcile() {
 		if rec.Connected && !aliveServers[rec.ServerId] {
 			shouldDisconnect = true
 		}
-		if rec.Connected && aliveServers[rec.ServerId] && !activeUsers[rec.ThingId] {
+		if rec.Connected && rec.ServerId == c.cfg.Server.ServerName && !activeUsers[rec.ThingId] {
 			shouldDisconnect = true
 		}
 

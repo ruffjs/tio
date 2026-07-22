@@ -17,7 +17,7 @@ func TestNatsAuthenticator_InternalAppClientAuth(t *testing.T) {
 	sysClient := config.NatsClientConfig{User: "sys-user", Password: "sys-pass"}
 	mqttPub := config.NatsClientConfig{User: "mqtt-pub", Password: "mqtt-pass"}
 
-	authn := NewNatsAuthenticator(nil, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(nil, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -40,7 +40,7 @@ func TestNatsAuthenticator_InternalSysClientAuth(t *testing.T) {
 	sysClient := config.NatsClientConfig{User: "sys-user", Password: "sys-pass"}
 	mqttPub := config.NatsClientConfig{User: "mqtt-pub", Password: "mqtt-pass"}
 
-	authn := NewNatsAuthenticator(nil, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(nil, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -64,7 +64,7 @@ func TestNatsAuthenticator_InternalMqttPublisherAuth(t *testing.T) {
 	sysClient := config.NatsClientConfig{User: "sys-user", Password: "sys-pass"}
 	mqttPub := config.NatsClientConfig{User: "mqtt-pub", Password: "mqtt-pass"}
 
-	authn := NewNatsAuthenticator(nil, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(nil, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -99,7 +99,7 @@ func TestNatsAuthenticator_DynamicThingPasswordAuth(t *testing.T) {
 		return connector.AuthResult{}, false
 	}
 
-	authn := NewNatsAuthenticator(authzFn, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(authzFn, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -127,7 +127,7 @@ func TestNatsAuthenticator_DynamicThingAuthDenied(t *testing.T) {
 		return connector.AuthResult{}, false
 	}
 
-	authn := NewNatsAuthenticator(authzFn, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(authzFn, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -150,7 +150,7 @@ func TestNatsAuthenticator_AnonymousRejected(t *testing.T) {
 		return connector.AuthResult{}, false
 	}
 
-	authn := NewNatsAuthenticator(authzFn, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(authzFn, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -176,7 +176,7 @@ func TestNatsAuthenticator_ThingCannotAccessOtherThingTopics(t *testing.T) {
 		return connector.AuthResult{}, false
 	}
 
-	authn := NewNatsAuthenticator(authzFn, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(authzFn, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -210,7 +210,7 @@ func TestNatsAuthenticator_ThingCannotAccessSysSubjects(t *testing.T) {
 		return connector.AuthResult{}, false
 	}
 
-	authn := NewNatsAuthenticator(authzFn, nil, nil, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(authzFn, nil, nil, appClient, sysClient, mqttPub)
 	s, err := StartNatsServer(cfg, authn)
 	require.NoError(t, err)
 	defer s.Shutdown()
@@ -270,7 +270,7 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 	mqttPub := config.NatsClientConfig{User: "mqtt", Password: "mqtt"}
 
 	bg := &stubBindingGetter{boundThings: []string{"device-a", "device-b"}}
-	authn := NewNatsAuthenticator(nil, nil, bg, nil, appClient, sysClient, mqttPub)
+	authn := NewNatsAuthenticator(nil, bg, nil, appClient, sysClient, mqttPub)
 
 	perms := authn.thingPermissions("gateway-1")
 

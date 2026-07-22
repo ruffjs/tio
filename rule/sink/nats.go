@@ -13,10 +13,10 @@ import (
 	"ruff.io/tio/rule/model"
 )
 
-const TypeNats = "mqtt"
+const TypeMqtt = "mqtt"
 
 func init() {
-	Register(TypeNats, NewNats)
+	Register(TypeMqtt, NewNats)
 }
 
 type NatsConfig struct {
@@ -36,6 +36,7 @@ func NewNats(_ context.Context, name string, cfg map[string]any, _ ruleconnector
 		cfg:  ac,
 		conn: mainConn,
 		ch:   make(chan *Msg, 10000),
+		done: make(chan struct{}),
 	}
 	go a.publishLoop()
 	return a, nil
@@ -46,6 +47,7 @@ type natsImpl struct {
 	cfg  NatsConfig
 	conn connector.Connector
 	ch   chan *Msg
+	done chan struct{}
 
 	started bool
 	mu      sync.Mutex
@@ -62,7 +64,11 @@ func (s *natsImpl) Start() error {
 func (s *natsImpl) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.started {
+		return nil
+	}
 	s.started = false
+	close(s.done)
 	slog.Info("Rule stopped sink", "type", s.Type(), "name", s.name)
 	return nil
 }
@@ -79,40 +85,53 @@ func (s *natsImpl) Name() string {
 }
 
 func (*natsImpl) Type() string {
-	return TypeNats
+	return TypeMqtt
 }
 
 func (s *natsImpl) Publish(msg Msg) {
-	if s.started {
-		s.ch <- &msg
+	if !s.started {
+		return
+	}
+	select {
+	case s.ch <- &msg:
+	case <-s.done:
 	}
 }
 
 func (s *natsImpl) publishLoop() {
-	for msg := range s.ch {
-		topic := s.cfg.Topic
-		if strings.Contains(topic, "${thingId}") {
-			if msg.ThingId == "" {
-				slog.Error("NATS sink topic contains ${thingId} but msg.ThingId is empty", "name", s.name, "topic", topic)
-				continue
-			}
-			topic = strings.ReplaceAll(topic, "${thingId}", msg.ThingId)
+	for {
+		select {
+		case msg := <-s.ch:
+			s.publish(msg)
+		case <-s.done:
+			return
 		}
+	}
+}
 
-		payload := []byte(msg.Payload)
-		var err error
-		switch {
-		case s.cfg.Retained:
-			err = s.conn.PublishRetained(topic, payload)
-		case s.cfg.Qos >= 1:
-			err = s.conn.PublishReliable(topic, payload)
-		default:
-			err = s.conn.Publish(topic, payload)
+func (s *natsImpl) publish(msg *Msg) {
+	topic := s.cfg.Topic
+	if strings.Contains(topic, "${thingId}") {
+		if msg.ThingId == "" {
+			slog.Error("NATS sink topic contains ${thingId} but msg.ThingId is empty", "name", s.name, "topic", topic)
+			return
 		}
-		if err != nil {
-			slog.Error("NATS sink publish failed", "name", s.name, "topic", topic, "error", err)
-		} else {
-			slog.Debug("NATS sink published", "name", s.name, "topic", topic)
-		}
+		topic = strings.ReplaceAll(topic, "${thingId}", msg.ThingId)
+	}
+
+	payload := []byte(msg.Payload)
+	var err error
+	switch {
+	case s.cfg.Retained:
+		err = s.conn.PublishRetained(topic, payload)
+	case s.cfg.Qos >= 1:
+		err = s.conn.PublishReliable(topic, payload)
+	default:
+		err = s.conn.Publish(topic, payload)
+	}
+	if err != nil {
+		slog.Error("NATS sink publish failed", "name", s.name, "topic", topic, "error", err)
+	} else {
+		slog.Debug("NATS sink published", "name", s.name, "topic", topic)
 	}
 }
