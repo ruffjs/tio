@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -20,29 +21,42 @@ type mqttPublisher struct {
 	mqttPort   int
 	user       string
 	password   string
+	tlsConfig  *tls.Config
 	connected  bool
 	mu         sync.Mutex
 }
 
-func newMqttPublisher(serverName string, mqttPort int, user, password string) *mqttPublisher {
+func newMqttPublisher(serverName string, mqttPort int, user, password string, tlsConfig *tls.Config) *mqttPublisher {
 	return &mqttPublisher{
 		serverName: serverName,
 		mqttPort:   mqttPort,
 		user:       user,
 		password:   password,
+		tlsConfig:  tlsConfig,
 	}
 }
 
 func (p *mqttPublisher) Connect(ctx context.Context) error {
 	clientID := fmt.Sprintf("$tio-mqtt-pub-%s", p.serverName)
 
+	var brokerURL string
+	if p.tlsConfig != nil {
+		brokerURL = fmt.Sprintf("ssl://127.0.0.1:%d", p.mqttPort)
+	} else {
+		brokerURL = fmt.Sprintf("tcp://127.0.0.1:%d", p.mqttPort)
+	}
+
 	opts := mqtt.NewClientOptions().
-		AddBroker(fmt.Sprintf("tcp://127.0.0.1:%d", p.mqttPort)).
+		AddBroker(brokerURL).
 		SetClientID(clientID).
 		SetUsername(p.user).
 		SetPassword(p.password).
 		SetAutoReconnect(true).
 		SetConnectRetryInterval(1 * time.Second)
+
+	if p.tlsConfig != nil {
+		opts.SetTLSConfig(p.tlsConfig)
+	}
 
 	c := mqtt.NewClient(opts)
 	token := c.Connect()

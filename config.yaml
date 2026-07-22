@@ -1,17 +1,26 @@
+# Tio IoT Hub Configuration
+# This is the default configuration file embedded into the binary.
+# Runtime config.yaml overrides these values.
+
 api:
-  # Http rest api port
+  # HTTP REST API port
   port: 9000
-  # Basic authentication for http api
+  # Enable CORS (Cross-Origin Resource Sharing) for web frontend
+  cors: true
+  # Basic authentication for HTTP API
   # If there is no configuration, there is no authentication
   basicAuth:
     name: admin
     password: public
 
 db:
-  type: sqlite            # sqlite or mysql
+  # Database type: "sqlite" or "mysql"
+  type: sqlite
   sqlite:
-    filePath: tio.sqlite  # filepath or ":memory:"
-    showSql: true         # print log for sql
+    # SQLite database file path, or ":memory:" for in-memory database
+    filePath: tio.sqlite
+    # Print SQL statements in log (for debugging)
+    showSql: true
   mysql:
     host: 127.0.0.1
     port: 3306
@@ -19,73 +28,116 @@ db:
     password: public
     db: tio
     charset: utf8
+    # Timezone for MySQL connection (URL-encoded)
     timezone: Asia%2FShanghai
+    # Maximum number of idle connections in the connection pool
     maxIdleConns: 4
+    # Maximum number of open connections to the database
     maxOpenConns: 50
+    # Maximum amount of time (seconds) a connection may be reused
     connMaxLifetime: 60
-    showSql: true       # print log for sql
+    showSql: true
 
 connector:
+  # Connector type: "nats" (embedded NATS server with MQTT gateway)
   type: nats
   nats:
     server:
+      # Unique name for this NATS server node
       serverName: tio-node-1
+      # Cluster name for NATS clustering (all nodes in the same cluster must share this name)
       clusterName: tio
-      port: 4222              # NATS client port
-      clusterPort: 0          # NATS cluster route port, 0 means disabled
-      mqttPort: 1883          # MQTT port for devices
-      wsPort: 8083            # MQTT over WebSocket
-      monitorPort: 8222       # NATS monitoring port (for nats-top, nats cli)
-      # storeDir: "./nats-data" # JetStream persistent storage, blank for in-memory
-      # tls:
-      #   certFile: ""
-      #   keyFile: ""
-      #   caFile: ""
-      #   # For mTLS demo, uncomment and use certificates from demos/mtls/certs/
-      #   requireClientCert: false
+      # NATS client connection port (for internal services like app client, system client)
+      port: 4222
+      # NATS cluster port for inter-node communication
+      # Set to 0 to disable cluster mode (single-node deployment)
+      # Set to a non-zero value (e.g., 6222) for multi-node cluster deployment
+      clusterPort: 0
+      # Address to advertise to other cluster members (useful behind NAT/load balancer)
+      # Leave empty to use the default bind address
+      clusterAdvertise: ""
+      # List of cluster routes to connect to (for multi-node deployment)
+      # Example: ["nats://node2:6222", "nats://node3:6222"]
+      routes: []
+      # MQTT gateway port for device connections
+      # Devices connect here using MQTT protocol
+      mqttPort: 1883
+      # WebSocket port for web-based MQTT clients (e.g., browser dashboard)
+      # Set to 0 to disable WebSocket
+      wsPort: 8083
+      # HTTP monitoring port for NATS server metrics
+      # Provides endpoints like /varz, /connz, /jsz for monitoring
+      # Set to 0 to disable
+      monitorPort: 8222
+      # Directory for JetStream persistent storage (messages, streams, consumers)
+      storeDir: ./data/nats/tio-node-1
+      # Maximum memory (bytes) for JetStream message storage
+      # Default: 256MB (268435456 bytes)
+      jetStreamMaxMemory: 268435456
+      # Maximum disk storage (bytes) for JetStream
+      # Default: 1GB (1073741824 bytes)
+      jetStreamMaxStore: 1073741824
+      # Number of stream replicas for MQTT message persistence
+      # For single-node: 1
+      # For cluster: 3 (recommended for high availability)
+      mqttStreamReplicas: 1
+      # Number of replicas for presence (device online/offline status) streams
+      # For single-node: 1
+      # For cluster: 3 (recommended for high availability)
+      presenceReplicas: 1
+      # Username for cluster route authentication
+      clusterUser: $tio-route
+      # Password for cluster route authentication
+      clusterPassword: public
+      # Client TLS configuration (for NATS app/system client listener on port 4222)
+      # When configured, internal clients must use TLS to connect
+      clientTls: {}
+      # MQTT device listener TLS configuration
+      # When configured, mqttPort uses TLS (e.g., for mTLS device authentication)
+      # Example: { certFile: "./certs/server.pem", keyFile: "./certs/server-key.pem", caFile: "./certs/ca.pem", requireClientCert: true }
+      mqttTls: {}
+      # WebSocket TLS configuration
+      # When empty, WebSocket runs in plaintext mode
+      # When configured, wsPort uses WSS (WebSocket Secure)
+      websocketTls: {}
+      # Cluster route TLS configuration
+      # Required when cluster nodes communicate over TLS
+      # Requires caFile, certFile, and keyFile
+      routeTls: {}
+    # Internal app client credentials (used by tio for device-related operations)
     appClient:
       user: $tio-app
       password: public
+    # Internal system client credentials (used by tio for system/monitoring operations)
     systemClient:
       user: $tio-sys
       password: public
+    # Internal MQTT publisher credentials (used by tio to publish MQTT messages via NATS)
     mqttPublisher:
-      user: $tio-mqtt-pub
+      user: $tio-mqtt-publisher
       password: public
-    # superUsers can publish and subscribe all topics
+    # Super users have unrestricted access to all topics and operations
+    # Typically used by business applications
     superUsers:
       - name: $biz
         password: public
 
+# Shadow (device state) configuration
 shadow:
-  # Configure which shadow topics should exclude metadata to reduce payload size
-  # This is particularly useful for MCU clients with limited bandwidth or memory
-  # Available topic suffixes:
-  #   - "/get/accepted": Shadow get response messages
-  #   - "/update/accepted": Shadow update accepted messages  
-  #   - "/update/delta": Shadow delta state messages
-  #   - "/update/documents": Shadow document update messages
-  # For shadow get requests to $iothub/things/{thingId}/shadows/name/default/get, 
-  # the noMetadata field can be used to exclude metadata from the response:
-  # {
-  #   "clientToken": "generate-unique-token-string",
-  #   "noMetadata": true
-  # }
-  ignoreMetadataFor:
-    - "/get/accepted"
-    - "/update/accepted"
-    - "/update/delta"
-    - "/update/documents"
-# Provision secret for automatic thing creation
-# Thing's password should comply the generative rule:
-#   echo -n "thingId" | openssl dgst -md5 -hmac "provisionSecret" | xargs -I {} echo H{}
-# If provisionSecret is an empty string, disable automatic thing creation
-provisionSecret:
+  # List of shadow topics that should NOT include metadata in responses
+  # Metadata includes timestamps and version information
+  # Valid values: "/get/accepted", "/update/accepted", "/update/delta", "/update/documents"
+  # Example: To exclude metadata from delta messages (for bandwidth optimization):
+  #   ignoreMetadataFor: ["/update/delta"]
+  ignoreMetadataFor: []
+
+# Profiling configuration (for performance debugging)
+pprof:
+  # HTTP port for pprof endpoints (e.g., /debug/pprof/)
+  port: 6060
+  # Enable or disable pprof
+  enabled: false
 
 log:
-  level: debug # debug info warn error
-
-# Enable golang pprof http api
-pprof:
-  enabled: true
-  port: 6060
+  # Log level: "debug", "info", "warn", "error"
+  level: debug

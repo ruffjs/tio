@@ -96,6 +96,7 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 		Port:               cfg.Port,
 		HTTPPort:           cfg.MonitorPort,
 		JetStream:          true,
+		NoJetStreamStrict:  true,
 		JetStreamMaxMemory: cfg.JetStreamMaxMemory,
 		JetStreamMaxStore:  cfg.JetStreamMaxStore,
 		StoreDir:           cfg.StoreDir,
@@ -103,7 +104,9 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 		NoSigs:             true,
 	}
 
-	if cfg.ClusterPort != 0 || len(cfg.Routes) > 0 {
+	isClusterMode := cfg.ClusterPort != 0 || len(cfg.Routes) > 0
+
+	if isClusterMode {
 		opts.Cluster = server.ClusterOpts{
 			Name:      cfg.ClusterName,
 			Port:      cfg.ClusterPort,
@@ -184,10 +187,14 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 	}
 
 	appAccount := server.NewAccount(AppAccountName)
-	sysAccount := server.NewAccount(SysAccountName)
-
-	opts.Accounts = []*server.Account{appAccount, sysAccount}
-	opts.SystemAccount = SysAccountName
+	
+	if isClusterMode {
+		sysAccount := server.NewAccount(SysAccountName)
+		opts.Accounts = []*server.Account{appAccount, sysAccount}
+		opts.SystemAccount = SysAccountName
+	} else {
+		opts.Accounts = []*server.Account{appAccount}
+	}
 
 	if authn != nil {
 		opts.CustomClientAuthentication = authn
@@ -264,5 +271,33 @@ func buildClientTLSConfig(cfg config.NatsTLSClientConfig) (*tls.Config, error) {
 }
 
 func tlsConfigEmpty(cfg config.NatsTLSConfig) bool {
-	return cfg.CertFile == "" && cfg.KeyFile == "" && cfg.CAFile == ""
+	return cfg.CertFile == "" || cfg.KeyFile == ""
+}
+
+func buildMqttPublisherTLSConfig(cfg config.NatsTLSConfig) (*tls.Config, error) {
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	if cfg.CAFile != "" {
+		caCert, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read CA file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	if cfg.CertFile != "" && cfg.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load client cert/key: %w", err)
+		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsCfg, nil
 }

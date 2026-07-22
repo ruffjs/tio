@@ -99,16 +99,20 @@ func (a *NatsAuthenticator) registerInternalAppUser(c server.ClientAuthenticatio
 
 func (a *NatsAuthenticator) registerInternalSysUser(c server.ClientAuthentication) bool {
 	slog.Debug("NATS internal SYS client authenticated", "user", a.sysClient.User)
+	acc := a.sysAcc
+	if acc == nil {
+		acc = a.appAcc
+	}
 	user := &server.User{
 		Username:  a.sysClient.User,
 		Password:  a.sysClient.Password,
-		Account:   a.sysAcc,
+		Account:   acc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$SYS.>"},
+				Allow: []string{"$SYS.>", "$tio.>", "$iothub.>"},
 			},
 			Subscribe: &server.SubjectPermission{
-				Allow: []string{"$SYS.>", "$tio.events.>", "_INBOX.>"},
+				Allow: []string{"$SYS.>", "$tio.events.>", "$tio.>", "_INBOX.>"},
 			},
 		},
 	}

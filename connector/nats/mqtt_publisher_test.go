@@ -96,7 +96,7 @@ func TestMQTTPublisher_Connect(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("test-server", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("test-server", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -111,7 +111,7 @@ func TestMQTTPublisher_Connect(t *testing.T) {
 }
 
 func TestMQTTPublisher_ConnectContextCancel(t *testing.T) {
-	pub := newMqttPublisher("test-server", 19999, "pub-user", "pub-pass")
+	pub := newMqttPublisher("test-server", 19999, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -123,7 +123,7 @@ func TestMQTTPublisher_QoS1Delivery(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("qos1-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("qos1-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -157,7 +157,7 @@ func TestMQTTPublisher_QoS0Delivery(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("qos0-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("qos0-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -189,7 +189,7 @@ func TestMQTTPublisher_RetainedMessage(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("retain-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("retain-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -224,7 +224,7 @@ func TestMQTTPublisher_ClearRetained(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("clear-retain-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("clear-retain-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -263,7 +263,7 @@ func TestMQTTPublisher_PublishAfterDisconnect(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("disc-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("disc-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -279,7 +279,7 @@ func TestMQTTPublisher_InvalidTopic(t *testing.T) {
 	s, _ := startMqttTestServer(t, -1)
 	mqttPort := getMqttPort(t, s)
 
-	pub := newMqttPublisher("topic-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("topic-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)
@@ -303,7 +303,7 @@ func TestMQTTPublisher_Reconnect(t *testing.T) {
 	s1, _ := startMqttTestServer(t, mqttPort)
 	_ = s1
 
-	pub := newMqttPublisher("reconnect-test", mqttPort, "pub-user", "pub-pass")
+	pub := newMqttPublisher("reconnect-test", mqttPort, "pub-user", "pub-pass", nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := pub.Connect(ctx)

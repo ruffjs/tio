@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"sync"
@@ -154,11 +155,22 @@ func (c *Connector) startMqttPublisher(ctx context.Context) error {
 	if mqttPort <= 0 {
 		return fmt.Errorf("MQTT gateway port not available")
 	}
+	
+	var pubTLS *tls.Config
+	if !tlsConfigEmpty(c.cfg.Server.MqttTLS) {
+		tlsCfg, err := buildMqttPublisherTLSConfig(c.cfg.Server.MqttTLS)
+		if err != nil {
+			return fmt.Errorf("build MQTT publisher TLS config: %w", err)
+		}
+		pubTLS = tlsCfg
+	}
+	
 	pub := newMqttPublisher(
 		c.cfg.Server.ServerName,
 		mqttPort,
 		c.cfg.MqttPublisher.User,
 		c.cfg.MqttPublisher.Password,
+		pubTLS,
 	)
 	if err := pub.Connect(ctx); err != nil {
 		return fmt.Errorf("connect mqtt publisher: %w", err)
