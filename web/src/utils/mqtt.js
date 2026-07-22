@@ -254,7 +254,7 @@ export const getDefaultForm = () => {
     ca: "",
     cert: "",
     key: "",
-    mqttVersion: "5.0",
+    mqttVersion: "3.1.1",
     subscriptions: [],
     pushProps: {},
     will: {
