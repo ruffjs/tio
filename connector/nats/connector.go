@@ -92,6 +92,11 @@ func (c *Connector) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := c.initControl(); err != nil {
+		c.cleanupLocked()
+		return err
+	}
+
 	c.started = true
 	return nil
 }

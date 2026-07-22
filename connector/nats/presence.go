@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	presenceKVBucket  = "TIO_PRESENCE"
-	presenceKeyPrefix = "presence."
-	reconcileInterval = 10 * time.Second
-	sysConnectSubj    = "$SYS.ACCOUNT." + AppAccountName + ".CONNECT"
-	sysDisconnectSubj = "$SYS.ACCOUNT." + AppAccountName + ".DISCONNECT"
+	presenceKVBucket      = "TIO_PRESENCE"
+	presenceKeyPrefix     = "presence."
+	reconcileInterval     = 10 * time.Second
+	sysConnectSubj        = "$SYS.ACCOUNT." + AppAccountName + ".CONNECT"
+	sysDisconnectSubj     = "$SYS.ACCOUNT." + AppAccountName + ".DISCONNECT"
+	controlDisconnectSubj = "$tio.control.disconnect"
 )
 
 type PresenceRecord struct {
@@ -83,6 +84,42 @@ func (c *Connector) initPresence() error {
 	go c.startReconciliation(c.ctx)
 
 	return nil
+}
+
+func (c *Connector) initControl() error {
+	_, err := c.natsConn.Subscribe(controlDisconnectSubj, func(msg *nats.Msg) {
+		var req struct {
+			ThingId  string `json:"thingId"`
+			ServerId string `json:"serverId"`
+		}
+		if json.Unmarshal(msg.Data, &req) != nil {
+			return
+		}
+		if req.ServerId != c.cfg.Server.ServerName {
+			return
+		}
+
+		if c.natsSvr == nil {
+			return
+		}
+		opts := server.ConnzOptions{Username: true, User: req.ThingId}
+		connz, err := c.natsSvr.Server().Connz(&opts)
+		if err != nil {
+			slog.Error("control disconnect: get connz", "thingId", req.ThingId, "error", err)
+			return
+		}
+		for _, ci := range connz.Conns {
+			if ci.AuthorizedUser == req.ThingId {
+				if err := c.natsSvr.Server().DisconnectClientByID(ci.Cid); err != nil {
+					slog.Error("control disconnect: disconnect client", "thingId", req.ThingId, "cid", ci.Cid, "error", err)
+				}
+			}
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("subscribe control disconnect: %w", err)
+	}
+	return c.natsConn.Flush()
 }
 
 func (c *Connector) handleConnectEvent(msg *nats.Msg) {

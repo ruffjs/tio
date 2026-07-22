@@ -87,34 +87,54 @@ func (c *Connector) AllClientInfo() ([]connector.ClientInfo, error) {
 	return result, nil
 }
 
-func (c *Connector) Close(thingId string) error {
+func (c *Connector) disconnectLocal(thingId string) bool {
 	if c.natsSvr == nil {
-		return fmt.Errorf("server not available")
+		return false
 	}
-
-	opts := server.ConnzOptions{
-		Username: true,
-		User:     thingId,
-	}
+	opts := server.ConnzOptions{Username: true, User: thingId}
 	connz, err := c.natsSvr.Server().Connz(&opts)
 	if err != nil {
-		return fmt.Errorf("get connz for %q: %w", thingId, err)
+		return false
 	}
-
 	var closed bool
 	for _, ci := range connz.Conns {
 		if ci.AuthorizedUser == thingId {
-			if err := c.natsSvr.Server().DisconnectClientByID(ci.Cid); err != nil {
-				return fmt.Errorf("disconnect client %d: %w", ci.Cid, err)
+			if err := c.natsSvr.Server().DisconnectClientByID(ci.Cid); err == nil {
+				closed = true
 			}
-			closed = true
 		}
 	}
+	return closed
+}
 
-	if !closed {
+func (c *Connector) Close(thingId string) error {
+	if c.disconnectLocal(thingId) {
+		return nil
+	}
+
+	entry, err := c.kv.Get(presenceKeyPrefix + thingId)
+	if err == nats.ErrKeyNotFound {
 		return fmt.Errorf("no connection found for %q", thingId)
 	}
-	return nil
+	if err != nil {
+		return fmt.Errorf("get presence for %q: %w", thingId, err)
+	}
+	var rec PresenceRecord
+	if err := json.Unmarshal(entry.Value(), &rec); err != nil {
+		return fmt.Errorf("unmarshal presence for %q: %w", thingId, err)
+	}
+	if !rec.Connected {
+		return fmt.Errorf("no connection found for %q", thingId)
+	}
+
+	payload, err := json.Marshal(map[string]string{
+		"thingId":  thingId,
+		"serverId": rec.ServerId,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal control disconnect: %w", err)
+	}
+	return c.natsConn.Publish(controlDisconnectSubj, payload)
 }
 
 func (c *Connector) Remove(thingId string) error {
