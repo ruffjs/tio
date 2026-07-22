@@ -28,7 +28,7 @@ func TestAmqp(t *testing.T) {
 	conn, _ := connector.NewAmqp(context.Background(), "test", connCfg)
 	con, ok := conn.(*connector.Amqp)
 	require.True(t, ok)
-	c, _ := sink.NewAmqp(context.Background(), "test", cfg, con)
+	c, _ := sink.NewAmqp(context.Background(), "test", cfg, con, nil)
 	c.Publish(sink.Msg{
 		ThingId: "thing",
 		Payload: `{"a": 1}`,

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/redissplit"
-	"ruff.io/tio/rule/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -37,8 +38,8 @@ func init() {
 	Register(TypeRedis, NewRedis)
 }
 
-func NewRedis(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
-	c, ok := conn.(*connector.Redis)
+func NewRedis(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
+	c, ok := ruleConn.(*ruleconnector.Redis)
 	if !ok {
 		return nil, fmt.Errorf("wrong connector type for Redis sink")
 	}
@@ -56,7 +57,7 @@ func NewRedis(ctx context.Context, name string, cfg map[string]any, conn connect
 type redisImpl struct {
 	ctx  context.Context
 	name string
-	conn *connector.Redis
+	conn *ruleconnector.Redis
 	ch   chan *Msg
 
 	started bool

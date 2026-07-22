@@ -119,7 +119,7 @@ func TestNewInfluxDB(t *testing.T) {
 			ctx := context.Background()
 			conn := &MockInfluxDBConn{}
 			conn.On("Client").Return(resty.New())
-			sink, err := NewInfluxDB(ctx, "test-sink", tt.cfg, conn)
+			sink, err := NewInfluxDB(ctx, "test-sink", tt.cfg, conn, nil)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -208,7 +208,7 @@ func TestInfluxDBPublish(t *testing.T) {
 				"batchSize":    tt.batchSize,
 				"batchTimeout": tt.batchTimeout,
 			}
-			sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn)
+			sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn, nil)
 			assert.NoError(t, err)
 
 			// Start the sink
@@ -264,7 +264,7 @@ func TestInfluxDBErrorHandling(t *testing.T) {
 		"batchSize":    1,
 		"batchTimeout": 1 * time.Second,
 	}
-	sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn)
+	sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn, nil)
 	assert.NoError(t, err)
 
 	// Start the sink
@@ -421,7 +421,7 @@ func TestInfluxDBRetry(t *testing.T) {
 				"maxRetries":    tt.maxRetries,
 				"retryInterval": tt.retryInterval,
 			}
-			sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn)
+			sink, err := NewInfluxDB(ctx, "test-sink", cfg, conn, nil)
 			assert.NoError(t, err)
 
 			// Start the sink

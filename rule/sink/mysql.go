@@ -7,7 +7,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mitchellh/mapstructure"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -40,12 +41,12 @@ func init() {
 type MySqlConfig struct {
 }
 
-func NewMySQL(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewMySQL(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	var ac MySqlConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, fmt.Errorf("decode config")
 	}
-	c, ok := conn.(*connector.MySQL)
+	c, ok := ruleConn.(*ruleconnector.MySQL)
 	if !ok {
 		return nil, fmt.Errorf("wrong connector type for mysql sink")
 	}
@@ -65,7 +66,7 @@ type mysqlImpl struct {
 	ctx  context.Context
 	name string
 	cfg  MySqlConfig
-	conn *connector.MySQL
+	conn *ruleconnector.MySQL
 	ch   chan *Msg
 
 	started bool

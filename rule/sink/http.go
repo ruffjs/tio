@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -25,7 +26,7 @@ type HttpConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-func NewHttp(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewHttp(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	var ac HttpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		slog.Error("decode sink Http config", "name", name, "error", err)
@@ -33,7 +34,7 @@ func NewHttp(ctx context.Context, name string, cfg map[string]any, conn connecto
 	}
 	ac.Method = strings.ToUpper(ac.Method)
 
-	c, ok := conn.(*connector.Http)
+	c, ok := ruleConn.(*ruleconnector.Http)
 	if !ok {
 		return nil, fmt.Errorf("wrong connector type for Http sink")
 	}
@@ -53,7 +54,7 @@ type HttpImpl struct {
 	ctx  context.Context
 	name string
 	cfg  HttpConfig
-	conn *connector.Http
+	conn *ruleconnector.Http
 	ch   chan *Msg
 
 	started bool

@@ -8,8 +8,9 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"ruff.io/tio"
+	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/uuid"
-	"ruff.io/tio/rule/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -30,13 +31,13 @@ func init() {
 type TdengineConfig struct {
 }
 
-func NewTdengine(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewTdengine(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	var ac TdengineConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		slog.Error("decode sink Tdengine config", "name", name, "error", err)
 		return nil, fmt.Errorf("decode config: %w", err)
 	}
-	c, ok := conn.(*connector.Tdengine)
+	c, ok := ruleConn.(*ruleconnector.Tdengine)
 	if !ok {
 		slog.Error("wrong connector type for Tdengine sink")
 		return nil, fmt.Errorf("wrong connector type for Tdengine sink")
@@ -58,7 +59,7 @@ type TdengineImpl struct {
 	ctx      context.Context
 	name     string
 	cfg      TdengineConfig
-	conn     *connector.Tdengine
+	conn     *ruleconnector.Tdengine
 	ch       chan *Msg
 	uuidProd tio.IdProvider
 

@@ -9,7 +9,8 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -28,12 +29,12 @@ type AmqpConfig struct {
 	// WaitAckTimeout time.Duration `json:"waitAckTimeout"`
 }
 
-func NewAmqp(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewAmqp(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	var ac AmqpConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, fmt.Errorf("decode config %v", err)
 	}
-	c, ok := conn.(*connector.Amqp)
+	c, ok := ruleConn.(*ruleconnector.Amqp)
 	if !ok {
 		return nil, fmt.Errorf("wrong connector type for AMQP sink")
 	}
@@ -56,7 +57,7 @@ type amqpImpl struct {
 	name    string
 	config  AmqpConfig
 	ch      chan *Msg
-	conn    *connector.Amqp
+	conn    *ruleconnector.Amqp
 	channel *amqp.Channel
 
 	started bool

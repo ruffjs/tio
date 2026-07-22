@@ -137,7 +137,7 @@ func main() {
 	shadowSvc.Init(ctx)
 
 	ruleMgr := rule.NewRuleMgr()
-	ruleMgr.Boot(ctx, shadowSvc)
+	ruleMgr.Boot(ctx, shadowSvc, natsConnector)
 
 	if err := methodHandler.InitMethodHandler(ctx); err != nil {
 		log.Fatalf("Init method handler error: %v", err)

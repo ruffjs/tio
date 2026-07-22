@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -44,7 +45,7 @@ type InfluxDBConfig struct {
 	RetryInterval int `mapstructure:"retryInterval"`
 }
 
-func NewInfluxDB(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewInfluxDB(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	var ac InfluxDBConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, fmt.Errorf("decode config: %w", err)
@@ -64,7 +65,7 @@ func NewInfluxDB(ctx context.Context, name string, cfg map[string]any, conn conn
 		ac.RetryInterval = DefaultRetryInterval
 	}
 
-	c, ok := conn.(connector.InfluxDB)
+	c, ok := ruleConn.(ruleconnector.InfluxDB)
 	if !ok {
 		return nil, fmt.Errorf("wrong connector type for InfluxDB sink")
 	}
@@ -84,7 +85,7 @@ type InfluxDBImpl struct {
 	ctx  context.Context
 	name string
 	cfg  InfluxDBConfig
-	conn connector.InfluxDB
+	conn ruleconnector.InfluxDB
 	ch   chan *Msg
 
 	started bool

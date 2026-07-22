@@ -10,7 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/viper"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 	"ruff.io/tio/rule/process"
 	"ruff.io/tio/rule/sink"
@@ -29,8 +30,9 @@ type RuleMgr struct {
 	ctx          context.Context
 	cfg          Config
 	shadowGetter shadow.CacheService
+	mainConn     connector.Connector
 
-	conns   map[string]connector.Conn
+	conns   map[string]ruleconnector.Conn
 	sinks   map[string]sink.Sink
 	sources map[string]source.Source
 	rules   map[string]Rule
@@ -54,7 +56,7 @@ type ComponentChanges struct {
 
 func NewRuleMgr() *RuleMgr {
 	m := RuleMgr{
-		conns:   make(map[string]connector.Conn),
+		conns:   make(map[string]ruleconnector.Conn),
 		sinks:   make(map[string]sink.Sink),
 		sources: make(map[string]source.Source),
 		rules:   make(map[string]Rule),
@@ -89,12 +91,13 @@ func NewComponentChanges() ComponentChanges {
 // Boot Read rule config, assemble rules and then boot them
 //
 // If config file is not exist, give up
-func (r *RuleMgr) Boot(ctx context.Context, shadowGetter shadow.CacheService) {
+func (r *RuleMgr) Boot(ctx context.Context, shadowGetter shadow.CacheService, mainConn connector.Connector) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.ctx = ctx
 	r.shadowGetter = shadowGetter
+	r.mainConn = mainConn
 
 	if err := r.loadConfig(); err != nil {
 		slog.Error("Rule boot", "error", err)
@@ -168,7 +171,7 @@ func (r *RuleMgr) diffConfig(newCfg Config) ComponentChanges {
 	changes := NewComponentChanges()
 
 	// Compare connectors
-	oldConnectors := lo.SliceToMap(r.cfg.Connectors, func(c connector.Config) (string, connector.Config) {
+	oldConnectors := lo.SliceToMap(r.cfg.Connectors, func(c ruleconnector.Config) (string, ruleconnector.Config) {
 		return c.Name, c
 	})
 	for _, newConn := range newCfg.Connectors {
@@ -643,8 +646,8 @@ func (r *RuleMgr) initRule(rc RuleConfig, shadowGetter shadow.CacheService) (Rul
 	return rule, nil
 }
 
-func (r *RuleMgr) initConn(ctx context.Context, cfg connector.Config) (connector.Conn, error) {
-	c, err := connector.New(ctx, cfg)
+func (r *RuleMgr) initConn(ctx context.Context, cfg ruleconnector.Config) (ruleconnector.Conn, error) {
+	c, err := ruleconnector.New(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("new connector failed: %w", err)
 	}
@@ -655,7 +658,7 @@ func (r *RuleMgr) initConn(ctx context.Context, cfg connector.Config) (connector
 }
 
 func (r *RuleMgr) initSink(ctx context.Context, cfg sink.Config) (sink.Sink, error) {
-	var c connector.Conn
+	var c ruleconnector.Conn
 	if cfg.Connector != "" {
 		cc, ok := r.conns[cfg.Connector]
 		if !ok {
@@ -664,7 +667,7 @@ func (r *RuleMgr) initSink(ctx context.Context, cfg sink.Config) (sink.Sink, err
 			c = cc
 		}
 	}
-	s, err := sink.New(ctx, cfg, c)
+	s, err := sink.New(ctx, cfg, c, r.mainConn)
 	if err != nil {
 		return nil, fmt.Errorf("new sink: %w", err)
 	}
@@ -676,7 +679,7 @@ func (r *RuleMgr) initSink(ctx context.Context, cfg sink.Config) (sink.Sink, err
 }
 
 func (r *RuleMgr) initSource(ctx context.Context, cfg source.Config) (source.Source, error) {
-	var c connector.Conn
+	var c ruleconnector.Conn
 	if cfg.Connector != "" {
 		cc, ok := r.conns[cfg.Connector]
 		if !ok {
@@ -685,7 +688,7 @@ func (r *RuleMgr) initSource(ctx context.Context, cfg source.Config) (source.Sou
 			c = cc
 		}
 	}
-	s, err := source.New(ctx, cfg, c)
+	s, err := source.New(ctx, cfg, c, r.mainConn)
 	if err != nil {
 		slog.Error("Init rule source", "name", cfg.Name, "type", cfg.Type, "error", err)
 		return nil, fmt.Errorf("new source: %w", err)

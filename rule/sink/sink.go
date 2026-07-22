@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -31,7 +32,7 @@ type Config struct {
 	Options   map[string]any `json:"options"`
 }
 
-type CreateFunc func(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error)
+type CreateFunc func(ctx context.Context, name string, cfg map[string]any, ruleConn ruleconnector.Conn, mainConn connector.Connector) (Sink, error)
 
 type Metric struct {
 	Received int64 `json:"received"`
@@ -50,12 +51,12 @@ func Register(typ string, f CreateFunc) {
 	slog.Info("Rule sink registered", "type", typ)
 }
 
-func New(ctx context.Context, cfg Config, conn connector.Conn) (Sink, error) {
+func New(ctx context.Context, cfg Config, ruleConn ruleconnector.Conn, mainConn connector.Connector) (Sink, error) {
 	f, ok := registry[cfg.Type]
 	if !ok {
 		return nil, fmt.Errorf("sink not found")
 	}
-	return f(ctx, cfg.Name, cfg.Options, conn)
+	return f(ctx, cfg.Name, cfg.Options, ruleConn, mainConn)
 }
 
 func withConnStatus(connName string, connStatus model.StatusInfo) model.StatusInfo {

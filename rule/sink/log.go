@@ -6,7 +6,8 @@ import (
 	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
-	"ruff.io/tio/rule/connector"
+	"ruff.io/tio/connector"
+	ruleconnector "ruff.io/tio/rule/connector"
 	"ruff.io/tio/rule/model"
 )
 
@@ -18,7 +19,7 @@ func init() {
 	Register(TypeLog, NewLog)
 }
 
-func NewLog(ctx context.Context, name string, cfg map[string]any, conn connector.Conn) (Sink, error) {
+func NewLog(ctx context.Context, name string, cfg map[string]any, _ ruleconnector.Conn, _ connector.Connector) (Sink, error) {
 	a := &logImpl{
 		name: name,
 		ch:   make(chan *Msg, 100),
