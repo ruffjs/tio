@@ -1,0 +1,78 @@
+version: "3.8"
+
+services:
+  tio-node-1:
+    image: tio:latest
+    container_name: tio-node-1
+    volumes:
+      - ./configs/node-1.yaml:/app/config.yaml:ro
+      - node1-data:/app/data/nats
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "1883:1883"
+      - "8083:8083"
+      - "9000:9000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tio-node-2:
+    image: tio:latest
+    container_name: tio-node-2
+    volumes:
+      - ./configs/node-2.yaml:/app/config.yaml:ro
+      - node2-data:/app/data/nats
+    ports:
+      - "4223:4222"
+      - "6223:6222"
+      - "1884:1883"
+      - "8084:8083"
+      - "9001:9000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tio-node-3:
+    image: tio:latest
+    container_name: tio-node-3
+    volumes:
+      - ./configs/node-3.yaml:/app/config.yaml:ro
+      - node3-data:/app/data/nats
+    ports:
+      - "4224:4222"
+      - "6224:6222"
+      - "1885:1883"
+      - "8085:8083"
+      - "9002:9000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8
+    container_name: tio-mysql
+    environment:
+      MYSQL_DATABASE: tio
+      MYSQL_USER: tio
+      MYSQL_PASSWORD: public
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "tio", "-ppublic"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+  mysql-data:
