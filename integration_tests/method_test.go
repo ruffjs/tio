@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	mq "ruff.io/tio/connector/mqtt/client"
+	mq "ruff.io/tio/internal/mqtttest"
 	"ruff.io/tio/shadow"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -20,7 +20,7 @@ import (
 	shadowApi "ruff.io/tio/shadow/api"
 )
 
-func newThingClient(ctx context.Context, thingId string, t *testing.T) mq.Client {
+func newThingClient(ctx context.Context, thingId string, t *testing.T) *mq.DeviceClient {
 	th := crateThing(thingId)
 	mqClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
 
@@ -38,7 +38,7 @@ func TestMethodInvoke(t *testing.T) {
 	// thing subscribe and response
 	thingClient := newThingClient(ctx, thingId, t)
 	go func() {
-		_ = thingClient.Subscribe(ctx, shadow.TopicMethodRequest(thingId, methodName), 0, func(c mqtt.Client, m mqtt.Message) {
+		_ = thingClient.Subscribe(shadow.TopicMethodRequest(thingId, methodName), 0, func(c mqtt.Client, m mqtt.Message) {
 			var req shadow.MethodReq
 			err := json.Unmarshal(m.Payload(), &req)
 			require.NoError(t, err, "device unable to unmarshal method request")
@@ -50,9 +50,8 @@ func TestMethodInvoke(t *testing.T) {
 				Code:        200,
 			}
 			b, _ := json.Marshal(resp)
-			tk := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
-			tk.Wait()
-			require.NoError(t, tk.Error(), "device unable to publish method response")
+			err := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
+			require.NoError(t, err, "device unable to publish method response")
 		})
 	}()
 

@@ -16,8 +16,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/manifoldco/promptui"
-	"ruff.io/tio/config"
-	"ruff.io/tio/connector/mqtt/client"
+	"ruff.io/tio/internal/mqtttest"
 	"ruff.io/tio/thing/api"
 )
 
@@ -30,7 +29,7 @@ var (
 
 	serverMqUser     = "$biz"
 	serverMqPassword = "public"
-	mqttClient       client.Client
+	mqttClient       *mqtttest.DeviceClient
 )
 
 func main() {
@@ -76,8 +75,7 @@ func main() {
 func connectTioByMqtt() {
 	ctx := context.Background()
 	cld := fmt.Sprintf("%s-%d", serverMqUser, rand.Intn(100))
-	cfg := config.MqttClientConfig{ClientId: cld, User: serverMqUser, Password: serverMqPassword, Host: "localhost", Port: 1883}
-	mqttClient = client.NewClient(cfg)
+	mqttClient = mqtttest.NewDeviceClient("tcp://localhost:1883", cld, serverMqUser, serverMqPassword)
 	err := mqttClient.Connect(ctx)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -86,7 +84,7 @@ func connectTioByMqtt() {
 
 func receiveThingsPresence() {
 	topic := "$iothub/things/+/presence"
-	err := mqttClient.Subscribe(context.Background(), topic, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topic, 0, func(c mqtt.Client, m mqtt.Message) {
 		slog.Info("[Receive Things presence]", "payload", m.Payload())
 	})
 	if err != nil {
@@ -96,10 +94,8 @@ func receiveThingsPresence() {
 
 func receiveThingsProperties() {
 	topic := "$iothub/things/+/messages/property"
-	err := mqttClient.Subscribe(context.Background(), topic, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topic, 0, func(c mqtt.Client, m mqtt.Message) {
 		slog.Info("[Receive Things Properties]", "payload", m.Payload())
-		// Do something more, eg: save properties to TSDB; trigger an alert by some rule
-		// ...
 	})
 	if err != nil {
 		log.Fatalf("subscribe error %v", err)

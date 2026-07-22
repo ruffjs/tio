@@ -16,8 +16,7 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"ruff.io/tio/config"
-	"ruff.io/tio/connector/mqtt/client"
+	"ruff.io/tio/internal/mqtttest"
 	"ruff.io/tio/shadow"
 )
 
@@ -29,7 +28,7 @@ var (
 		"voltage":    0,
 	}
 
-	mqttClient client.Client
+	mqttClient *mqtttest.DeviceClient
 	ctx        context.Context
 )
 
@@ -97,19 +96,11 @@ func connectTioByMtls() {
 	thingId = x509Cert.Subject.CommonName
 	slog.Info("Extracted thingId from client certificate CN", "thingId", thingId)
 
-	cfg := config.MqttClientConfig{
-		ClientId: thingId,
-		Host:     host,
-		Port:     port,
-		TLS: &config.TLSConfig{
-			CAFile:     caCertPath,
-			CertFile:   clientCertPath,
-			KeyFile:    clientKeyPath,
-			ServerName: serverName,
-		},
+	brokerURL := fmt.Sprintf("ssl://%s:%d", host, port)
+	mqttClient, err = mqtttest.NewDeviceClientWithTLS(brokerURL, thingId, thingId, "", caCertPath, clientCertPath, clientKeyPath)
+	if err != nil {
+		log.Fatalf("Failed to create mTLS client: %v", err)
 	}
-
-	mqttClient = client.NewClient(cfg)
 
 	mqttClient.OnConnect(func() {
 		slog.Info("Successfully connected to MQTT broker using mutual TLS", "clientId", thingId)
@@ -149,7 +140,7 @@ func receiveShadowGetResp() {
 	accepted := "accepted"
 	rejected := "rejected"
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var acceptedResp shadow.StateAcceptedResp
 			var rejectedResp shadow.ErrResp
@@ -182,7 +173,7 @@ func receiveShadowUpdateResp() {
 	accepted := "accepted"
 	rejected := "rejected"
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var acceptedResp shadow.StateAcceptedResp
 			var rejectedResp shadow.ErrResp
@@ -221,7 +212,7 @@ func updateShadowReported(payload map[string]any) {
 func receiveShadowDeltaNotice() {
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update/delta", thingId)
 
-	err := mqttClient.Subscribe(ctx, topic, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topic, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var deltaNotice shadow.DeltaStateNotice
 			err := json.Unmarshal(m.Payload(), &deltaNotice)
@@ -248,7 +239,7 @@ func receiveDirectMethodInvoke() {
 
 	slog.Info("=== subscribe", "topicReq", topicReq, "topicResp", topicResp)
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var req shadow.MethodReq
 			var resp shadow.MethodResp

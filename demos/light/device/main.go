@@ -10,11 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"ruff.io/tio/config"
 	"ruff.io/tio/shadow"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"ruff.io/tio/connector/mqtt/client"
+	"ruff.io/tio/internal/mqtttest"
 )
 
 var (
@@ -33,7 +32,7 @@ var (
 	}
 )
 
-var mqttClient client.Client
+var mqttClient *mqtttest.DeviceClient
 var ctx context.Context
 
 func main() {
@@ -59,8 +58,7 @@ func main() {
 
 func connectTioByMqtt() {
 	ctx := context.Background()
-	cfg := config.MqttClientConfig{ClientId: thingId, User: thingId, Password: password, Host: "localhost", Port: 1883}
-	mqttClient = client.NewClient(cfg)
+	mqttClient = mqtttest.NewDeviceClient("tcp://localhost:1883", thingId, thingId, password)
 	err := mqttClient.Connect(ctx)
 	if err != nil {
 		log.Fatalf("mqtt connect error: %v", err)
@@ -74,12 +72,11 @@ func receiveShadowGetResp() {
 	accepted := "accepted"
 	rejected := "rejected"
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var acceptedResp shadow.StateAcceptedResp
 			var rejectedResp shadow.ErrResp
 
-			// Server accepted shadow get request
 			if strings.HasSuffix(m.Topic(), accepted) {
 				_ = json.Unmarshal(m.Payload(), &acceptedResp)
 				slog.Info("[Receive Shadow Get Response] get accepted", "response", toJsonStr(acceptedResp))
@@ -92,8 +89,6 @@ func receiveShadowGetResp() {
 			if strings.HasSuffix(m.Topic(), rejected) {
 				_ = json.Unmarshal(m.Payload(), &rejectedResp)
 				slog.Error("[Receive Shadow Get Response] get rejected", "code", rejectedResp.Code, "message", rejectedResp.Message)
-				// Do something when get shadow rejected by code of the response, eg: try agin
-				// ...
 			}
 
 		}()
@@ -111,12 +106,11 @@ func receiveShadowUpdateResp() {
 	accepted := "accepted"
 	rejected := "rejected"
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var acceptedResp shadow.StateAcceptedResp
 			var rejectedResp shadow.ErrResp
 
-			// Server accepted shadow get request
 			if strings.HasSuffix(m.Topic(), accepted) {
 				_ = json.Unmarshal(m.Payload(), &acceptedResp)
 				slog.Info("[Receive Shadow Update Response] update accepted", "response", toJsonStr(acceptedResp))
@@ -125,8 +119,6 @@ func receiveShadowUpdateResp() {
 			if strings.HasSuffix(m.Topic(), rejected) {
 				_ = json.Unmarshal(m.Payload(), &rejectedResp)
 				slog.Error("[Receive Shadow Update Response] update rejected", "code", rejectedResp.Code, "message", rejectedResp.Message)
-				// Do something when update shadow rejected by code of the response, eg: try agin
-				// ...
 			}
 
 		}()
@@ -156,7 +148,7 @@ func updateShadowReported(payload map[string]any) {
 func receiveShadowDeltaNotice() {
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update/delta", thingId)
 
-	err := mqttClient.Subscribe(ctx, topic, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topic, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var deltaNotice shadow.DeltaStateNotice
 			err := json.Unmarshal(m.Payload(), &deltaNotice)
@@ -187,7 +179,7 @@ func receiveDirectMethodInvoke() {
 
 	slog.Info("=== subscribe", "topicReq", topicReq, "topicResp", topicResp)
 
-	err := mqttClient.Subscribe(ctx, topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
+	err := mqttClient.Subscribe(topicReq, 0, func(c mqtt.Client, m mqtt.Message) {
 		go func() {
 			var req shadow.MethodReq
 			var resp shadow.MethodResp
@@ -247,10 +239,9 @@ func regularlyReportState() {
 
 			// report
 			data, _ := json.Marshal(map[string]any{"power": lightState["power"], "voltage": lightState["voltage"]})
-			tk := mqttClient.Publish(topic, 1, false, data)
-			tk.Wait()
-			if tk.Error() != nil {
-				slog.Error("[Report Property] error", "error", tk.Error())
+			err := mqttClient.Publish(topic, 1, false, data)
+			if err != nil {
+				slog.Error("[Report Property] error", "error", err)
 			} else {
 				slog.Info("[Report Property]", "topic", topic, "data", data)
 			}
