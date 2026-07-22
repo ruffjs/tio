@@ -35,6 +35,7 @@ connector:
       routes: []
       mqttPort: 1883
       wsPort: 8083
+      monitorPort: 8222
       storeDir: ./data/nats/tio-node-1
       jetStreamMaxMemory: 268435456
       jetStreamMaxStore: 1073741824

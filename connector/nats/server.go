@@ -94,6 +94,7 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 	opts := &server.Options{
 		ServerName:         cfg.ServerName,
 		Port:               cfg.Port,
+		HTTPPort:           cfg.MonitorPort,
 		JetStream:          true,
 		JetStreamMaxMemory: cfg.JetStreamMaxMemory,
 		JetStreamMaxStore:  cfg.JetStreamMaxStore,

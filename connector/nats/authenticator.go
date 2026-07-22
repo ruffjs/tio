@@ -104,8 +104,11 @@ func (a *NatsAuthenticator) registerInternalSysUser(c server.ClientAuthenticatio
 		Password:  a.sysClient.Password,
 		Account:   a.sysAcc,
 		Permissions: &server.Permissions{
+			Publish: &server.SubjectPermission{
+				Allow: []string{"$SYS.>"},
+			},
 			Subscribe: &server.SubjectPermission{
-				Allow: []string{"$SYS.>", "$tio.events.>"},
+				Allow: []string{"$SYS.>", "$tio.events.>", "_INBOX.>"},
 			},
 		},
 	}

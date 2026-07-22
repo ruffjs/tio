@@ -177,6 +177,7 @@ type NatsServerConfig struct {
 	Routes             []string      `json:"routes"`
 	MqttPort           int           `json:"mqttPort"`
 	WsPort             int           `json:"wsPort"`
+	MonitorPort        int           `json:"monitorPort"`
 	StoreDir           string        `json:"storeDir"`
 	JetStreamMaxMemory int64         `json:"jetStreamMaxMemory"`
 	JetStreamMaxStore  int64         `json:"jetStreamMaxStore"`

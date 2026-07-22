@@ -35,6 +35,7 @@ connector:
       clusterPort: 0          # NATS cluster route port, 0 means disabled
       mqttPort: 1883          # MQTT port for devices
       wsPort: 8083            # MQTT over WebSocket
+      monitorPort: 8222       # NATS monitoring port (for nats-top, nats cli)
       # storeDir: "./nats-data" # JetStream persistent storage, blank for in-memory
       # tls:
       #   certFile: ""
