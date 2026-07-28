@@ -187,14 +187,9 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 	}
 
 	appAccount := server.NewAccount(AppAccountName)
-	
-	if isClusterMode {
-		sysAccount := server.NewAccount(SysAccountName)
-		opts.Accounts = []*server.Account{appAccount, sysAccount}
-		opts.SystemAccount = SysAccountName
-	} else {
-		opts.Accounts = []*server.Account{appAccount}
-	}
+	sysAccount := server.NewAccount(SysAccountName)
+	opts.Accounts = []*server.Account{appAccount, sysAccount}
+	opts.SystemAccount = SysAccountName
 
 	if authn != nil {
 		opts.CustomClientAuthentication = authn
