@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	server "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
@@ -96,6 +97,69 @@ func TestCloseDisconnectsClient(t *testing.T) {
 	waitForPresence(t, c, "close-dev", false)
 }
 
+func TestControlDisconnectConfirmsOwnerAction(t *testing.T) {
+	c := newPresenceTestConnector(t)
+	nc := connectDevice(t, c, "control-close-dev")
+	waitForPresence(t, c, "control-close-dev", true)
+
+	payload, _ := json.Marshal(controlDisconnectRequest{
+		ThingId:  "control-close-dev",
+		ServerId: c.cfg.Server.ServerName,
+	})
+	reply, err := c.natsConn.Request(controlDisconnectSubj, payload, time.Second)
+	if err != nil {
+		t.Fatalf("request control disconnect: %v", err)
+	}
+	var resp controlDisconnectResponse
+	if err := json.Unmarshal(reply.Data, &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !resp.Disconnected {
+		t.Fatalf("disconnect not confirmed: %+v", resp)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for nc.IsConnected() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if nc.IsConnected() {
+		t.Fatal("owner confirmed disconnect without closing the client")
+	}
+}
+
+func TestCloseWaitsForRemoteConfirmation(t *testing.T) {
+	c := newPresenceTestConnector(t)
+	const thingId = "remote-close-dev"
+	const remoteServer = "remote-node"
+
+	rec, _ := json.Marshal(PresenceRecord{
+		ThingId:   thingId,
+		Connected: true,
+		ServerId:  remoteServer,
+	})
+	if _, err := c.kv.Put(presenceKeyPrefix+thingId, rec); err != nil {
+		t.Fatalf("put remote presence: %v", err)
+	}
+
+	_, err := c.natsConn.Subscribe(controlDisconnectSubj, func(msg *nats.Msg) {
+		var req controlDisconnectRequest
+		if json.Unmarshal(msg.Data, &req) == nil && req.ServerId == remoteServer && req.ThingId == thingId {
+			data, _ := json.Marshal(controlDisconnectResponse{Disconnected: true})
+			_ = msg.Respond(data)
+		}
+	})
+	if err != nil {
+		t.Fatalf("subscribe remote owner: %v", err)
+	}
+	if err := c.natsConn.Flush(); err != nil {
+		t.Fatalf("flush remote owner: %v", err)
+	}
+
+	if err := c.Close(thingId); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
 func TestRemoveClearsKVAndRetained(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
@@ -172,5 +236,31 @@ func TestReconcileFixesStaleEntries(t *testing.T) {
 	json.Unmarshal(entry2.Value(), &rec2)
 	if rec2.Connected {
 		t.Fatal("reconcile should have fixed stale connected=true entry")
+	}
+}
+
+func TestRequestAliveServersCollectsAllResponses(t *testing.T) {
+	c := newPresenceTestConnector(t)
+	const subject = "$tio.test.server.ping"
+
+	for _, name := range []string{"node-a", "node-b"} {
+		name := name
+		_, err := c.sysConn.Subscribe(subject, func(msg *nats.Msg) {
+			data, _ := json.Marshal(server.ServerStatsMsg{
+				Server: server.ServerInfo{Name: name},
+			})
+			_ = msg.Respond(data)
+		})
+		if err != nil {
+			t.Fatalf("subscribe responder: %v", err)
+		}
+	}
+	if err := c.sysConn.Flush(); err != nil {
+		t.Fatalf("flush responders: %v", err)
+	}
+
+	alive := c.requestAliveServers(subject, time.Second)
+	if !alive["node-a"] || !alive["node-b"] || len(alive) != 2 {
+		t.Fatalf("expected both server responses, got %v", alive)
 	}
 }

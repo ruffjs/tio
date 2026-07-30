@@ -18,6 +18,8 @@ const (
 	presenceKVBucket      = "TIO_PRESENCE"
 	presenceKeyPrefix     = "presence."
 	reconcileInterval     = 10 * time.Second
+	systemRequestTimeout  = 2 * time.Second
+	systemResponseQuiet   = 200 * time.Millisecond
 	sysConnectSubj        = "$SYS.ACCOUNT." + AppAccountName + ".CONNECT"
 	sysDisconnectSubj     = "$SYS.ACCOUNT." + AppAccountName + ".DISCONNECT"
 	controlDisconnectSubj = "$tio.control.disconnect"
@@ -88,32 +90,25 @@ func (c *Connector) initPresence() error {
 
 func (c *Connector) initControl() error {
 	_, err := c.natsConn.Subscribe(controlDisconnectSubj, func(msg *nats.Msg) {
-		var req struct {
-			ThingId  string `json:"thingId"`
-			ServerId string `json:"serverId"`
-		}
-		if json.Unmarshal(msg.Data, &req) != nil {
+		var req controlDisconnectRequest
+		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return
 		}
+		// In a cluster, all servers receive this message, but only the owner should respond.
 		if req.ServerId != c.cfg.Server.ServerName {
 			return
 		}
 
-		if c.natsSvr == nil {
-			return
+		resp := controlDisconnectResponse{Disconnected: c.disconnectLocal(req.ThingId)}
+		if !resp.Disconnected {
+			resp.Error = fmt.Sprintf("no connection found for %q on server %q", req.ThingId, req.ServerId)
 		}
-		opts := server.ConnzOptions{Username: true, User: req.ThingId}
-		connz, err := c.natsSvr.Server().Connz(&opts)
+		data, err := json.Marshal(resp)
 		if err != nil {
-			slog.Error("control disconnect: get connz", "thingId", req.ThingId, "error", err)
 			return
 		}
-		for _, ci := range connz.Conns {
-			if ci.AuthorizedUser == req.ThingId {
-				if err := c.natsSvr.Server().DisconnectClientByID(ci.Cid); err != nil {
-					slog.Error("control disconnect: disconnect client", "thingId", req.ThingId, "cid", ci.Cid, "error", err)
-				}
-			}
+		if err := msg.Respond(data); err != nil {
+			slog.Error("control disconnect: respond", "thingId", req.ThingId, "error", err)
 		}
 	})
 	if err != nil {
@@ -347,17 +342,9 @@ func (c *Connector) queryAliveServers() map[string]bool {
 		}
 	}
 
-	reply, err := c.sysConn.Request("$SYS.REQ.SERVER.PING", nil, 2*time.Second)
-	if err == nil {
-		var servers struct {
-			Servers []struct {
-				Name string `json:"name"`
-			} `json:"servers"`
-		}
-		if json.Unmarshal(reply.Data, &servers) == nil {
-			for _, s := range servers.Servers {
-				result[s.Name] = true
-			}
+	if c.sysConn != nil {
+		for name := range c.requestAliveServers("$SYS.REQ.SERVER.PING", systemRequestTimeout) {
+			result[name] = true
 		}
 	}
 
@@ -369,4 +356,43 @@ func (c *Connector) queryAliveServers() map[string]bool {
 	}
 
 	return result
+}
+
+func (c *Connector) requestAliveServers(subject string, timeout time.Duration) map[string]bool {
+	result := make(map[string]bool)
+	inbox := nats.NewInbox()
+	sub, err := c.sysConn.SubscribeSync(inbox)
+	if err != nil {
+		return result
+	}
+	defer sub.Unsubscribe()
+
+	if err := c.sysConn.PublishRequest(subject, inbox, nil); err != nil {
+		return result
+	}
+	if err := c.sysConn.Flush(); err != nil {
+		return result
+	}
+
+	// First iteration waits the full timeout; subsequent iterations use the quiet period.
+	// If no servers respond, the full timeout elapses before returning an empty result.
+	deadline := time.Now().Add(timeout)
+	wait := timeout
+	for {
+		msg, err := sub.NextMsg(wait)
+		if err != nil {
+			return result
+		}
+
+		var stats server.ServerStatsMsg
+		if json.Unmarshal(msg.Data, &stats) == nil && stats.Server.Name != "" {
+			result[stats.Server.Name] = true
+		}
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return result
+		}
+		wait = min(systemResponseQuiet, remaining)
+	}
 }

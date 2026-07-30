@@ -10,12 +10,6 @@ import (
 	server "github.com/nats-io/nats-server/v2/server"
 )
 
-const (
-	internalAppUser         = "$tio-app"
-	internalSysUser         = "$tio-sys"
-	internalMqttPubUser     = "$tio-mqtt-publisher"
-)
-
 type NatsAuthenticator struct {
 	authzFn       connector.AuthzFn
 	bindingGetter connector.BindingGetter
@@ -81,12 +75,12 @@ func (a *NatsAuthenticator) isInternalMqttPublisher(username, password string) b
 func (a *NatsAuthenticator) registerInternalAppUser(c server.ClientAuthentication) bool {
 	slog.Debug("NATS internal APP client authenticated", "user", a.appClient.User)
 	user := &server.User{
-		Username:  a.appClient.User,
-		Password:  a.appClient.Password,
-		Account:   a.appAcc,
+		Username: a.appClient.User,
+		Password: a.appClient.Password,
+		Account:  a.appAcc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "$KV.>"},
+				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "$KV.>", "_INBOX.>"},
 			},
 			Subscribe: &server.SubjectPermission{
 				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "_INBOX.>", "$KV.>"},
@@ -104,12 +98,12 @@ func (a *NatsAuthenticator) registerInternalSysUser(c server.ClientAuthenticatio
 		acc = a.appAcc
 	}
 	user := &server.User{
-		Username:  a.sysClient.User,
-		Password:  a.sysClient.Password,
-		Account:   acc,
+		Username: a.sysClient.User,
+		Password: a.sysClient.Password,
+		Account:  acc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$SYS.>", "$tio.>", "$iothub.>"},
+				Allow: []string{"$SYS.>", "$tio.>", "$iothub.>", "_INBOX.>"},
 			},
 			Subscribe: &server.SubjectPermission{
 				Allow: []string{"$SYS.>", "$tio.events.>", "$tio.>", "_INBOX.>"},
@@ -123,9 +117,9 @@ func (a *NatsAuthenticator) registerInternalSysUser(c server.ClientAuthenticatio
 func (a *NatsAuthenticator) registerInternalMqttPublisher(c server.ClientAuthentication) bool {
 	slog.Debug("NATS internal MQTT publisher authenticated", "user", a.mqttPublisher.User)
 	user := &server.User{
-		Username:  a.mqttPublisher.User,
-		Password:  a.mqttPublisher.Password,
-		Account:   a.appAcc,
+		Username: a.mqttPublisher.User,
+		Password: a.mqttPublisher.Password,
+		Account:  a.appAcc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
 				Allow: []string{"$iothub.>"},

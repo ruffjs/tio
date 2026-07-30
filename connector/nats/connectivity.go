@@ -3,6 +3,7 @@ package nats
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -10,6 +11,16 @@ import (
 	server "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
+
+type controlDisconnectRequest struct {
+	ThingId  string `json:"thingId"`
+	ServerId string `json:"serverId"`
+}
+
+type controlDisconnectResponse struct {
+	Disconnected bool   `json:"disconnected"`
+	Error        string `json:"error,omitempty"`
+}
 
 func (c *Connector) IsConnected(thingId string) (bool, error) {
 	entry, err := c.kv.Get(presenceKeyPrefix + thingId)
@@ -94,6 +105,7 @@ func (c *Connector) disconnectLocal(thingId string) bool {
 	opts := server.ConnzOptions{Username: true, User: thingId}
 	connz, err := c.natsSvr.Server().Connz(&opts)
 	if err != nil {
+		slog.Error("disconnectLocal: get connz", "thingId", thingId, "error", err)
 		return false
 	}
 	var closed bool
@@ -127,14 +139,25 @@ func (c *Connector) Close(thingId string) error {
 		return fmt.Errorf("no connection found for %q", thingId)
 	}
 
-	payload, err := json.Marshal(map[string]string{
-		"thingId":  thingId,
-		"serverId": rec.ServerId,
-	})
+	payload, err := json.Marshal(controlDisconnectRequest{ThingId: thingId, ServerId: rec.ServerId})
 	if err != nil {
 		return fmt.Errorf("marshal control disconnect: %w", err)
 	}
-	return c.natsConn.Publish(controlDisconnectSubj, payload)
+	reply, err := c.natsConn.Request(controlDisconnectSubj, payload, systemRequestTimeout)
+	if err != nil {
+		return fmt.Errorf("request disconnect of %q from server %q: %w", thingId, rec.ServerId, err)
+	}
+	var resp controlDisconnectResponse
+	if err := json.Unmarshal(reply.Data, &resp); err != nil {
+		return fmt.Errorf("unmarshal control disconnect response: %w", err)
+	}
+	if !resp.Disconnected {
+		if resp.Error == "" {
+			resp.Error = "disconnect was not confirmed"
+		}
+		return fmt.Errorf("disconnect %q from server %q: %s", thingId, rec.ServerId, resp.Error)
+	}
+	return nil
 }
 
 func (c *Connector) Remove(thingId string) error {
