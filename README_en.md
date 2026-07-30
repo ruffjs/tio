@@ -18,7 +18,7 @@
 ## Main Components
 
 - Thing: The basic management for thing, eg: CRUD, authz
-- Connector: Adapt to a variety of message middleware, especially MQTT broker
+- Connector: Device connectivity layer based on built-in NATS Server with MQTT protocol support and cluster capability
 - Shadow：Like [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[Aliyun Device Shadow](https://www.alibabacloud.com/help/en/iot-platform/latest/78e011). Major public cloud vendors all have an abstraction of device shadows (with different names), and their connotations are highly consistent. In practical project development, they are indeed very useful tools, greatly reducing the complexity and cognitive burden of interactions between upper-layer business systems and devices.
 - Direct Method: The server uses a "request-response" mode for calling methods on the device, similar to an HTTP request. This implementation is based on [Azure Direct method](https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-devguide-direct-methods).
 - Job: Job management. By sending tasks to devices in bulk and scheduling them, and managing the status and lifecycle of tasks, task operations can include direct-method invocation, Shadow updates, custom operations, etc. On one hand, it strengthens the functionality and usability of direct-method invocation and Shadow updates by allowing batched, scheduled, and asynchronous execution of these operations, with operation records (i.e., Job and Task records). On the other hand, custom Jobs provide a general mechanism for executing various types of remote operations on devices conveniently.
@@ -49,17 +49,14 @@ Shadow Query:
 The Shadow Query interface adopts a SQL-like approach for querying, coupled with the flexibility and extensibility of Shadow attributes, providing a great deal of freedom to the upper layer of usage. This allows for a highly adaptable way to retrieve Shadow data based on desired views and query conditions. Refer to [Azure](https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-devguide-query-language) for more information.
 
 
-## Supported Connectors
+## Connector
 
-### Embedded MQTT Broker
+Built on [NATS](https://nats.io/) with an embedded NATS Server — no external message broker required.
 
-When running tio, you can automatically run an embedded MQTT broker.
-This is useful for testing, development and a small number of device scenarios.
-
-### EMQX MQTT Broker
-
-[EMQX](https://github.com/emqx/emqx) is an excellent MQTT broker that is easy to use.  
-tio integrated its `v5` version, for scalability and performance.
+- MQTT v3.1.1 protocol support
+- MQTT over WebSocket
+- SSL/TLS support
+- Cluster deployment (NATS native clustering)
 
 ## Supported DB
 
@@ -121,10 +118,7 @@ git config core.hooksPath githooks
 ├── thing         # basic CRUD for Thing
 ├── job           # job management. Job operations include direct-method invocation, shadow updates, custom operations, etc.
 ├── ntp           # device NTP service
-├── connector     # connector implementation
-│   └── mqtt
-│       ├── embed # embedded MQTT Broker
-│       └── emqx  # integrated EMQX MQTT Broker
+├── connector     # connector implementation (NATS-based)
 ├── cmd           # main entry code
 │   └── tio
 └── web           # debugging management background
@@ -141,7 +135,7 @@ git config core.hooksPath githooks
 
 ### tech stack
 
-golang + sqlite/mysql +  embedded-mqtt-broker/emqx
+golang + sqlite/mysql + NATS
 
 web：vue3 + element-plus
 

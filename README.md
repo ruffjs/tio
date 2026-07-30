@@ -40,7 +40,7 @@
 ## 主要组件
 
 - Thing：用于设备的基本管理，例如：CRUD、授权认证
-- Connector：设备连接层（目前主要是 MQTT broker），有内置 MQTT Broker 和 EMQX 的集成
+- Connector：设备连接层，基于内置 NATS Server，支持 MQTT 协议接入，支持集群部署
 - Shadow：设备影子，类似于 [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[阿里云设备影子](https://help.aliyun.com/document_detail/53930.html)，各大公有云厂商都有设备影子（名称各有不同）的抽象，且其内涵都高度一致，在我们实际的项目开发中确实是非常有用的工具，极大地减少上层业务系统和设备交互的复杂度和心智负担
 - 设备直接方法（Direct Method）：服务端对设备的方法调用，采用“请求-响应”模式，类似于 HTTP 请求。参考了 [Azure Direct method](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-direct-methods) 的设计
 - Job: 任务管理。通过批量、定时地将任务发送给设备执行，并管理任务的状态和生命周期，任务操作可以是设备直接方法调用、 Shadow 更新、自定义操作等 —— 一方面，加强了设备直接方法调用、 Shadow 更新的功能性和易用性，批量定时异步执行这些操作、并且有操作记录（即 Job 和 Task 的记录）；另一方面，自定义 Job 提供了一个通用的机制方便在设备上执行各类远程操作。
@@ -73,22 +73,14 @@ Shadow Query:
 Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 Shadow 属性，给到上层使用方很大自由，按需要的视图和查询条件让 Shadow 的数据获取有了很大的适应性。参考 [Azure](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-query-language)。
 
 
-## 支持的连接层（connector）
+## 连接层（Connector）
 
+基于 [NATS](https://nats.io/) 实现，内置 NATS Server，无需额外部署消息中间件。
 
-### 内置 MQTT Broker
-
-默认运行一个内置的 MQTT Broker，采用 [github.com/mochi-mqtt/server](https://github.com/mochi-mqtt/server)。对于测试、开发和对轻量环境有需求的场景非常有用。  
-
-- 支持 MQTT v3.1.1 和 v5.0
-- 支持 MQTT over Websocket
-- 支持 SSL/TLS （包括 TCP 和 Websocket）
-
-
-### EMQX MQTT Broker
-
-[EMQX](https://github.com/emqx/emqx)  是一个易于使用的优秀的 MQTT broker。  
-tio 集成了其 `v5` 版本，以提供更强的功能性和性能（水平扩展）。
+- 支持 MQTT v3.1.1 协议接入
+- 支持 MQTT over WebSocket
+- 支持 SSL/TLS
+- 支持集群部署（NATS 原生集群）
 
 ## 支持的数据库
 
@@ -151,10 +143,7 @@ git config core.hooksPath githooks
 ├── thing         # thing 基本的 CRUD
 ├── job           # 任务管理。任务操作含设备直接方法调用、更新Shadow、自定义操作等
 ├── ntp           # 设备 ntp 服务
-├── connector     # connector 实现
-│   └── mqtt
-│       ├── embed # 内置的 MQTT Broker
-│       └── emqx  # 集成 EMQX MQTT Broker
+├── connector     # connector 实现（基于 NATS）
 ├── cmd           # main 入口代码
 │   └── tio
 ├── web           # 调试管理后台
@@ -181,7 +170,7 @@ git config core.hooksPath githooks
 
 ### 技术栈
 
-golang + sqlite/mysql +  内置MQTT服务/emqx
+golang + sqlite/mysql + NATS
 
 前端（调试管理后台）：vue3 + element-plus
 
