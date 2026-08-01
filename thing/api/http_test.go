@@ -286,10 +286,10 @@ func TestQueryHandler(t *testing.T) {
 	normalCount := rand.Intn(10)
 
 	ths := []api.CreateReq{}
-	for i := 0; i < gwCount; i++ {
+	for range gwCount {
 		ths = append(ths, api.CreateReq{ThingId: id(), IsGateway: true})
 	}
-	for i := 0; i < normalCount; i++ {
+	for range normalCount {
 		ths = append(ths, api.CreateReq{ThingId: id(), IsGateway: false})
 	}
 

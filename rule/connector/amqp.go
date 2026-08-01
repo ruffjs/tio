@@ -157,10 +157,7 @@ func (a *Amqp) reconnect() {
 
 		tryCount++
 		if err := a.connect(); err != nil {
-			t := time.Duration(tryCount*2) * time.Second
-			if t > maxSleepTime {
-				t = maxSleepTime
-			}
+			t := min(time.Duration(tryCount*2)*time.Second, maxSleepTime)
 			time.Sleep(t)
 		} else {
 			// update channles

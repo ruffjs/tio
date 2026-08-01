@@ -33,7 +33,7 @@ type failingShadowSvc struct {
 	setTagErr error
 }
 
-func (s failingShadowSvc) Init(context.Context) {}
+func (s failingShadowSvc) Init(context.Context)                   {}
 func (s failingShadowSvc) HandleLocalPresence(tioconn.ClientInfo) {}
 func (s failingShadowSvc) SetDesired(context.Context, string, shadow.StateReq) (shadow.Shadow, error) {
 	return shadow.Shadow{}, nil
@@ -407,7 +407,7 @@ func TestThingSvc_CreateUpsertPropagatesTagError(t *testing.T) {
 }
 
 func TestIdValid(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		idLen := rand.Intn(32)
 		if idLen == 0 {
 			continue
@@ -421,7 +421,7 @@ func TestIdValid(t *testing.T) {
 
 func TestThingSvc_GatewayBind(t *testing.T) {
 	exceedIds := make([]string, 0, 101)
-	for i := 0; i < 101; i++ {
+	for range 101 {
 		id, _ := uuid.New().ID()
 		exceedIds = append(exceedIds, id)
 	}

@@ -179,8 +179,7 @@ func TestInfluxDBPublish(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup mocks
 			conn := &MockInfluxDBConn{}
@@ -240,8 +239,7 @@ func TestInfluxDBPublish(t *testing.T) {
 }
 
 func TestInfluxDBErrorHandling(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Setup mocks
 	conn := &MockInfluxDBConn{}
@@ -368,8 +366,7 @@ func TestInfluxDBRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			// Setup mocks
 			conn := &MockInfluxDBConn{}

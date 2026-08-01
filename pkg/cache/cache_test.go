@@ -1231,7 +1231,7 @@ func TestOnEvicted(t *testing.T) {
 		t.Fatal("tc.onEvicted is not nil")
 	}
 	works := false
-	tc.OnEvicted(func(k string, v interface{}) {
+	tc.OnEvicted(func(k string, v any) {
 		if k == "foo" && v.(int) == 3 {
 			works = true
 		}
@@ -1460,7 +1460,7 @@ func BenchmarkRWMutexMapGet(b *testing.B) {
 func BenchmarkRWMutexInterfaceMapGetStruct(b *testing.B) {
 	b.StopTimer()
 	s := struct{ name string }{name: "foo"}
-	m := map[interface{}]string{
+	m := map[any]string{
 		s: "bar",
 	}
 	mu := sync.RWMutex{}
@@ -1474,7 +1474,7 @@ func BenchmarkRWMutexInterfaceMapGetStruct(b *testing.B) {
 
 func BenchmarkRWMutexInterfaceMapGetString(b *testing.B) {
 	b.StopTimer()
-	m := map[interface{}]string{
+	m := map[any]string{
 		"foo": "bar",
 	}
 	mu := sync.RWMutex{}
@@ -1503,9 +1503,9 @@ func benchmarkCacheGetConcurrent(b *testing.B, exp time.Duration) {
 	each := b.N / workers
 	wg.Add(workers)
 	b.StartTimer()
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
-			for j := 0; j < each; j++ {
+			for range each {
 				tc.Get("foo")
 			}
 			wg.Done()
@@ -1525,9 +1525,9 @@ func BenchmarkRWMutexMapGetConcurrent(b *testing.B) {
 	each := b.N / workers
 	wg.Add(workers)
 	b.StartTimer()
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
-			for j := 0; j < each; j++ {
+			for range each {
 				mu.RLock()
 				_, _ = m["foo"]
 				mu.RUnlock()
@@ -1554,7 +1554,7 @@ func benchmarkCacheGetManyConcurrent(b *testing.B, exp time.Duration) {
 	n := 10000
 	tc := New(exp, 0)
 	keys := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		k := "foo" + strconv.Itoa(i)
 		keys[i] = k
 		tc.Set(k, "bar", DefaultExpiration)
@@ -1564,7 +1564,7 @@ func benchmarkCacheGetManyConcurrent(b *testing.B, exp time.Duration) {
 	wg.Add(n)
 	for _, v := range keys {
 		go func(k string) {
-			for j := 0; j < each; j++ {
+			for range each {
 				tc.Get(k)
 			}
 			wg.Done()
@@ -1667,7 +1667,7 @@ func BenchmarkDeleteExpiredLoop(b *testing.B) {
 	b.StopTimer()
 	tc := New(5*time.Minute, 0)
 	tc.mu.Lock()
-	for i := 0; i < 100000; i++ {
+	for i := range 100000 {
 		tc.set(strconv.Itoa(i), "bar", DefaultExpiration)
 	}
 	tc.mu.Unlock()

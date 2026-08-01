@@ -12,7 +12,7 @@ type Resp[T any] struct {
 	Data    T      `json:"data"`
 }
 
-type H map[string]interface{}
+type H map[string]any
 
 func RespOK[T any](data T) Resp[T] {
 	return Resp[T]{Code: 200, Message: "OK", Data: data}

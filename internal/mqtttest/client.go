@@ -101,7 +101,7 @@ func (d *DeviceClient) Subscribe(topic string, qos byte, handler mqtt.MessageHan
 	return token.Error()
 }
 
-func (d *DeviceClient) Publish(topic string, qos byte, retained bool, payload interface{}) error {
+func (d *DeviceClient) Publish(topic string, qos byte, retained bool, payload any) error {
 	token := d.client.Publish(topic, qos, retained, payload)
 	token.Wait()
 	return token.Error()

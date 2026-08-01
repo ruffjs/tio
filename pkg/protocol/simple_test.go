@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -96,8 +95,7 @@ func TestValidateReport(t *testing.T) {
 }
 
 func TestSimpleHandler_Report(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockConn := connmock.NewMockConnector()
 	mockConn.Start(ctx)
@@ -138,8 +136,7 @@ func TestSimpleHandler_Report(t *testing.T) {
 }
 
 func TestSimpleHandler_Get(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockConn := connmock.NewMockConnector()
 	mockConn.Start(ctx)
@@ -198,8 +195,7 @@ func TestSimpleHandler_Get(t *testing.T) {
 }
 
 func TestSimpleHandler_Invoke(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockConn := connmock.NewMockConnector()
 	mockConn.Start(ctx)
@@ -260,8 +256,7 @@ func TestSimpleHandler_Invoke(t *testing.T) {
 }
 
 func TestSimpleHandler_ReplyBypassesWorkerPool(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockConn := connmock.NewMockConnector()
 	require.NoError(t, mockConn.Start(ctx))

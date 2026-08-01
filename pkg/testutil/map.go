@@ -1,3 +1,3 @@
 package testutil
 
-type H map[string]interface{}
+type H map[string]any

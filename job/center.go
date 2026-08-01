@@ -522,10 +522,7 @@ func jobNextRolloutCount(maxCountPerMinute int, p PendingJobItem) int {
 	if curMinuteCount >= maxCountPerMinute {
 		return 0
 	}
-	maxCur := maxCountPerMinute - curMinuteCount
-	if maxCur > len(p.Tasks) {
-		maxCur = len(p.Tasks)
-	}
+	maxCur := min(maxCountPerMinute-curMinuteCount, len(p.Tasks))
 
 	return maxCur
 }

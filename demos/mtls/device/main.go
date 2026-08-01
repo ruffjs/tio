@@ -324,7 +324,7 @@ func flashLight(times int) {
 			lightState["power"] = "off"
 		}
 	}
-	for i := 0; i < times; i++ {
+	for range times {
 		toggle()
 		time.Sleep(time.Second)
 		toggle()

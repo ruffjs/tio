@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -163,10 +164,8 @@ func (c *RetryConfig) valid() error {
 			return errors.WithMessage(model.ErrInvalidParams,
 				"retryConfig numberOfRetries should between 0 and 10")
 		}
-		for _, hasType := range typeList {
-			if hasType == l.FailureType {
-				return errors.WithMessage(model.ErrInvalidParams, "retryConfig duplicated failure type "+l.FailureType)
-			}
+		if slices.Contains(typeList, l.FailureType) {
+			return errors.WithMessage(model.ErrInvalidParams, "retryConfig duplicated failure type "+l.FailureType)
 		}
 		typeList = append(typeList, l.FailureType)
 	}

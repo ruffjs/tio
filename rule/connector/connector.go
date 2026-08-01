@@ -17,10 +17,10 @@ type Conn interface {
 }
 
 type Config struct {
-	Name    string                 `json:"name"`
-	Type    string                 `json:"type"`
-	Enabled bool                   `json:"enabled"`
-	Options map[string]interface{} `json:"options"`
+	Name    string         `json:"name"`
+	Type    string         `json:"type"`
+	Enabled bool           `json:"enabled"`
+	Options map[string]any `json:"options"`
 }
 
 type CreateFunc func(ctx context.Context, name string, cfg map[string]any) (Conn, error)

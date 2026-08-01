@@ -482,10 +482,3 @@ func isIdentifier(s string) bool {
 func isIdentifierOrAsterisk(s string) bool {
 	return isIdentifier(s) || s == "*"
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

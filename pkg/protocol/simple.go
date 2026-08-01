@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"math"
 	"reflect"
 	"sync"
@@ -278,9 +279,7 @@ func (h *SimpleHandler) Invoke(ctx context.Context, thingId string, method strin
 	callData := map[string]any{}
 	if params != nil {
 		if paramsMap, ok := params.(map[string]any); ok {
-			for k, v := range paramsMap {
-				callData[k] = v
-			}
+			maps.Copy(callData, paramsMap)
 		} else {
 			callData["p"] = params
 		}

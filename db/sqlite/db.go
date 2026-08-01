@@ -22,7 +22,7 @@ type Config struct {
 
 type loggerImp struct{}
 
-func (l *loggerImp) Printf(format string, args ...interface{}) {
+func (l *loggerImp) Printf(format string, args ...any) {
 	slog.Info(fmt.Sprintf(format, args...))
 }
 
