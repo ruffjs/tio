@@ -156,6 +156,13 @@ func TestDeepCopyMap(t *testing.T) {
 		r := shadow.DeepCopyMap(c)
 		require.Equal(t, c, r)
 	}
+
+	source := map[string]any{
+		"items": []any{map[string]any{"value": 1}},
+	}
+	copied := shadow.DeepCopyMap(source)
+	copied["items"].([]any)[0].(map[string]any)["value"] = 2
+	require.Equal(t, 1, source["items"].([]any)[0].(map[string]any)["value"])
 }
 
 func TestMergeState(t *testing.T) {
@@ -376,4 +383,175 @@ func TestMerge_DeltaState(t *testing.T) {
 		require.Equal(t, s2m(c.delta), map[string]any(d), "delta state mismatch")
 		require.Equal(t, s2m(c.deltaMeta), map[string]any(m), "delta meta mismatch")
 	}
+}
+
+func TestMergePatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		old         map[string]any
+		patch       map[string]any
+		want        map[string]any
+		wantChanged bool
+	}{
+		{
+			name:        "nil patch returns clone",
+			old:         map[string]any{"a": 1},
+			patch:       nil,
+			want:        map[string]any{"a": 1},
+			wantChanged: false,
+		},
+		{
+			name:        "empty patch no change",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{},
+			want:        map[string]any{"a": 1},
+			wantChanged: false,
+		},
+		{
+			name:        "add new field",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{"b": 2},
+			want:        map[string]any{"a": 1, "b": 2},
+			wantChanged: true,
+		},
+		{
+			name:        "update existing field",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{"a": 2},
+			want:        map[string]any{"a": 2},
+			wantChanged: true,
+		},
+		{
+			name:        "same value no change",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{"a": 1},
+			want:        map[string]any{"a": 1},
+			wantChanged: false,
+		},
+		{
+			name:        "null deletes field",
+			old:         map[string]any{"a": 1, "b": 2},
+			patch:       map[string]any{"a": nil},
+			want:        map[string]any{"b": 2},
+			wantChanged: true,
+		},
+		{
+			name:        "null delete absent field is no-op",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{"b": nil},
+			want:        map[string]any{"a": 1},
+			wantChanged: false,
+		},
+		{
+			name:        "nested merge",
+			old:         map[string]any{"a": map[string]any{"b": 1, "c": 2}},
+			patch:       map[string]any{"a": map[string]any{"b": 3}},
+			want:        map[string]any{"a": map[string]any{"b": 3, "c": 2}},
+			wantChanged: true,
+		},
+		{
+			name:        "nested no change",
+			old:         map[string]any{"a": map[string]any{"b": 1}},
+			patch:       map[string]any{"a": map[string]any{"b": 1}},
+			want:        map[string]any{"a": map[string]any{"b": 1}},
+			wantChanged: false,
+		},
+		{
+			name:        "object over scalar",
+			old:         map[string]any{"a": 1},
+			patch:       map[string]any{"a": map[string]any{"b": 2}},
+			want:        map[string]any{"a": map[string]any{"b": 2}},
+			wantChanged: true,
+		},
+		{
+			name:        "scalar over object",
+			old:         map[string]any{"a": map[string]any{"b": 2}},
+			patch:       map[string]any{"a": 1},
+			want:        map[string]any{"a": 1},
+			wantChanged: true,
+		},
+		{
+			name:        "array replacement",
+			old:         map[string]any{"a": []any{1, 2, 3}},
+			patch:       map[string]any{"a": []any{4, 5}},
+			want:        map[string]any{"a": []any{4, 5}},
+			wantChanged: true,
+		},
+		{
+			name:        "array same no change",
+			old:         map[string]any{"a": []any{1, 2, 3}},
+			patch:       map[string]any{"a": []any{1, 2, 3}},
+			want:        map[string]any{"a": []any{1, 2, 3}},
+			wantChanged: false,
+		},
+		{
+			name:        "nested null deletion",
+			old:         map[string]any{"a": map[string]any{"b": 1, "c": 2}},
+			patch:       map[string]any{"a": map[string]any{"b": nil}},
+			want:        map[string]any{"a": map[string]any{"c": 2}},
+			wantChanged: true,
+		},
+		{
+			name:        "empty object preserves existing",
+			old:         map[string]any{"a": map[string]any{"b": 1}},
+			patch:       map[string]any{"a": map[string]any{}},
+			want:        map[string]any{"a": map[string]any{"b": 1}},
+			wantChanged: false,
+		},
+		{
+			name:        "nil old with object patch",
+			old:         nil,
+			patch:       map[string]any{"a": 1},
+			want:        map[string]any{"a": 1},
+			wantChanged: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldCopy := shadow.DeepCopyMap(tt.old)
+			patchCopy := shadow.DeepCopyMap(tt.patch)
+
+			got, changed := shadow.MergePatch(tt.old, tt.patch)
+			require.Equal(t, tt.wantChanged, changed, "changed flag mismatch")
+			require.Equal(t, tt.want, got, "merge result mismatch")
+
+			require.Equal(t, oldCopy, tt.old, "old input was mutated")
+			require.Equal(t, patchCopy, tt.patch, "patch input was mutated")
+		})
+	}
+}
+
+func TestMergePatch_Immutability(t *testing.T) {
+	old := map[string]any{
+		"a": map[string]any{
+			"b": 1,
+			"c": map[string]any{
+				"d": 2,
+			},
+		},
+		"items": []any{map[string]any{"value": 1}},
+	}
+	patch := map[string]any{
+		"a": map[string]any{
+			"b": 3,
+			"c": map[string]any{
+				"e": 4,
+			},
+		},
+	}
+
+	oldCopy := shadow.DeepCopyMap(old)
+	patchCopy := shadow.DeepCopyMap(patch)
+
+	result, changed := shadow.MergePatch(old, patch)
+	require.True(t, changed)
+
+	require.Equal(t, oldCopy, old, "old was mutated")
+	require.Equal(t, patchCopy, patch, "patch was mutated")
+
+	result["a"].(map[string]any)["b"] = 999
+	require.Equal(t, 1, old["a"].(map[string]any)["b"], "result shares reference with old")
+	result["items"].([]any)[0].(map[string]any)["value"] = 999
+	require.Equal(t, 1, old["items"].([]any)[0].(map[string]any)["value"], "result array shares reference with old")
 }

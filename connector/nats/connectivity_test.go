@@ -244,7 +244,6 @@ func TestRequestAliveServersCollectsAllResponses(t *testing.T) {
 	const subject = "$tio.test.server.ping"
 
 	for _, name := range []string{"node-a", "node-b"} {
-		name := name
 		_, err := c.sysConn.Subscribe(subject, func(msg *nats.Msg) {
 			data, _ := json.Marshal(server.ServerStatsMsg{
 				Server: server.ServerInfo{Name: name},

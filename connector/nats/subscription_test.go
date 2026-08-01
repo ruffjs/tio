@@ -50,7 +50,7 @@ func TestQueueSubscribeDistributesMessages(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	const n = 20
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := c.Publish("$iothub/things/dev1/queue", []byte("work")); err != nil {
 			t.Fatalf("Publish: %v", err)
 		}
@@ -146,7 +146,7 @@ func TestContextCancellationUnsubscribes(t *testing.T) {
 func TestRepeatedSubscribeCancel(t *testing.T) {
 	c := newTestConnector(t)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		ctx, cancel := context.WithCancel(context.Background())
 		if err := c.Subscribe(ctx, "$iothub/things/dev1/repeat", func(msg connector.Message) {}); err != nil {
 			t.Fatalf("Subscribe %d: %v", i, err)
@@ -186,19 +186,17 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 	var wg sync.WaitGroup
 
 	ctx := context.Background()
-	for i := 0; i < subs; i++ {
+	for range subs {
 		if err := c.Subscribe(ctx, "$iothub/things/dev1/stress/#", func(msg connector.Message) { atomic.AddInt32(&totalReceived, 1) }); err != nil {
 			t.Fatalf("Subscribe: %v", err)
 		}
 	}
 	time.Sleep(100 * time.Millisecond)
 
-	for i := 0; i < msgs; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range msgs {
+		wg.Go(func() {
 			_ = c.Publish("$iothub/things/dev1/stress/item", []byte("data"))
-		}()
+		})
 	}
 	wg.Wait()
 

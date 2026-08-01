@@ -31,6 +31,7 @@ func MergeState(tgt *StateValue, src StateValue, allMeta, updatedMeta *MetaValue
 	um := (map[string]any)(*updatedMeta)
 	srcCopy := DeepCopyMap(srcM)
 	doMergeState(&tgtM, srcCopy, &am, &um)
+	*tgt = tgtM
 	*allMeta = am
 	*updatedMeta = um
 }
@@ -45,6 +46,7 @@ func doMergeState(tgt *map[string]any, src map[string]any, allMeta, updatedMeta 
 	if *tgt == nil {
 		*tgt = src
 		genMeta(*tgt, updatedMeta)
+		genMeta(*tgt, allMeta)
 		return
 	}
 	tg := *tgt
@@ -233,7 +235,7 @@ func deltaDiff(key string, target, source any, meta map[string]any) (delta any, 
 				}
 			}
 		}
-	case []interface{}:
+	case []any:
 		if reflect.DeepEqual(t, source) {
 			return
 		} else {
@@ -262,7 +264,7 @@ func ValueByPath(m map[string]any, path string) (any, bool) {
 	}
 	p := splitPath(path)
 	mm := m
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		kv, ok := mm[p[i]]
 		if !ok {
 			return nil, false
@@ -295,4 +297,148 @@ func MergeTags(current TagsValue, expect TagsValue) TagsValue {
 	}
 
 	return current
+}
+
+func MergePatch(old, patch map[string]any) (map[string]any, bool) {
+	if patch == nil {
+		return cloneMap(old), false
+	}
+
+	result := cloneMap(old)
+	if result == nil {
+		result = make(map[string]any)
+	}
+
+	changed := false
+	for k, patchVal := range patch {
+		oldVal, exists := result[k]
+
+		if patchVal == nil {
+			if exists {
+				delete(result, k)
+				changed = true
+			}
+			continue
+		}
+
+		patchMap, patchIsMap := patchVal.(map[string]any)
+		oldMap, oldIsMap := oldVal.(map[string]any)
+
+		if patchIsMap {
+			if oldIsMap {
+				merged, subChanged := MergePatch(oldMap, patchMap)
+				if subChanged {
+					result[k] = merged
+					changed = true
+				}
+			} else {
+				merged, subChanged := MergePatch(nil, patchMap)
+				result[k] = merged
+				if subChanged || !oldIsMap {
+					changed = true
+				}
+			}
+		} else {
+			if !exists || !deepEqual(oldVal, patchVal) {
+				result[k] = patchVal
+				changed = true
+			}
+		}
+	}
+
+	return result, changed
+}
+
+func cloneMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]any, len(m))
+	for k, v := range m {
+		result[k] = cloneValue(v)
+	}
+	return result
+}
+
+func cloneValue(v any) any {
+	switch value := v.(type) {
+	case map[string]any:
+		return cloneMap(value)
+	case []any:
+		result := make([]any, len(value))
+		for i, item := range value {
+			result[i] = cloneValue(item)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func deepEqual(a, b any) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	aMap, aIsMap := a.(map[string]any)
+	bMap, bIsMap := b.(map[string]any)
+	if aIsMap && bIsMap {
+		if len(aMap) != len(bMap) {
+			return false
+		}
+		for k, v := range aMap {
+			if !deepEqual(v, bMap[k]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	aSlice, aIsSlice := a.([]any)
+	bSlice, bIsSlice := b.([]any)
+	if aIsSlice && bIsSlice {
+		if len(aSlice) != len(bSlice) {
+			return false
+		}
+		for i, v := range aSlice {
+			if !deepEqual(v, bSlice[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	if af, aok := toFloat64(a); aok {
+		if bf, bok := toFloat64(b); bok {
+			return af == bf
+		}
+	}
+
+	return a == b
+}
+
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }

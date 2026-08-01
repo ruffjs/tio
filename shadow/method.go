@@ -9,9 +9,8 @@ import (
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 	"ruff.io/tio/pkg/model"
-
-	"encoding/json"
 )
 
 const (
@@ -74,7 +73,8 @@ func topicMethodPrefix(thingId, methodName string) string {
 
 type mqttMethod struct {
 	connector connector.Connector
-	pending   sync.Map // thingId -> clientToken -> pendingResp, pending for response receive
+	codec     codec.Codec
+	pending   sync.Map
 }
 
 type pendingResp struct {
@@ -84,8 +84,8 @@ type pendingResp struct {
 
 var _ MethodHandler = (*mqttMethod)(nil)
 
-func NewMethodHandler(conn connector.Connector) MethodHandler {
-	return &mqttMethod{connector: conn}
+func NewMethodHandler(conn connector.Connector, c codec.Codec) MethodHandler {
+	return &mqttMethod{connector: conn, codec: c}
 }
 
 func (h *mqttMethod) InitMethodHandler(ctx context.Context) error {
@@ -116,7 +116,7 @@ func (h *mqttMethod) doInvokeMethod(ctx context.Context,
 	msg MethodReqMsg,
 ) (MethodResp, error) {
 	topic := TopicMethodRequest(msg.ThingId, msg.Method)
-	j, err := json.Marshal(msg.Req)
+	j, err := h.codec.Marshal(msg.Req)
 	if err != nil {
 		return MethodResp{}, errors.WithMessage(err, "request json marshal")
 	}
@@ -172,7 +172,7 @@ func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {
 				return
 			}
 			var r MethodResp
-			err = json.Unmarshal(msg.Payload(), &r)
+			err = h.codec.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for method response")
 				return

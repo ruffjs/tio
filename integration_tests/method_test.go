@@ -30,17 +30,16 @@ func newThingClient(ctx context.Context, thingId string, t *testing.T) *mq.Devic
 }
 
 func TestMethodInvoke(t *testing.T) {
-	// t.Parallel()
+	skipIfNotLegacy(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	thingId := ID()
 	methodName := "hello"
 
-	// thing subscribe and response
 	thingClient := newThingClient(ctx, thingId, t)
 	go func() {
 		_ = thingClient.Subscribe(shadow.TopicMethodRequest(thingId, methodName), 0, func(c mqtt.Client, m mqtt.Message) {
 			var req shadow.MethodReq
-			err := json.Unmarshal(m.Payload(), &req)
+			err := testCodec.Unmarshal(m.Payload(), &req)
 			require.NoError(t, err, "device unable to unmarshal method request")
 			slog.Debug("device receive method request", "request", req)
 			resp := shadow.MethodResp{
@@ -49,13 +48,12 @@ func TestMethodInvoke(t *testing.T) {
 				Message:     "OK from device",
 				Code:        200,
 			}
-		b, _ := json.Marshal(resp)
-		pubErr := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
-		require.NoError(t, pubErr, "device unable to publish method response")
+			b, _ := testCodec.Marshal(resp)
+			pubErr := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
+			require.NoError(t, pubErr, "device unable to publish method response")
 		})
 	}()
 
-	// method invoke by http api
 	methodBody := strings.NewReader(`{
 		"respTimeout": 1,
 		"data": {

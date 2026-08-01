@@ -10,6 +10,7 @@ import (
 
 	"ruff.io/tio/connector/mock"
 	"ruff.io/tio/ntp"
+	"ruff.io/tio/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,8 @@ func TestNtpHandler(t *testing.T) {
 		mc := mock.NewMockConnector()
 		_ = mc.Start(ctx)
 
-		handler := ntp.NewNtpHandler(mc)
+		cc, _ := codec.New("json")
+		handler := ntp.NewNtpHandler(mc, cc)
 		err := handler.InitNtpHandler(ctx)
 		require.NoError(t, err)
 

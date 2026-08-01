@@ -81,6 +81,7 @@ Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 S
 - 支持 MQTT over WebSocket
 - 支持 SSL/TLS
 - 支持集群部署（NATS 原生集群）
+- 设备协议可在启动时选择 `legacy` 或 [Simple 协议](docs/simple-protocol.md)，并全局选择 JSON/CBOR 编码
 
 ## 支持的数据库
 

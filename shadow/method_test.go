@@ -103,7 +103,7 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 			mc.SetConnected(c.req.ThingId, true)
 		}
 
-		handler := shadow.NewMethodHandler(mc)
+		handler := shadow.NewMethodHandler(mc, mustCodec(t))
 		err := handler.InitMethodHandler(ctx)
 		require.NoError(t, err)
 

@@ -38,6 +38,12 @@ db:
     connMaxLifetime: 60
     showSql: true
 
+protocol:
+  # Global encoding for all Tio-owned device MQTT application messages: "json" or "cbor"
+  encoding: json
+  # Exactly one device protocol is enabled at startup: "legacy" or "simple"
+  mode: legacy
+
 connector:
   # Connector type: "nats" (embedded NATS server with MQTT gateway)
   type: nats

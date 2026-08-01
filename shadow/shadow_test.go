@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ruff.io/tio/connector/mock"
+	"ruff.io/tio/pkg/codec"
 	"ruff.io/tio/shadow"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func TestHandler_GetReq(t *testing.T) {
 	mc := mock.NewMockConnector()
 	_ = mc.Start(ctx)
 
-	h := shadow.NewShadowHandler(mc)
+	h := shadow.NewShadowHandler(mc, mustCodec(t))
 	ch, err := h.ShadowGetReq(ctx)
 	require.NoError(t, err)
 
@@ -46,7 +47,7 @@ func TestHandler_StateReq(t *testing.T) {
 	mc := mock.NewMockConnector()
 	_ = mc.Start(ctx)
 
-	h := shadow.NewShadowHandler(mc)
+	h := shadow.NewShadowHandler(mc, mustCodec(t))
 	ch, err := h.StateUpdateReq(ctx)
 	require.NoError(t, err)
 
@@ -102,7 +103,7 @@ func TestHandler_Accepted(t *testing.T) {
 	for _, c := range cases {
 		mc := mock.NewMockConnector()
 		_ = mc.Start(ctx)
-		h := shadow.NewShadowHandler(mc)
+		h := shadow.NewShadowHandler(mc, mustCodec(t))
 
 		err := h.AcceptedResp(ctx, c.msg)
 		require.NoError(t, err)
@@ -127,7 +128,8 @@ func Benchmark_GetReq(b *testing.B) {
 	mc := mock.NewMockConnector()
 	_ = mc.Start(ctx)
 
-	h := shadow.NewShadowHandler(mc)
+	c, _ := codec.New("json")
+	h := shadow.NewShadowHandler(mc, c)
 	ch, _ := h.ShadowGetReq(ctx)
 
 	b.ResetTimer()
@@ -141,4 +143,11 @@ func Benchmark_GetReq(b *testing.B) {
 		mc.SimulateMessage(topic, getReqJson)
 		<-ch
 	}
+}
+
+func mustCodec(t *testing.T) codec.Codec {
+	t.Helper()
+	c, err := codec.New("json")
+	require.NoError(t, err)
+	return c
 }

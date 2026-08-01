@@ -8,6 +8,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
+	"ruff.io/tio/pkg/protocol"
 )
 
 // TestWebSocketMQTTConnection tests MQTT over WebSocket connection
@@ -37,7 +38,7 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
-	
+
 	select {
 	case <-ctx.Done():
 		t.Fatal("connection timeout")
@@ -52,7 +53,10 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 	// Test publish and subscribe
 	received := make(chan bool, 1)
 	testTopic := fmt.Sprintf("$iothub/things/%s/shadow/update", thingId)
-	
+	if cfg.Protocol.Mode == "simple" {
+		testTopic = protocol.TopicDown(thingId)
+	}
+
 	subToken := client.Subscribe(testTopic, 0, func(c mqtt.Client, m mqtt.Message) {
 		received <- true
 	})
@@ -60,9 +64,13 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 	require.NoError(t, subToken.Error(), "subscribe should succeed")
 
 	// Publish a message
-	pubToken := client.Publish(testTopic, 0, false, []byte(`{"test":"data"}`))
-	pubToken.Wait()
-	require.NoError(t, pubToken.Error(), "publish should succeed")
+	if cfg.Protocol.Mode == "simple" {
+		require.NoError(t, natsConnector.Publish(testTopic, []byte(`{"test":"data"}`)))
+	} else {
+		pubToken := client.Publish(testTopic, 0, false, []byte(`{"test":"data"}`))
+		pubToken.Wait()
+		require.NoError(t, pubToken.Error(), "publish should succeed")
+	}
 
 	// Wait for message
 	select {
@@ -101,7 +109,7 @@ func TestWebSocketMQTTAuth(t *testing.T) {
 
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
-	
+
 	select {
 	case <-ctx.Done():
 		// Timeout is acceptable for rejected connection

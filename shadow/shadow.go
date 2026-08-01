@@ -2,12 +2,12 @@ package shadow
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"time"
 
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 
 	"ruff.io/tio/pkg/model"
 )
@@ -71,10 +71,11 @@ const (
 
 type shadowHandler struct {
 	client connector.PubSub
+	codec  codec.Codec
 }
 
-func NewShadowHandler(client connector.PubSub) StateHandler {
-	return &shadowHandler{client}
+func NewShadowHandler(client connector.PubSub, c codec.Codec) StateHandler {
+	return &shadowHandler{client: client, codec: c}
 }
 
 var _ StateHandler = (*shadowHandler)(nil)
@@ -89,7 +90,7 @@ func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, err
 				return
 			}
 			var r GetReq
-			err = json.Unmarshal(msg.Payload(), &r)
+			err = h.codec.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for shadow get request")
 				return
@@ -122,7 +123,7 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 			slog.Debug("Got shadow update msg", "thingId", thingId, "payload", string(msg.Payload()))
 
 			var r StateReq
-			err = json.Unmarshal(msg.Payload(), &r)
+			err = h.codec.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for state update request")
 				return
@@ -153,7 +154,7 @@ func (h *shadowHandler) RejectedResp(ctx context.Context, resp ErrRespMsg) error
 	default:
 		return errors.Errorf("unsupported shadow operation %d", resp.Op)
 	}
-	j, err := json.Marshal(resp.Resp)
+	j, err := h.codec.Marshal(resp.Resp)
 	if err != nil {
 		return err
 	}
@@ -171,7 +172,7 @@ func (h *shadowHandler) AcceptedResp(ctx context.Context, resp StateAcceptedResp
 	default:
 		return errors.Errorf("unsupported shadow operation %d", resp.Op)
 	}
-	j, err := json.Marshal(resp.Resp)
+	j, err := h.codec.Marshal(resp.Resp)
 	if err != nil {
 		return err
 	}
@@ -181,7 +182,7 @@ func (h *shadowHandler) AcceptedResp(ctx context.Context, resp StateAcceptedResp
 
 func (h *shadowHandler) StateDeltaNotify(ctx context.Context, msg DeltaStateNoticeMsg) error {
 	topic := TopicDeltaStateOf(msg.ThingId)
-	j, err := json.Marshal(msg.Notice)
+	j, err := h.codec.Marshal(msg.Notice)
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}
@@ -192,7 +193,7 @@ func (h *shadowHandler) StateDeltaNotify(ctx context.Context, msg DeltaStateNoti
 func (h *shadowHandler) StateUpdatedNotify(ctx context.Context, msg StateUpdatedNoticeMsg) error {
 	topic := TopicStateUpdatedOf(msg.ThingId)
 
-	j, err := json.Marshal(msg.Notice)
+	j, err := h.codec.Marshal(msg.Notice)
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}

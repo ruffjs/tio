@@ -8,13 +8,14 @@ import (
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/model"
+	"ruff.io/tio/pkg/protocol"
 	"ruff.io/tio/shadow"
 )
 
 type AclFn = func(clientId, username string, topic string, write bool) bool
 
 // TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
-func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword) AclFn {
+func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, protocolMode string) AclFn {
 	return func(clientId, username string, topic string, write bool) bool {
 		// Embeded MQTT inline client username is empty
 		if username == "" {
@@ -26,6 +27,55 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword) AclF
 				return true
 			}
 		}
+
+		// Check if it's a simple protocol topic
+		if strings.HasPrefix(topic, protocol.TopicSimplePrefix) {
+			if protocolMode != "simple" {
+				slog.Debug("Simple protocol topic rejected in legacy mode", "thingId", username, "topic", topic)
+				return false
+			}
+
+			thingId, level, err := protocol.ParseTopic(topic)
+			if err != nil {
+				slog.Error("Parse simple topic error", "thingId", username, "topic", topic, "error", err)
+				return false
+			}
+
+			// Check if thing matches username or is bound to gateway
+			if thingId != username {
+				if bound, err := bg.IsBoundGateway(context.Background(), thingId, username); err != nil || !bound {
+					slog.Debug("Simple topic thingId mismatch", "thingId", username, "topic", topic, "targetThingId", thingId)
+					return false
+				}
+			}
+
+			// Enforce directional ACLs
+			if write {
+				// Devices can publish to up, event, data
+				if level != protocol.LevelUp && level != protocol.LevelEvent && level != protocol.LevelData {
+					slog.Debug("Simple protocol publish denied", "thingId", username, "topic", topic, "level", level)
+					return false
+				}
+			} else {
+				// Devices can only subscribe to down
+				if level != protocol.LevelDown {
+					slog.Debug("Simple protocol subscribe denied", "thingId", username, "topic", topic, "level", level)
+					return false
+				}
+			}
+
+			return true
+		}
+
+		// Legacy protocol topics
+		if protocolMode == "simple" {
+			// Reject legacy topics in simple mode
+			if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
+				slog.Debug("Legacy protocol topic rejected in simple mode", "thingId", username, "topic", topic)
+				return false
+			}
+		}
+
 		thingTopicPrefix := shadow.TopicThingsPrefix + username + "/"
 		userThingTopicPrefix := shadow.TopicUserThingsPrefix + username + "/"
 

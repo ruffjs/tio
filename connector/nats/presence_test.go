@@ -19,7 +19,7 @@ func usernameAuthzFn(ctx connector.AuthContext) (connector.AuthResult, bool) {
 func newPresenceTestConnector(t *testing.T) *Connector {
 	t.Helper()
 	cfg := testConnectorConfig(t)
-	c, err := NewConnector(cfg)
+	c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}

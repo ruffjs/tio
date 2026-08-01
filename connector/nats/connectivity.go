@@ -168,9 +168,7 @@ func (c *Connector) Remove(thingId string) error {
 		_ = c.kv.Delete(key)
 	}
 
-	if c.mqttPub != nil {
-		_ = c.mqttPub.Publish(connector.TopicPresence(thingId), 1, true, nil)
-	}
+	_ = c.publishMqtt(connector.TopicPresence(thingId), 1, true, nil)
 
 	return nil
 }

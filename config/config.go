@@ -77,6 +77,25 @@ type InnerMqttBroker struct {
 	MaximumInflight   uint16           `json:"maximumInflight"`
 }
 
+type Protocol struct {
+	Encoding string `json:"encoding" mapstructure:"encoding"`
+	Mode     string `json:"mode" mapstructure:"mode"`
+}
+
+func (p Protocol) Validate() error {
+	switch p.Encoding {
+	case "json", "cbor":
+	default:
+		return fmt.Errorf("protocol.encoding must be 'json' or 'cbor', got %q", p.Encoding)
+	}
+	switch p.Mode {
+	case "legacy", "simple":
+	default:
+		return fmt.Errorf("protocol.mode must be 'legacy' or 'simple', got %q", p.Mode)
+	}
+	return nil
+}
+
 type Config struct {
 	Log struct {
 		Level string `json:"level,omitempty"`
@@ -92,6 +111,7 @@ type Config struct {
 		Sqlite sqlite.Config `json:"sqlite"`
 	} `json:"db"`
 	Connector       Connector `json:"connector"`
+	Protocol        Protocol  `json:"protocol"`
 	ProvisionSecret string    `json:"-"`
 	Shadow          struct {
 		IgnoreMetadataFor []string `json:"ignoreMetadataFor"`

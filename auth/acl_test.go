@@ -72,7 +72,7 @@ func TestTopicAcl(t *testing.T) {
 				call = mBg.Mock.On("IsBoundGateway", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
 			}
 
-			aclFn := auth.TopicAcl(mBg, c.supers)
+			aclFn := auth.TopicAcl(mBg, c.supers, "legacy")
 			r := aclFn(c.user, c.user, c.topic, true)
 			require.Equal(t, c.result, r, fmt.Sprintf("user %s should access %s : %t", c.user, c.topic, c.result))
 

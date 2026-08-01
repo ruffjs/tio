@@ -9,34 +9,48 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 
-	"github.com/nats-io/nats.go"
 	server "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 )
 
 type Connector struct {
-	cfg        config.NatsConfig
-	natsSvr    *NatsServer
-	auth       *NatsAuthenticator
-	mqttPub    *mqttPublisher
+	cfg     config.NatsConfig
+	natsSvr *NatsServer
+	auth    *NatsAuthenticator
+	mqttPub *mqttPublisher
 
-	natsConn   *nats.Conn
-	sysConn    *nats.Conn
-	js         nats.JetStreamContext
-	kv         nats.KeyValue
+	natsConn *nats.Conn
+	sysConn  *nats.Conn
+	js       nats.JetStreamContext
+	kv       nats.KeyValue
 
 	presenceHandler connector.PresenceHandler
 
-	ctx        context.Context
-	cancel     context.CancelFunc
+	deviceCodec  codec.Codec
+	protocolMode string
+
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	configured bool
 	started    bool
 	mu         sync.Mutex
 }
 
-func NewConnector(cfg config.NatsConfig) (*Connector, error) {
-	return &Connector{cfg: cfg}, nil
+func NewConnector(cfg config.NatsConfig, deviceCodec codec.Codec, protocolMode string) (*Connector, error) {
+	if deviceCodec == nil {
+		return nil, errors.New("device codec is required")
+	}
+	if protocolMode != "legacy" && protocolMode != "simple" {
+		return nil, fmt.Errorf("invalid protocol mode: %q", protocolMode)
+	}
+	return &Connector{
+		cfg:          cfg,
+		deviceCodec:  deviceCodec,
+		protocolMode: protocolMode,
+	}, nil
 }
 
 func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, bg connector.BindingGetter) error {
@@ -53,6 +67,7 @@ func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, bg connector.Bindin
 		c.cfg.AppClient,
 		c.cfg.SystemClient,
 		c.cfg.MqttPublisher,
+		c.protocolMode,
 	)
 	c.configured = true
 	return nil
@@ -155,7 +170,7 @@ func (c *Connector) startMqttPublisher(ctx context.Context) error {
 	if mqttPort <= 0 {
 		return fmt.Errorf("MQTT gateway port not available")
 	}
-	
+
 	var pubTLS *tls.Config
 	if !tlsConfigEmpty(c.cfg.Server.MqttTLS) {
 		tlsCfg, err := buildMqttPublisherTLSConfig(c.cfg.Server.MqttTLS)
@@ -164,7 +179,7 @@ func (c *Connector) startMqttPublisher(ctx context.Context) error {
 		}
 		pubTLS = tlsCfg
 	}
-	
+
 	pub := newMqttPublisher(
 		c.cfg.Server.ServerName,
 		mqttPort,
@@ -226,11 +241,20 @@ func (c *Connector) Publish(topic string, payload []byte) error {
 }
 
 func (c *Connector) PublishReliable(topic string, payload []byte) error {
-	return c.mqttPub.Publish(topic, 1, false, payload)
+	return c.publishMqtt(topic, 1, false, payload)
 }
 
 func (c *Connector) PublishRetained(topic string, payload []byte) error {
-	return c.mqttPub.Publish(topic, 1, true, payload)
+	return c.publishMqtt(topic, 1, true, payload)
+}
+
+func (c *Connector) publishMqtt(topic string, qos byte, retained bool, payload []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mqttPub == nil {
+		return errors.New("mqtt publisher not started")
+	}
+	return c.mqttPub.Publish(topic, qos, retained, payload)
 }
 
 func (c *Connector) Server() *NatsServer              { return c.natsSvr }

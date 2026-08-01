@@ -19,6 +19,7 @@ type NatsAuthenticator struct {
 	mqttPublisher config.NatsClientConfig
 	appAcc        *server.Account
 	sysAcc        *server.Account
+	protocolMode  string
 }
 
 func NewNatsAuthenticator(
@@ -26,6 +27,7 @@ func NewNatsAuthenticator(
 	bindingGetter connector.BindingGetter,
 	superUsers []config.UserPassword,
 	appClient, sysClient, mqttPublisher config.NatsClientConfig,
+	protocolMode string,
 ) *NatsAuthenticator {
 	return &NatsAuthenticator{
 		authzFn:       authzFn,
@@ -34,6 +36,7 @@ func NewNatsAuthenticator(
 		appClient:     appClient,
 		sysClient:     sysClient,
 		mqttPublisher: mqttPublisher,
+		protocolMode:  protocolMode,
 	}
 }
 
@@ -80,10 +83,10 @@ func (a *NatsAuthenticator) registerInternalAppUser(c server.ClientAuthenticatio
 		Account:  a.appAcc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "$KV.>", "_INBOX.>"},
+				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "$KV.>", "_INBOX.>", "tio.>"},
 			},
 			Subscribe: &server.SubjectPermission{
-				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "_INBOX.>", "$KV.>"},
+				Allow: []string{"$iothub.>", "$tio.>", "$JS.API.>", "_INBOX.>", "$KV.>", "tio.>"},
 			},
 		},
 	}
@@ -122,7 +125,7 @@ func (a *NatsAuthenticator) registerInternalMqttPublisher(c server.ClientAuthent
 		Account:  a.appAcc,
 		Permissions: &server.Permissions{
 			Publish: &server.SubjectPermission{
-				Allow: []string{"$iothub.>"},
+				Allow: []string{"$iothub.>", "tio.>"},
 			},
 			Subscribe: &server.SubjectPermission{
 				Deny: []string{">"},
@@ -185,22 +188,36 @@ func (a *NatsAuthenticator) extractCertCN(c server.ClientAuthentication) string 
 func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions {
 	for _, su := range a.superUsers {
 		if su.Name == thingId {
+			allow := []string{"$iothub.>"}
+			if a.protocolMode == "simple" {
+				allow = []string{"tio.>"}
+			}
 			return &server.Permissions{
 				Publish: &server.SubjectPermission{
-					Allow: []string{"$iothub.>"},
+					Allow: allow,
 				},
 				Subscribe: &server.SubjectPermission{
-					Allow: []string{"$iothub.>", "$MQTT.sub.>", "_INBOX.>"},
+					Allow: append(append([]string{}, allow...), "$MQTT.sub.>", "_INBOX.>"),
 				},
 			}
 		}
 	}
 
-	thingPrefix := "$iothub.things." + thingId + ".>"
-	userPrefix := "$iothub.user.things." + thingId + ".>"
+	var pubAllow, subAllow []string
+	if a.protocolMode == "simple" {
+		simpleUp := "tio." + thingId + ".up"
+		simpleDown := "tio." + thingId + ".down"
+		simpleEvent := "tio." + thingId + ".event"
+		simpleData := "tio." + thingId + ".data"
 
-	pubAllow := []string{thingPrefix, userPrefix}
-	subAllow := []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"}
+		pubAllow = []string{simpleUp, simpleEvent, simpleData}
+		subAllow = []string{simpleDown, "$MQTT.sub.>"}
+	} else {
+		thingPrefix := "$iothub.things." + thingId + ".>"
+		userPrefix := "$iothub.user.things." + thingId + ".>"
+		pubAllow = []string{thingPrefix, userPrefix}
+		subAllow = []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"}
+	}
 
 	if a.bindingGetter != nil {
 		boundIds, err := a.bindingGetter.GetBoundThingIds(context.Background(), thingId)
@@ -208,10 +225,20 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 			slog.Error("get bound things for gateway permissions", "gateway", thingId, "error", err)
 		} else {
 			for _, bid := range boundIds {
-				boundPub := "$iothub.things." + bid + ".>"
-				boundUser := "$iothub.user.things." + bid + ".>"
-				pubAllow = append(pubAllow, boundPub, boundUser)
-				subAllow = append(subAllow, boundPub, boundUser)
+				if a.protocolMode == "simple" {
+					boundUp := "tio." + bid + ".up"
+					boundDown := "tio." + bid + ".down"
+					boundEvent := "tio." + bid + ".event"
+					boundData := "tio." + bid + ".data"
+
+					pubAllow = append(pubAllow, boundUp, boundEvent, boundData)
+					subAllow = append(subAllow, boundDown)
+				} else {
+					boundPub := "$iothub.things." + bid + ".>"
+					boundUser := "$iothub.user.things." + bid + ".>"
+					pubAllow = append(pubAllow, boundPub, boundUser)
+					subAllow = append(subAllow, boundPub, boundUser)
+				}
 			}
 		}
 	}

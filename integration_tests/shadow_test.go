@@ -18,7 +18,15 @@ import (
 	"ruff.io/tio/shadow"
 )
 
+func skipIfNotLegacy(t *testing.T) {
+	t.Helper()
+	if cfg.Protocol.Mode != "legacy" {
+		t.Skip("Skipping legacy test: only runs in legacy protocol mode")
+	}
+}
+
 func TestShadowSetDesired(t *testing.T) {
+	skipIfNotLegacy(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	thingId := ID()
 	methodBody := strings.NewReader(`{
@@ -33,7 +41,7 @@ func TestShadowSetDesired(t *testing.T) {
 	thingClient := newThingClient(ctx, thingId, t)
 	err := thingClient.Subscribe(shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var req shadow.DeltaStateNotice
-		err := json.Unmarshal(m.Payload(), &req)
+		err := testCodec.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal delta state")
 		slog.Debug("device receive delta state", "req", req)
 		require.Equal(t, req.State["color"], "red-for-set-desired", "delta state is not valid")
@@ -41,7 +49,7 @@ func TestShadowSetDesired(t *testing.T) {
 	require.NoError(t, err)
 	err = thingClient.Subscribe(shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var req shadow.StateUpdatedNotice
-		err := json.Unmarshal(m.Payload(), &req)
+		err := testCodec.Unmarshal(m.Payload(), &req)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
 		slog.Debug("device receive state update notice", "req", req)
 		require.Equal(t, req.Current.State.Desired["color"], "red-for-set-desired", "state update notice is not valid")
@@ -66,6 +74,7 @@ func TestShadowSetDesired(t *testing.T) {
 }
 
 func TestShadowSetReported(t *testing.T) {
+	skipIfNotLegacy(t)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	thingId := ID()
@@ -75,19 +84,19 @@ func TestShadowSetReported(t *testing.T) {
 			Reported: shadow.StateValue{"color": "red-for-set-reported"},
 		},
 	}
-	stateReqBytes, _ := json.Marshal(stateReq)
+	stateReqBytes, _ := testCodec.Marshal(stateReq)
 
 	thingClient := newThingClient(ctx, thingId, t)
 	err := thingClient.Subscribe(shadow.TopicDeltaStateOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var n shadow.DeltaStateNotice
-		err := json.Unmarshal(m.Payload(), &n)
+		err := testCodec.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal delta state")
 		slog.Debug("device receive delta state", "n", n)
 	})
 	require.NoError(t, err)
 	err = thingClient.Subscribe(shadow.TopicStateUpdatedOf(thingId), 0, func(c mqtt.Client, m mqtt.Message) {
 		var n shadow.StateUpdatedNotice
-		err := json.Unmarshal(m.Payload(), &n)
+		err := testCodec.Unmarshal(m.Payload(), &n)
 		require.NoError(t, err, "device unable to unmarshal state update notice")
 		slog.Debug("device received state update notice", "n", n, "payload", string(m.Payload()))
 		require.Equal(t, stateReq.State.Reported["color"], n.Current.State.Reported["color"],
@@ -99,7 +108,7 @@ func TestShadowSetReported(t *testing.T) {
 
 	err = thingClient.Subscribe(shadow.TopicUpdateAcceptedOf(thingId), 1, func(c mqtt.Client, m mqtt.Message) {
 		var resp shadow.StateAcceptedResp
-		err := json.Unmarshal(m.Payload(), &resp)
+		err := testCodec.Unmarshal(m.Payload(), &resp)
 		require.NoError(t, err, "device unable to unmarshal accepted message")
 		slog.Debug("device received state update accepted message", "resp", resp)
 		require.Equal(t, stateReq.ClientToken, resp.ClientToken, "client token mismatch")

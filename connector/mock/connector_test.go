@@ -102,7 +102,7 @@ func TestQueueSubscribeDistributes(t *testing.T) {
 		mu.Unlock()
 	})
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		c.SimulateMessage("q/topic", []byte("msg"))
 	}
 

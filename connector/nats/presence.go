@@ -225,21 +225,31 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 }
 
 func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType string, rec PresenceRecord) {
-	payload, _ := json.Marshal(connector.PresenceEvent{
+	if c.protocolMode == "simple" {
+		return
+	}
+
+	if c.deviceCodec == nil {
+		return
+	}
+
+	payload, err := c.deviceCodec.Marshal(connector.PresenceEvent{
 		Timestamp:  ts.UnixMilli(),
 		EventType:  eventType,
 		ThingId:    thingId,
 		ClientId:   rec.ClientId,
 		RemoteAddr: rec.RemoteAddr,
 	})
+	if err != nil {
+		slog.Error("marshal presence event", "thingId", thingId, "error", err)
+		return
+	}
 
-	if c.mqttPub != nil {
-		if err := c.mqttPub.Publish(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
-			slog.Error("publish presence event via MQTT", "thingId", thingId, "error", err)
-		}
-		if err := c.mqttPub.Publish(connector.TopicPresence(thingId), 1, true, payload); err != nil {
-			slog.Error("publish retained presence via MQTT", "thingId", thingId, "error", err)
-		}
+	if err := c.publishMqtt(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
+		slog.Error("publish presence event via MQTT", "thingId", thingId, "error", err)
+	}
+	if err := c.publishMqtt(connector.TopicPresence(thingId), 1, true, payload); err != nil {
+		slog.Error("publish retained presence via MQTT", "thingId", thingId, "error", err)
 	}
 }
 

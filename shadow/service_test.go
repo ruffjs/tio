@@ -236,8 +236,8 @@ func TestSvcImpl_Set(t *testing.T) {
 		}
 
 		con := 20
-		wantVersion := con + 1
-		for i := 0; i < con; i++ {
+		wantVersion := 2
+		for range con {
 			go func() {
 				req := shadow.StateReq{ClientToken: "xxx", State: shadow.StateDR{Desired: stateVal}}
 				_, err := svc.SetDesired(ctx, thingId, req)
@@ -364,8 +364,9 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 	for _, c := range cases {
 		t.Run("set desired to notify delta state", func(t *testing.T) {
 			resetDelta()
-			stateVal["color"] = c.color
-			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: stateVal}, Version: version}
+			desiredVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
+			desiredVal["color"] = c.color
+			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: desiredVal}, Version: version}
 			_, err = svc.SetDesired(ctx, thingId, req)
 			require.NoError(t, err)
 
@@ -373,28 +374,31 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 			version++
 		})
 		t.Run("set wrong version discard update", func(t *testing.T) {
-			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: stateVal}, Version: version + 1}
+			desiredVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
+			desiredVal["color"] = c.color
+			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: desiredVal}, Version: version + 1}
 			_, err = svc.SetDesired(ctx, thingId, req)
 			require.Error(t, err)
 		})
 		t.Run("set reported equal to notify nothing", func(t *testing.T) {
 			resetDelta()
-			reqRep := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Reported: stateVal}}
+			rptVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
+			rptVal["color"] = c.color
+			reqRep := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Reported: rptVal}}
 			_, err := svc.SetReported(ctx, thingId, reqRep)
 			require.NoError(t, err)
 			require.Equal(t, "", lastDelta.ThingId)
-			version++
 		})
 		t.Run("set reported different to notify", func(t *testing.T) {
 			resetDelta()
-			desiredClr := stateVal["color"].(string)
-			stateVal["color"] = fmt.Sprintf("rpt-%d", time.Now().Nanosecond())
-			reqRep := shadow.StateReq{ClientToken: c.clientToken + "rpt", State: shadow.StateDR{Reported: stateVal}}
+			desiredClr := c.color
+			rptVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
+			rptVal["color"] = fmt.Sprintf("rpt-%d", time.Now().Nanosecond())
+			reqRep := shadow.StateReq{ClientToken: c.clientToken + "rpt", State: shadow.StateDR{Reported: rptVal}}
 			_, err := svc.SetReported(ctx, thingId, reqRep)
 			require.NoError(t, err)
 
 			assertDelta(t, lastDelta, reqRep.ClientToken, desiredClr)
-			version++
 		})
 	}
 }

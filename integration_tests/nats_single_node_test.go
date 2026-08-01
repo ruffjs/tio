@@ -1,3 +1,5 @@
+//go:build integration
+
 package integration_tests
 
 import (
@@ -16,6 +18,7 @@ import (
 
 	tioconnector "ruff.io/tio/connector"
 	mq "ruff.io/tio/internal/mqtttest"
+	"ruff.io/tio/pkg/protocol"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
 )
@@ -28,6 +31,13 @@ func newSuperClient(ctx context.Context, name string) *mq.DeviceClient {
 		cfg.Connector.Nats.SuperUsers[0].Name,
 		cfg.Connector.Nats.SuperUsers[0].Password,
 	)
+}
+
+func deviceDownTopic(thingId, legacySuffix string) string {
+	if cfg.Protocol.Mode == "simple" {
+		return protocol.TopicDown(thingId)
+	}
+	return "$iothub/things/" + thingId + "/" + legacySuffix
 }
 
 func TestPasswordAuth(t *testing.T) {
@@ -70,7 +80,11 @@ func TestCrossThingAccessDenied(t *testing.T) {
 	defer clientA.Disconnect()
 
 	received := int32(0)
-	err = clientA.Subscribe(shadow.TopicDeltaStateOf(thingB), 0, func(_ mqtt.Client, m mqtt.Message) {
+	topic := shadow.TopicDeltaStateOf(thingB)
+	if cfg.Protocol.Mode == "simple" {
+		topic = protocol.TopicDown(thingB)
+	}
+	err = clientA.Subscribe(topic, 0, func(_ mqtt.Client, m mqtt.Message) {
 		atomic.AddInt32(&received, 1)
 	})
 	require.NoError(t, err)
@@ -79,7 +93,7 @@ func TestCrossThingAccessDenied(t *testing.T) {
 		Version: 1,
 		State:   shadow.StateValue{"on": true},
 	})
-	require.NoError(t, natsConnector.PublishReliable(shadow.TopicDeltaStateOf(thingB), payload))
+	require.NoError(t, natsConnector.PublishReliable(topic, payload))
 
 	time.Sleep(500 * time.Millisecond)
 	require.Equal(t, int32(0), atomic.LoadInt32(&received), "thing A should not receive thing B's messages")
@@ -98,7 +112,7 @@ func TestQoS1Delivery(t *testing.T) {
 	defer client.Disconnect()
 
 	received := make(chan []byte, 1)
-	topic := "$iothub/things/" + thingId + "/test/delivery"
+	topic := deviceDownTopic(thingId, "test/delivery")
 	err = client.Subscribe(topic, 1, func(_ mqtt.Client, m mqtt.Message) {
 		received <- m.Payload()
 	})
@@ -124,7 +138,7 @@ func TestRetainedDelivery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	topic := "$iothub/things/" + thingId + "/test/retained"
+	topic := deviceDownTopic(thingId, "test/retained")
 	payload := []byte(`{"retained":true}`)
 	require.NoError(t, natsConnector.PublishRetained(topic, payload))
 
@@ -156,7 +170,7 @@ func TestRetainedClear(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	topic := "$iothub/things/" + thingId + "/test/retained-clear"
+	topic := deviceDownTopic(thingId, "test/retained-clear")
 	payload := []byte(`{"retained":true}`)
 	require.NoError(t, natsConnector.PublishRetained(topic, payload))
 	time.Sleep(100 * time.Millisecond)
@@ -203,7 +217,7 @@ func TestBroadcastSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	defer clientB.Disconnect()
 
-	topic := "$iothub/things/" + thingId + "/test/broadcast"
+	topic := deviceDownTopic(thingId, "test/broadcast")
 
 	var receivedA, receivedB int32
 	err = clientA.Subscribe(topic, 0, func(_ mqtt.Client, m mqtt.Message) {
@@ -240,7 +254,7 @@ func TestQueueSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Disconnect()
 
-	topic := "$iothub/things/" + thingId + "/test/queue"
+	topic := deviceDownTopic(thingId, "test/queue")
 
 	received := int32(0)
 	err = client.Subscribe(topic, 0, func(_ mqtt.Client, m mqtt.Message) {
@@ -261,6 +275,7 @@ func TestQueueSubscribe(t *testing.T) {
 }
 
 func TestShadowSetDesiredAcceptance(t *testing.T) {
+	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 
@@ -275,7 +290,7 @@ func TestShadowSetDesiredAcceptance(t *testing.T) {
 	deltaReceived := make(chan struct{}, 1)
 	err = client.Subscribe(shadow.TopicDeltaStateOf(thingId), 0, func(_ mqtt.Client, m mqtt.Message) {
 		var notice shadow.DeltaStateNotice
-		err := json.Unmarshal(m.Payload(), &notice)
+		err := testCodec.Unmarshal(m.Payload(), &notice)
 		if err == nil && notice.State["color"] == "blue" {
 			select {
 			case deltaReceived <- struct{}{}:
@@ -315,6 +330,7 @@ func TestShadowSetDesiredAcceptance(t *testing.T) {
 }
 
 func TestShadowSetReportedAcceptance(t *testing.T) {
+	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 
@@ -329,7 +345,7 @@ func TestShadowSetReportedAcceptance(t *testing.T) {
 	acceptedReceived := make(chan struct{}, 1)
 	err = client.Subscribe(shadow.TopicUpdateAcceptedOf(thingId), 1, func(_ mqtt.Client, m mqtt.Message) {
 		var resp shadow.StateAcceptedResp
-		err := json.Unmarshal(m.Payload(), &resp)
+		err := testCodec.Unmarshal(m.Payload(), &resp)
 		if err == nil && resp.ClientToken == "test-token-reported" {
 			select {
 			case acceptedReceived <- struct{}{}:
@@ -347,7 +363,7 @@ func TestShadowSetReportedAcceptance(t *testing.T) {
 			Reported: shadow.StateValue{"temperature": 25},
 		},
 	}
-	stateReqBytes, _ := json.Marshal(stateReq)
+	stateReqBytes, _ := testCodec.Marshal(stateReq)
 	err = client.Publish(shadow.TopicUpdateOf(thingId), 1, false, stateReqBytes)
 	require.NoError(t, err)
 
@@ -359,6 +375,7 @@ func TestShadowSetReportedAcceptance(t *testing.T) {
 }
 
 func TestPresenceConnectDisconnect(t *testing.T) {
+	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 
@@ -378,7 +395,7 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 
 	err = observer.Subscribe(presenceTopic, 1, func(_ mqtt.Client, m mqtt.Message) {
 		var evt tioconnector.PresenceEvent
-		if err := json.Unmarshal(m.Payload(), &evt); err != nil {
+		if err := testCodec.Unmarshal(m.Payload(), &evt); err != nil {
 			return
 		}
 		if evt.EventType == tioconnector.EventConnected {
@@ -417,6 +434,7 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 }
 
 func TestMultiplePresenceSubscribers(t *testing.T) {
+	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 
@@ -467,6 +485,9 @@ func TestMultiplePresenceSubscribers(t *testing.T) {
 }
 
 func TestWildcardSubscription(t *testing.T) {
+	if cfg.Protocol.Mode == "simple" {
+		t.Skip("simple protocol intentionally rejects device wildcard subscriptions")
+	}
 	thingId := ID()
 	crateThing(thingId)
 
@@ -515,4 +536,27 @@ func TestJobApiAbsent(t *testing.T) {
 	resp, err := httpSvr.Client().Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode, "Job endpoint should return 404")
+}
+
+func TestLegacySimpleInvokeRouteNotExposed(t *testing.T) {
+	if cfg.Protocol.Mode != "legacy" {
+		t.Skip("Skipping test: only runs in legacy protocol mode")
+	}
+
+	thingId := ID()
+	crateThing(thingId)
+
+	body := strings.NewReader(`{
+		"method": "testMethod",
+		"params": {"key": "value"},
+		"timeout": 1
+	}`)
+	req, _ := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpSvr.Client().Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode,
+		"simple invoke route should not be registered in legacy mode")
+	resp.Body.Close()
 }

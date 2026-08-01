@@ -20,6 +20,8 @@ import (
 	"ruff.io/tio/db/sqlite"
 	mq "ruff.io/tio/internal/mqtttest"
 	"ruff.io/tio/ntp"
+	"ruff.io/tio/pkg/codec"
+	"ruff.io/tio/pkg/protocol"
 	"ruff.io/tio/shadow"
 	shadowApi "ruff.io/tio/shadow/api"
 	shadowWire "ruff.io/tio/shadow/wire"
@@ -37,6 +39,7 @@ var (
 	httpSvr       *httptest.Server
 	testCtx       context.Context
 	testCancel    context.CancelFunc
+	testCodec     codec.Codec
 )
 
 func TestMain(m *testing.M) {
@@ -44,13 +47,29 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(storeDir)
-
 	cfg.Connector.Nats.Server.StoreDir = storeDir
 	cfg.Connector.Nats.Server.Port = -1
 	cfg.Connector.Nats.Server.MqttPort = -1
 	cfg.Connector.Nats.Server.WsPort = -1
 	cfg.Connector.Nats.Server.ClusterPort = 0
+
+	if envEncoding := os.Getenv("TIO_TEST_ENCODING"); envEncoding != "" {
+		cfg.Protocol.Encoding = envEncoding
+	}
+	if cfg.Protocol.Encoding == "" {
+		cfg.Protocol.Encoding = "json"
+	}
+
+	if envMode := os.Getenv("TIO_TEST_PROTOCOL"); envMode != "" {
+		cfg.Protocol.Mode = envMode
+	}
+	if cfg.Protocol.Mode == "" {
+		cfg.Protocol.Mode = "legacy"
+	}
+
+	if err := cfg.Protocol.Validate(); err != nil {
+		log.Fatalf("Invalid protocol config: %v", err)
+	}
 
 	dbConn, err = sqlite.Connect(sqlite.Config{FilePath: ":memory:"})
 	if err != nil {
@@ -58,14 +77,18 @@ func TestMain(m *testing.M) {
 	}
 	autoMigrateDB(dbConn)
 
-	natsConnector, err = natsConn.NewConnector(cfg.Connector.Nats)
+	testCtx, testCancel = context.WithCancel(context.Background())
+
+	deviceCodec, err := codec.New(cfg.Protocol.Encoding)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	testCtx, testCancel = context.WithCancel(context.Background())
-	defer testCancel()
-
+	testCodec = deviceCodec
+	natsConnector, err = natsConn.NewConnector(cfg.Connector.Nats, deviceCodec, cfg.Protocol.Mode)
+	if err != nil {
+		log.Fatal(err)
+	}
 	shadowSvc = shadowWire.InitSvc(dbConn, natsConnector, shadow.Config{})
 	thingSvc = thingWire.InitSvc(testCtx, dbConn, shadowSvc, natsConnector)
 
@@ -84,32 +107,65 @@ func TestMain(m *testing.M) {
 
 	shadowSvc.Init(testCtx)
 
-	methodHandler := shadow.NewMethodHandler(natsConnector)
-	shadowStateHandler := shadow.NewShadowHandler(natsConnector)
-	ntpHandler := ntp.NewNtpHandler(natsConnector)
+	var methodHandler shadow.MethodHandler
+	var simpleInvoker shadowApi.SimpleInvoker
+	var simpleHandler *protocol.SimpleHandler
 
-	if err := methodHandler.InitMethodHandler(testCtx); err != nil {
-		log.Fatal(err)
-	}
-	if err := ntpHandler.InitNtpHandler(testCtx); err != nil {
-		log.Fatal(err)
-	}
+	if cfg.Protocol.Mode == "simple" {
+		simpleHandler, err = protocol.NewSimpleHandler(natsConnector, deviceCodec, shadowSvc)
+		if err != nil {
+			log.Fatalf("Create simple handler error: %v", err)
+		}
+		if err := simpleHandler.Start(testCtx); err != nil {
+			log.Fatalf("Start simple handler error: %v", err)
+		}
+		simpleInvoker = simpleHandler
+		log.Printf("Simple protocol handler started (encoding=%s)", cfg.Protocol.Encoding)
+	} else {
+		legacyMethodHandler := shadow.NewMethodHandler(natsConnector, deviceCodec)
+		shadowStateHandler := shadow.NewShadowHandler(natsConnector, deviceCodec)
+		ntpHandler := ntp.NewNtpHandler(natsConnector, deviceCodec)
 
-	if err := shadow.Link(testCtx, shadowStateHandler, shadowSvc, shadow.Config{}); err != nil {
-		log.Fatal(err)
+		if err := legacyMethodHandler.InitMethodHandler(testCtx); err != nil {
+			log.Fatal(err)
+		}
+		if err := ntpHandler.InitNtpHandler(testCtx); err != nil {
+			log.Fatal(err)
+		}
+		if err := shadow.Link(testCtx, shadowStateHandler, shadowSvc, shadow.Config{}); err != nil {
+			log.Fatal(err)
+		}
+		methodHandler = legacyMethodHandler
+		log.Printf("Legacy protocol handlers started (encoding=%s)", cfg.Protocol.Encoding)
 	}
 
 	httpCon := restful.NewContainer()
 	thingWs := thingApi.Service(testCtx, thingSvc)
-	shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
+	if cfg.Protocol.Mode == "simple" {
+		shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, nil)
+		shadowApi.SimpleMethodService(testCtx, thingWs, simpleInvoker, thingSvc)
+	} else {
+		shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
+	}
 	httpCon.Add(thingWs)
 
 	httpSvr = httptest.NewServer(httpCon)
-	defer httpSvr.Close()
 
 	time.Sleep(200 * time.Millisecond)
 
-	os.Exit(m.Run())
+	code := m.Run()
+	if simpleHandler != nil {
+		simpleHandler.Stop()
+	}
+	httpSvr.Close()
+	testCancel()
+	if err := natsConnector.Shutdown(); err != nil {
+		log.Printf("NATS connector shutdown: %v", err)
+	}
+	if err := os.RemoveAll(storeDir); err != nil {
+		log.Printf("remove NATS store: %v", err)
+	}
+	os.Exit(code)
 }
 
 func autoMigrateDB(conn *gorm.DB) {

@@ -73,15 +73,17 @@ func Service(
 		Param(ws.PathParameter("id", "thing id")).
 		Returns(200, "OK", rest.RespOK(shadow.ShadowWithStatus{})))
 
-	ws.Route(ws.POST("/{id}/methods/{name}").
-		To(InvokeMethodHandler(ctx, method, thingSvc)).
-		Operation("invoke-direct-method").
-		Doc("invoke thing direct method").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("id", "thing id")).
-		Param(ws.PathParameter("name", "method name")).
-		Reads(MethodInvokeReq{}).
-		Returns(200, "OK", rest.RespOK(MethodInvokeResp{Data: struct{}{}})))
+	if method != nil {
+		ws.Route(ws.POST("/{id}/methods/{name}").
+			To(InvokeMethodHandler(ctx, method, thingSvc)).
+			Operation("invoke-direct-method").
+			Doc("invoke thing direct method").
+			Metadata(restfulspec.KeyOpenAPITags, tags).
+			Param(ws.PathParameter("id", "thing id")).
+			Param(ws.PathParameter("name", "method name")).
+			Reads(MethodInvokeReq{}).
+			Returns(200, "OK", rest.RespOK(MethodInvokeResp{Data: struct{}{}})))
+	}
 
 	ws.Route(ws.PUT("/{id}/shadows/tags").
 		To(SetTagsHandler(ctx, svc)).

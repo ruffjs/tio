@@ -2,12 +2,12 @@ package ntp
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"strings"
 	"time"
 
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 	"ruff.io/tio/pkg/model"
 )
 
@@ -40,12 +40,13 @@ func TopicReq(thingId string) string {
 	return strings.Replace(TopicReqTmpl, "{thingId}", thingId, -1)
 }
 
-func NewNtpHandler(cl connector.PubSub) Handler {
-	return &ntpHandler{cl}
+func NewNtpHandler(cl connector.PubSub, c codec.Codec) Handler {
+	return &ntpHandler{cl, c}
 }
 
 type ntpHandler struct {
 	client connector.PubSub
+	codec  codec.Codec
 }
 
 func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
@@ -59,7 +60,7 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 				return
 			}
 			var r Req
-			err = json.Unmarshal(msg.Payload(), &r)
+			err = h.codec.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for ntp request", "payload", msg.Payload(), "topic", msg.Topic())
 				return
@@ -70,7 +71,7 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 				ServerRecvTime: serverRecvTime,
 				ServerSendTime: serverSendTime,
 			}
-			j, err := json.Marshal(res)
+			j, err := h.codec.Marshal(res)
 			if err != nil {
 				slog.Error("Marshal ntp response", "response", res, "error", err, "topic", msg.Topic())
 			}

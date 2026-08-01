@@ -15,6 +15,8 @@ import (
 	"ruff.io/tio/auth"
 	"ruff.io/tio/metrics"
 	"ruff.io/tio/ntp"
+	"ruff.io/tio/pkg/codec"
+	"ruff.io/tio/pkg/protocol"
 	"ruff.io/tio/rule"
 
 	"ruff.io/tio"
@@ -97,16 +99,19 @@ func main() {
 	dbConn := newDb(cfg)
 	autoMigrate(dbConn)
 
-	natsConnector, err := natsConn.NewConnector(cfg.Connector.Nats)
+	if err := cfg.Protocol.Validate(); err != nil {
+		log.Fatalf("Invalid protocol config: %v", err)
+	}
+	deviceCodec, err := codec.New(cfg.Protocol.Encoding)
+	if err != nil {
+		log.Fatalf("Create codec error: %v", err)
+	}
+
+	natsConnector, err := natsConn.NewConnector(cfg.Connector.Nats, deviceCodec, cfg.Protocol.Mode)
 	if err != nil {
 		log.Fatalf("Create NATS connector error: %v", err)
 	}
-
 	var conn connector.Connector = natsConnector
-
-	methodHandler := shadow.NewMethodHandler(conn)
-	shadowStateHandler := shadow.NewShadowHandler(conn)
-	ntpHandler := ntp.NewNtpHandler(conn)
 
 	shadowSvc := shadowWire.InitSvc(dbConn, natsConnector, cfg.Shadow)
 	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, natsConnector)
@@ -138,15 +143,37 @@ func main() {
 	ruleMgr := rule.NewRuleMgr()
 	ruleMgr.Boot(ctx, shadowSvc, natsConnector)
 
-	if err := methodHandler.InitMethodHandler(ctx); err != nil {
-		log.Fatalf("Init method handler error: %v", err)
-	}
-	if err := ntpHandler.InitNtpHandler(ctx); err != nil {
-		log.Fatalf("Init ntp handler error: %v", err)
-	}
+	var methodHandler shadow.MethodHandler
+	var simpleInvoker shadowApi.SimpleInvoker
+	var simpleHandler *protocol.SimpleHandler
+	if cfg.Protocol.Mode == "simple" {
+		simpleHandler, err = protocol.NewSimpleHandler(conn, deviceCodec, shadowSvc)
+		if err != nil {
+			log.Fatalf("Create simple handler error: %v", err)
+		}
+		defer simpleHandler.Stop()
+		if err := simpleHandler.Start(ctx); err != nil {
+			log.Fatalf("Start simple handler error: %v", err)
+		}
+		simpleInvoker = simpleHandler
+		slog.Info("Simple protocol handler started")
+	} else {
+		legacyMethodHandler := shadow.NewMethodHandler(conn, deviceCodec)
+		shadowStateHandler := shadow.NewShadowHandler(conn, deviceCodec)
+		ntpHandler := ntp.NewNtpHandler(conn, deviceCodec)
 
-	if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, cfg.Shadow); err != nil {
-		log.Fatalf("Link shadow service to connector error %v", err)
+		if err := legacyMethodHandler.InitMethodHandler(ctx); err != nil {
+			log.Fatalf("Init method handler error: %v", err)
+		}
+		if err := ntpHandler.InitNtpHandler(ctx); err != nil {
+			log.Fatalf("Init ntp handler error: %v", err)
+		}
+
+		if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, cfg.Shadow); err != nil {
+			log.Fatalf("Link shadow service to connector error %v", err)
+		}
+		methodHandler = legacyMethodHandler
+		slog.Info("Legacy protocol handlers started")
 	}
 
 	httpCon := restful.NewContainer()
@@ -154,12 +181,14 @@ func main() {
 	tio.RouteSwagger(httpCon)
 	tio.RouteWeb(httpCon)
 	azf := api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
-	thingWs := thingApi.Service(ctx, thingSvc).
-		Filter(metrics.Middleware).
-		Filter(api.LoggingMiddleware).
-		Filter(azf)
-	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler).
-		Filter(metrics.Middleware).
+	thingWs := thingApi.Service(ctx, thingSvc)
+	if cfg.Protocol.Mode == "simple" {
+		shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, nil)
+		shadowApi.SimpleMethodService(ctx, thingWs, simpleInvoker, thingSvc)
+	} else {
+		shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
+	}
+	thingWs.Filter(metrics.Middleware).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)
 	cfgWs := config.Service(ctx, cfg).Filter(azf)

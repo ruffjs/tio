@@ -223,3 +223,32 @@ func TestValidateNatsConfig_EmptyStoreDir(t *testing.T) {
 		t.Fatal("expected error for empty storeDir")
 	}
 }
+
+func TestProtocolValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		p       Protocol
+		wantErr bool
+	}{
+		{"json_legacy", Protocol{Encoding: "json", Mode: "legacy"}, false},
+		{"json_simple", Protocol{Encoding: "json", Mode: "simple"}, false},
+		{"cbor_legacy", Protocol{Encoding: "cbor", Mode: "legacy"}, false},
+		{"cbor_simple", Protocol{Encoding: "cbor", Mode: "simple"}, false},
+		{"unknown_encoding", Protocol{Encoding: "xml", Mode: "legacy"}, true},
+		{"empty_encoding", Protocol{Encoding: "", Mode: "legacy"}, true},
+		{"unknown_mode", Protocol{Encoding: "json", Mode: "fast"}, true},
+		{"empty_mode", Protocol{Encoding: "json", Mode: ""}, true},
+		{"both_empty", Protocol{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.p.Validate()
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}

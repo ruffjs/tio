@@ -8,6 +8,7 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 )
 
 func testConnectorConfig(t *testing.T) config.NatsConfig {
@@ -24,11 +25,19 @@ func allowAllAuthzFn(_ connector.AuthContext) (connector.AuthResult, bool) {
 	return connector.AuthResult{Principal: "test-thing", AuthMethod: "allow-all"}, true
 }
 
+func testDeviceCodec(t *testing.T) codec.Codec {
+	t.Helper()
+	c, err := codec.New("json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
 
 func newTestConnector(t *testing.T) *Connector {
 	t.Helper()
 	cfg := testConnectorConfig(t)
-	c, err := NewConnector(cfg)
+	c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
@@ -53,7 +62,7 @@ func TestConnectorFullLifecycle(t *testing.T) {
 
 func TestStartBeforeConfigureFails(t *testing.T) {
 	cfg := testConnectorConfig(t)
-	c, err := NewConnector(cfg)
+	c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
@@ -64,7 +73,7 @@ func TestStartBeforeConfigureFails(t *testing.T) {
 
 func TestConfigureAuthTwiceFails(t *testing.T) {
 	cfg := testConnectorConfig(t)
-	c, err := NewConnector(cfg)
+	c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
@@ -140,7 +149,7 @@ func TestPublishReliableAndRetained(t *testing.T) {
 
 func TestConnectorCleanShutdown(t *testing.T) {
 	cfg := testConnectorConfig(t)
-	c, err := NewConnector(cfg)
+	c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
 	if err != nil {
 		t.Fatalf("NewConnector: %v", err)
 	}
@@ -187,12 +196,10 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	_ = c.Subscribe(ctx, "$iothub/things/dev1/concurrent/#", func(msg connector.Message) { received <- struct{}{} })
 	time.Sleep(50 * time.Millisecond)
 
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range n {
+		wg.Go(func() {
 			_ = c.Publish("$iothub/things/dev1/concurrent/item", []byte("data"))
-		}()
+		})
 	}
 	wg.Wait()
 

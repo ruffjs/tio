@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
-	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -139,6 +137,23 @@ func NewSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
 		}
 	})
 	return svcSingleton
+}
+
+func NewTestSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
+	u := make([]StateUpdateSubscribe, 0)
+	d := make([]StateDeltaSubscribe, 0)
+	acp := make([]StateAcceptedSubscribe, 0)
+	rjt := make([]StateRejectedSubscribe, 0)
+	return &shadowSvc{
+		repo:                r,
+		cache:               newCache(),
+		cfg:                 cfg,
+		connectorChecker:    a,
+		updateSubscribers:   u,
+		deltaSubscribers:    d,
+		acceptedSubscribers: acp,
+		rejectedSubscribers: rjt,
+	}
 }
 
 func (s *shadowSvc) Init(ctx context.Context) {
@@ -281,12 +296,12 @@ func (s *shadowSvc) Query(ctx context.Context, pq model.PageQuery, query string)
 
 // Convert ShadowWithStatus to map
 // Use json Marshal and Unmarshal to simplify it, although there is some loss of performance
-func entityToMap(list []ShadowWithStatus) ([]map[string]interface{}, error) {
+func entityToMap(list []ShadowWithStatus) ([]map[string]any, error) {
 	j, err := json.Marshal(list)
 	if err != nil {
 		return nil, err
 	}
-	res := make([]map[string]interface{}, len(list))
+	res := make([]map[string]any, len(list))
 	err = json.Unmarshal(j, &res)
 	if err != nil {
 		return nil, err
@@ -317,14 +332,13 @@ func (s *shadowSvc) setState(
 	ctx context.Context, thingId string,
 	sr StateReq, isDesired bool) (Shadow, MetaValue, error) {
 
-	resCh := make(chan struct {
-		pre Shadow
-		cur Shadow
-		me  MetaValue
-	}, 1)
+	var pre Shadow
+	var persisted *Shadow
+	var updatedMeta MetaValue
+	var changed bool
+
 	version := sr.Version
 	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
-		// match version
 		ss, err := txtRepo.Get(ctx, thingId)
 		if err != nil {
 			return err
@@ -337,58 +351,50 @@ func (s *shadowSvc) setState(
 				fmt.Sprintf("expect version %d but got %d", ss.Version, version))
 		}
 
-		// merge shadow
+		pre = cloneShadow(*ss)
 
-		pre := Shadow{
-			ThingId:   ss.ThingId,
-			Version:   ss.Version,
-			CreatedAt: ss.CreatedAt,
-			UpdatedAt: ss.UpdatedAt,
-			Metadata:  NewMetadata(),
-			State:     NewStateDR(),
-		}
-		// copy to pre
-		pre.State.Desired = cloneStateValue(ss.State.Desired)
-		pre.State.Reported = cloneStateValue(ss.State.Reported)
-		pre.Metadata = cloneMetadata(ss.Metadata)
-
-		var updatedMeta MetaValue
+		var patch StateValue
 		if isDesired {
 			if sr.State.Desired == nil {
 				return model.ErrShadowFormat
 			}
-			MergeState(&ss.State.Desired, sr.State.Desired, &ss.Metadata.Desired, &updatedMeta)
+			patch = sr.State.Desired
 		} else {
 			if sr.State.Reported == nil {
 				return model.ErrShadowFormat
 			}
-			MergeState(&ss.State.Reported, sr.State.Reported, &ss.Metadata.Reported, &updatedMeta)
+			patch = sr.State.Reported
 		}
 
-		// update
+		currentState := ss.State.Desired
+		if !isDesired {
+			currentState = ss.State.Reported
+		}
 
-		ss.Version++
-		reS, err := txtRepo.Update(ctx, thingId, version, *ss)
+		merged, didChange := MergePatch(currentState, patch)
+		changed = didChange
+
+		if isDesired && !changed {
+			persisted = ss
+			return nil
+		}
+
+		updatedMeta = applyMergedState(ss, merged, isDesired, patch)
+		if isDesired && changed {
+			ss.Version++
+		}
+
+		persisted, err = txtRepo.Update(ctx, thingId, version, *ss)
 		if err != nil {
 			return err
 		}
 
-		// delete cache
 		s.cache.Del(thingId)
-
-		resCh <- struct {
-			pre Shadow
-			cur Shadow
-			me  MetaValue
-		}{pre: pre, cur: *reS, me: updatedMeta}
-
 		return nil
 	})
 	if err != nil {
 		return Shadow{}, nil, err
 	}
-	re := <-resCh
-	preShadow, resShadow, resMeta := re.pre, re.cur, re.me
 
 	typ := StateTypeReported
 	if isDesired {
@@ -396,11 +402,83 @@ func (s *shadowSvc) setState(
 	}
 	slog.Debug("Successfully set shadow", "type", typ, "thingId", thingId, "content", sr)
 
-	// notify regardless of whether there is a field update or not.
-	s.notifyDeltaState(thingId, sr.ClientToken, &resShadow)
-	s.notifyStateUpdate(thingId, sr.ClientToken, &preShadow, &resShadow)
+	s.notifyDeltaState(thingId, sr.ClientToken, persisted)
+	s.notifyStateUpdate(thingId, sr.ClientToken, &pre, persisted)
 
-	return resShadow, resMeta, nil
+	return *persisted, updatedMeta, nil
+}
+
+func cloneShadow(src Shadow) Shadow {
+	dst := Shadow{
+		ThingId:   src.ThingId,
+		Version:   src.Version,
+		CreatedAt: src.CreatedAt,
+		UpdatedAt: src.UpdatedAt,
+		Tags:      src.Tags,
+		State:     NewStateDR(),
+		Metadata:  NewMetadata(),
+	}
+	dst.State.Desired = cloneStateValue(src.State.Desired)
+	dst.State.Reported = cloneStateValue(src.State.Reported)
+	dst.Metadata.Desired = cloneMetaValue(src.Metadata.Desired)
+	dst.Metadata.Reported = cloneMetaValue(src.Metadata.Reported)
+	return dst
+}
+
+func cloneMetaValue(src MetaValue) MetaValue {
+	if src == nil {
+		return nil
+	}
+	return DeepCopyMap(src)
+}
+
+func applyMergedState(ss *Shadow, merged map[string]any, isDesired bool, patch StateValue) MetaValue {
+	var updatedMeta MetaValue
+	if isDesired {
+		ss.State.Desired = merged
+		ss.Metadata.Desired, updatedMeta = buildMetadata(patch, ss.Metadata.Desired)
+	} else {
+		ss.State.Reported = merged
+		ss.Metadata.Reported, updatedMeta = buildMetadata(patch, ss.Metadata.Reported)
+	}
+	ss.UpdatedAt = time.Now()
+	return updatedMeta
+}
+
+func buildMetadata(patch StateValue, existingMeta MetaValue) (MetaValue, MetaValue) {
+	if existingMeta == nil {
+		existingMeta = make(MetaValue)
+	}
+	updatedMeta := make(MetaValue)
+	now := time.Now().UnixMilli()
+	buildMetaRecursive(patch, existingMeta, updatedMeta, now)
+	return existingMeta, updatedMeta
+}
+
+func buildMetaRecursive(patch map[string]any, allMeta, updatedMeta map[string]any, now int64) {
+	for k, v := range patch {
+		if v == nil {
+			delete(allMeta, k)
+			continue
+		}
+		if subPatch, ok := v.(map[string]any); ok {
+			subAll, ok := allMeta[k].(map[string]any)
+			if !ok {
+				subAll = make(map[string]any)
+				allMeta[k] = subAll
+			}
+			subUpdated := make(map[string]any)
+			updatedMeta[k] = subUpdated
+			buildMetaRecursive(subPatch, subAll, subUpdated, now)
+			if len(subAll) == 0 {
+				delete(allMeta, k)
+				delete(updatedMeta, k)
+			}
+		} else {
+			allMeta[k] = map[string]any{"timestamp": now}
+			updatedMeta[k] = map[string]any{"timestamp": now}
+		}
+	}
 }
 
 func (s *shadowSvc) notifyStateUpdate(thingId, clientToken string, pre *Shadow, rs *Shadow) {
@@ -541,23 +619,12 @@ func cloneMetadata(src Metadata) Metadata {
 }
 
 func DeepCopyMap(src map[string]any) map[string]any {
-	tgt := make(map[string]any)
+	if src == nil {
+		return nil
+	}
+	tgt := make(map[string]any, len(src))
 	for k, v := range src {
-		if v == nil {
-			tgt[k] = v
-			continue
-		}
-		switch reflect.TypeOf(v).Kind() {
-		case reflect.Map:
-			vm, ok := v.(map[string]any)
-			if !ok {
-				log.Fatalf("deepCopyMap: %v is not a map[string]any", v)
-				continue
-			}
-			tgt[k] = DeepCopyMap(vm)
-		default:
-			tgt[k] = v
-		}
+		tgt[k] = cloneValue(v)
 	}
 	return tgt
 }

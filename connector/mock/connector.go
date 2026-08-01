@@ -23,14 +23,14 @@ type subscription struct {
 }
 
 type MockConnector struct {
-	mu              sync.Mutex
-	started         bool
-	ctx             context.Context
-	cancel          context.CancelFunc
+	mu      sync.Mutex
+	started bool
+	ctx     context.Context
+	cancel  context.CancelFunc
 
-	Published       []PublishedMessage
+	Published []PublishedMessage
 
-	subscriptions   []subscription
+	subscriptions []subscription
 
 	connectedThings map[string]bool
 	presenceHandler connector.PresenceHandler
@@ -72,6 +72,14 @@ func (m *MockConnector) PublishRetained(topic string, payload []byte) error {
 	defer m.mu.Unlock()
 	m.Published = append(m.Published, PublishedMessage{Topic: topic, Payload: payload, Method: "PublishRetained"})
 	return nil
+}
+
+func (m *MockConnector) PublishedMessages() []PublishedMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	messages := make([]PublishedMessage, len(m.Published))
+	copy(messages, m.Published)
+	return messages
 }
 
 func (m *MockConnector) Subscribe(ctx context.Context, topic string, callback func(msg connector.Message)) error {
