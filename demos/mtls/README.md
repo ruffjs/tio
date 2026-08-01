@@ -47,9 +47,9 @@ cd demos/mtls/certs
 
 tio 使用 NATS 作为 MQTT 网关。NATS 的 MQTT 端口只有一个，配置 TLS 后该端口即使用 TLS。
 
-**方式一：创建单独的 mTLS 配置文件**（推荐，不影响普通 MQTT 连接）
+**方式一：使用仓库提供的 mTLS 配置文件**（推荐）
 
-创建 `config.mtls.yaml`：
+仓库中的 `demos/mtls/config.mtls.yaml` 内容如下：
 
 ```yaml
 api:
@@ -155,11 +155,11 @@ curl -X POST http://localhost:9000/api/v1/things \
 # 备份原配置（可选）
 cp config.yaml config.yaml.bak
 
-# 使用 mTLS 配置
-cp config.mtls.yaml config.yaml
+# 使用仓库提供的 mTLS 配置
+cp demos/mtls/config.mtls.yaml config.yaml
 
 # 启动 tio
-go run cmd/tio/main.go
+make run
 ```
 
 ### 5. 启动 mTLS 客户端
@@ -170,6 +170,18 @@ go run main.go
 ```
 
 客户端会自动从证书的 CN 中提取 `thingId`，并使用该证书与 `tio` 进行双向验证。
+
+### 6. 运行端到端测试
+
+保持上述 Tio 实例运行，在仓库根目录执行：
+
+```bash
+make test-demo-mtls
+```
+
+Makefile 会先检查证书文件、`admin/public` API、以及 MQTT TLS 端口 `8883`。TLS 和客户端
+证书认证由真实 MQTT 测试验证。仅执行默认配置下的 `make run` 不满足该测试条件；启动前必须
+先将 mTLS 配置复制或合并到 `config.yaml`。
 
 ## 验证 mTLS 连接
 

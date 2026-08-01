@@ -22,9 +22,12 @@ Light Demo 启动方法
 2. 启动 demo server `go run demos/light/server/main.go`
 3. 启动 demo device `go run demos/light/device/main.go`
 
-端到端测试同样依赖上述 Tio 服务，并要求使用默认的 legacy/JSON 设备协议。它不会随
-`go test ./...` 自动运行；服务启动后执行：
+端到端测试只需要启动 Tio，不需要另外启动 demo server 和 demo device。Tio 必须使用
+`admin/public` API 认证、监听 API 端口 `9000` 和明文 MQTT 端口 `1883`，并使用
+`legacy/JSON` 设备协议。测试不会随 `go test ./...` 自动运行；服务启动后，在仓库根目录执行：
 
 ```bash
-go test -tags=demo ./demos/light -count=1
+make test-demo-light
 ```
+
+Makefile 会先检查 API 和 MQTT 端口；条件不满足时打印启动提示并退出。
