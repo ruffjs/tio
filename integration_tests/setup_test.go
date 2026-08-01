@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"ruff.io/tio/auth"
+	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
 	natsConn "ruff.io/tio/connector/nats"
 	"ruff.io/tio/db/sqlite"
@@ -52,6 +54,14 @@ func TestMain(m *testing.M) {
 	cfg.Connector.Nats.Server.MqttPort = -1
 	cfg.Connector.Nats.Server.WsPort = -1
 	cfg.Connector.Nats.Server.ClusterPort = 0
+	if os.Getenv("TIO_TEST_MQTT_TLS") == "1" {
+		certDir := filepath.Join("..", "demos", "mtls", "certs")
+		cfg.Connector.Nats.Server.MqttTLS = config.NatsTLSConfig{
+			CertFile: filepath.Join(certDir, "server-cert.pem"),
+			KeyFile:  filepath.Join(certDir, "server-key.pem"),
+			CAFile:   filepath.Join(certDir, "ca.pem"),
+		}
+	}
 
 	if envEncoding := os.Getenv("TIO_TEST_ENCODING"); envEncoding != "" {
 		cfg.Protocol.Encoding = envEncoding
@@ -199,6 +209,21 @@ func crateThing(thingId string) *thing.Thing {
 
 func newThingMqttClient(_ context.Context, thingId, password string) *mq.DeviceClient {
 	port := natsConnector.Server().MqttPort()
+	if cfg.Connector.Nats.Server.MqttTLS.CertFile != "" {
+		client, err := mq.NewDeviceClientWithTLS(
+			fmt.Sprintf("tls://127.0.0.1:%d", port),
+			thingId,
+			thingId,
+			password,
+			cfg.Connector.Nats.Server.MqttTLS.CAFile,
+			"",
+			"",
+		)
+		if err != nil {
+			panic(err)
+		}
+		return client
+	}
 	return mq.NewDeviceClient(
 		fmt.Sprintf("tcp://127.0.0.1:%d", port),
 		thingId,

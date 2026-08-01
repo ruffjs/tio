@@ -233,6 +233,8 @@ func buildTLSConfig(cfg config.NatsTLSConfig) (*tls.Config, error) {
 		tlsCfg.ClientCAs = pool
 		if cfg.RequireClientCert {
 			tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+		} else {
+			tlsCfg.ClientAuth = tls.VerifyClientCertIfGiven
 		}
 	}
 

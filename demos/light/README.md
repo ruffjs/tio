@@ -21,3 +21,10 @@ Light Demo 启动方法
 1. 启动 tio `go run cmd/tio/main.go`（使用默认配置， 若修改了配置，请修改 demo 代码中响应的配置项）
 2. 启动 demo server `go run demos/light/server/main.go`
 3. 启动 demo device `go run demos/light/device/main.go`
+
+端到端测试同样依赖上述 Tio 服务，并要求使用默认的 legacy/JSON 设备协议。它不会随
+`go test ./...` 自动运行；服务启动后执行：
+
+```bash
+go test -tags=demo ./demos/light -count=1
+```

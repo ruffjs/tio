@@ -1,3 +1,5 @@
+//go:build demo
+
 package main
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/internal/mqtttest"
+	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
 	"ruff.io/tio/thing/api"
 )
@@ -52,6 +55,7 @@ func TestLightDemo(t *testing.T) {
 	// Step 3: Device connects as thing
 	t.Run("Step3_DeviceConnect", func(t *testing.T) {
 		deviceClient = connectDevice(t, ctx)
+		waitThingOnline(t)
 	})
 
 	// Step 4: Server subscribes to presence and properties BEFORE device reports
@@ -163,6 +167,28 @@ func connectDevice(t *testing.T, ctx context.Context) *mqtttest.DeviceClient {
 	err := c.Connect(ctx)
 	require.NoError(t, err)
 	return c
+}
+
+func waitThingOnline(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		req, err := http.NewRequest(http.MethodGet,
+			fmt.Sprintf("%s/api/v1/things/%s/shadows/default", testHTTPUrl, testThingId), nil)
+		if err != nil {
+			return false
+		}
+		req.SetBasicAuth(testHTTPUser, testHTTPPassword)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		var body rest.Resp[shadow.ShadowWithStatus]
+		if json.NewDecoder(resp.Body).Decode(&body) != nil || body.Data.Connected == nil {
+			return false
+		}
+		return *body.Data.Connected
+	}, 5*time.Second, 50*time.Millisecond, "thing did not become online")
 }
 
 func subscribePresence(t *testing.T, client *mqtttest.DeviceClient) {
@@ -292,7 +318,10 @@ func flashLightByDirectMethod(t *testing.T, times int) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode, "flash light failed: %s", string(body))
+	require.Equal(t, http.StatusOK, resp.StatusCode, "flash light failed: %s", string(body))
+	var result rest.Resp[any]
+	require.NoError(t, json.Unmarshal(body, &result))
+	require.Equal(t, 200, result.Code, "flash light failed: %s", string(body))
 }
 
 func verifyMethodReceived(t *testing.T) {

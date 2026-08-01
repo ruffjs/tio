@@ -219,8 +219,8 @@ type NatsTLSConfig struct {
 }
 
 type NatsClientConfig struct {
-	User     string             `json:"user"`
-	Password string             `json:"-"`
+	User     string              `json:"user"`
+	Password string              `json:"-"`
 	TLS      NatsTLSClientConfig `json:"tls"`
 }
 
@@ -263,10 +263,6 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 		if s.PresenceReplicas != 3 {
 			return fmt.Errorf("nats multi-node presenceReplicas must be 3, got %d", s.PresenceReplicas)
 		}
-	}
-
-	if s.MqttPort > 0 && natsTLSEmpty(s.MqttTLS) == false {
-		return fmt.Errorf("nats cannot have both plaintext mqttPort and mqttTls configured")
 	}
 
 	if !natsTLSEmpty(s.RouteTLS) {

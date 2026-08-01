@@ -16,6 +16,7 @@ import (
 )
 
 func TestThingConnectWithCertificateAndPasswordCoexist(t *testing.T) {
+	requireMTLSFixture(t)
 	certThingID := "mtls-client"
 	passwordThingID := ID()
 	password := "public-password"
@@ -48,6 +49,7 @@ func TestThingConnectWithCertificateAndPasswordCoexist(t *testing.T) {
 }
 
 func TestThingRejectsInvalidAuthenticationPaths(t *testing.T) {
+	requireMTLSFixture(t)
 	tests := []struct {
 		name       string
 		setupThing func(t *testing.T, thingID string)
@@ -134,6 +136,7 @@ func TestThingRejectsInvalidAuthenticationPaths(t *testing.T) {
 }
 
 func TestThingRejectsInvalidClientCertificates(t *testing.T) {
+	requireMTLSFixture(t)
 	tests := []struct {
 		name      string
 		certFiles func(t *testing.T, thingID string) (string, string, string)
@@ -185,6 +188,7 @@ func TestThingRejectsInvalidClientCertificates(t *testing.T) {
 }
 
 func TestDeviceRejectsInvalidServerCertificate(t *testing.T) {
+	requireMTLSFixture(t)
 	tests := []struct {
 		name       string
 		serverName string
@@ -214,6 +218,7 @@ func TestDeviceRejectsInvalidServerCertificate(t *testing.T) {
 }
 
 func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testing.T) {
+	requireMTLSFixture(t)
 	certThingID := "mtls-client"
 	otherThingID := ID()
 

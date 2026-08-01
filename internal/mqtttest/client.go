@@ -29,8 +29,11 @@ func NewDeviceClient(brokerURL, clientID, username, password string) *DeviceClie
 	return &DeviceClient{opts: opts}
 }
 
-func NewDeviceClientWithTLS(brokerURL, clientID, username, password, caFile, certFile, keyFile string) (*DeviceClient, error) {
+func NewDeviceClientWithTLS(brokerURL, clientID, username, password, caFile, certFile, keyFile string, serverName ...string) (*DeviceClient, error) {
 	tlsConfig := &tls.Config{}
+	if len(serverName) > 0 {
+		tlsConfig.ServerName = serverName[0]
+	}
 
 	if caFile != "" {
 		caCert, err := os.ReadFile(caFile)

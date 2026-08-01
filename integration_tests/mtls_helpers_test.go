@@ -4,12 +4,20 @@ package integration_tests
 
 import (
 	"fmt"
+	"testing"
 
-	mq "ruff.io/tio/internal/mqtttest"
 	tioconnector "ruff.io/tio/connector"
+	mq "ruff.io/tio/internal/mqtttest"
 )
 
 var mtlsConnector = &testConnectorWrapper{}
+
+func requireMTLSFixture(t *testing.T) {
+	t.Helper()
+	if cfg.Connector.Nats.Server.MqttTLS.CertFile == "" {
+		t.Skip("set TIO_TEST_MQTT_TLS=1 to run mTLS integration tests")
+	}
+}
 
 type testConnectorWrapper struct{}
 
@@ -37,6 +45,7 @@ func newThingMTLSClient(thingID string) *mq.DeviceClient {
 		certDir+"/ca.pem",
 		certDir+"/client-cert.pem",
 		certDir+"/client-key.pem",
+		"localhost",
 	)
 	if err != nil {
 		panic(err)
@@ -49,7 +58,7 @@ func newThingTLSClientWithoutCertificate(thingID string) *mq.DeviceClient {
 	c, err := mq.NewDeviceClientWithTLS(
 		fmt.Sprintf("tls://127.0.0.1:%d", port),
 		thingID, thingID, "test-password",
-		"", "", "",
+		"", "", "", "localhost",
 	)
 	if err != nil {
 		panic(err)
@@ -62,7 +71,7 @@ func newThingMTLSClientWithUsername(thingID, username, certFile, keyFile, caFile
 	c, err := mq.NewDeviceClientWithTLS(
 		fmt.Sprintf("tls://127.0.0.1:%d", port),
 		thingID, username, "",
-		caFile, certFile, keyFile,
+		caFile, certFile, keyFile, serverName,
 	)
 	if err != nil {
 		panic(err)
@@ -75,7 +84,7 @@ func newThingMTLSClientWithCertFiles(thingID, certFile, keyFile, caFile, serverN
 	c, err := mq.NewDeviceClientWithTLS(
 		fmt.Sprintf("tls://127.0.0.1:%d", port),
 		thingID, thingID, "",
-		caFile, certFile, keyFile,
+		caFile, certFile, keyFile, serverName,
 	)
 	if err != nil {
 		panic(err)
@@ -91,6 +100,7 @@ func newThingMTLSClientWithServerName(thingID, serverName string) *mq.DeviceClie
 		"../demos/mtls/certs/ca.pem",
 		"../demos/mtls/certs/client-cert.pem",
 		"../demos/mtls/certs/client-key.pem",
+		serverName,
 	)
 	if err != nil {
 		panic(err)

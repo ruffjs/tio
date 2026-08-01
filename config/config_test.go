@@ -159,7 +159,7 @@ func TestValidateNatsConfig_InvalidReplicaCountMultiNode(t *testing.T) {
 	}
 }
 
-func TestValidateNatsConfig_PlaintextAndTLSMqtt(t *testing.T) {
+func TestValidateNatsConfig_TLSUsesConfiguredMqttPort(t *testing.T) {
 	cfg := validSingleNatsConfig()
 	cfg.Server.MqttPort = 1883
 	cfg.Server.MqttTLS = NatsTLSConfig{
@@ -169,8 +169,8 @@ func TestValidateNatsConfig_PlaintextAndTLSMqtt(t *testing.T) {
 	}
 
 	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for both plaintext and TLS mqtt listeners")
+	if err != nil {
+		t.Fatalf("expected MQTT TLS on the configured listener port to be valid: %v", err)
 	}
 }
 
