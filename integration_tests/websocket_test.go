@@ -54,7 +54,7 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 	received := make(chan bool, 1)
 	testTopic := fmt.Sprintf("$iothub/things/%s/shadow/update", thingId)
 	if cfg.Protocol.Mode == "simple" {
-		testTopic = protocol.TopicDown(thingId)
+		testTopic = protocol.TopicDown(thingId, protocol.TypeShadowDesired)
 	}
 
 	subToken := client.Subscribe(testTopic, 0, func(c mqtt.Client, m mqtt.Message) {

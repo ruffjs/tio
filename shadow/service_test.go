@@ -360,8 +360,9 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 		}{}
 	}
 
-	version := int64(1)
 	for _, c := range cases {
+		ss, _ := svc.Get(ctx, thingId)
+		version := ss.Version
 		t.Run("set desired to notify delta state", func(t *testing.T) {
 			resetDelta()
 			desiredVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
@@ -371,12 +372,11 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 			require.NoError(t, err)
 
 			assertDelta(t, lastDelta, req.ClientToken, c.color)
-			version++
 		})
 		t.Run("set wrong version discard update", func(t *testing.T) {
 			desiredVal := shadow.StateValue(shadow.DeepCopyMap(stateVal))
 			desiredVal["color"] = c.color
-			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: desiredVal}, Version: version + 1}
+			req := shadow.StateReq{ClientToken: c.clientToken, State: shadow.StateDR{Desired: desiredVal}, Version: version + 2}
 			_, err = svc.SetDesired(ctx, thingId, req)
 			require.Error(t, err)
 		})

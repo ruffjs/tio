@@ -3,8 +3,6 @@ package protocol
 import (
 	"context"
 	"log/slog"
-	"maps"
-	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -29,7 +27,7 @@ type SimpleHandler struct {
 	pool         *ants.PoolWithFunc
 	stopOnce     sync.Once
 	pendingMu    sync.Mutex
-	pendingCalls map[string]map[string]chan ControlMessage
+	pendingCalls map[string]map[string]chan MethodResp
 }
 
 func NewSimpleHandler(conn connector.Connector, c codec.Codec, shadowSvc shadow.Service) (*SimpleHandler, error) {
@@ -37,12 +35,12 @@ func NewSimpleHandler(conn connector.Connector, c codec.Codec, shadowSvc shadow.
 		connector:    conn,
 		codec:        c,
 		shadowSvc:    shadowSvc,
-		pendingCalls: make(map[string]map[string]chan ControlMessage),
+		pendingCalls: make(map[string]map[string]chan MethodResp),
 	}
 
 	pool, err := ants.NewPoolWithFunc(maxSimpleWorkerCount, func(req any) {
 		r := req.(simpleRequest)
-		h.handleRequest(r.ctx, r.thingId, r.msg)
+		h.handlePoolRequest(r.ctx, r.thingId, r.typ, r.payload)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "create worker pool")
@@ -55,51 +53,40 @@ func NewSimpleHandler(conn connector.Connector, c codec.Codec, shadowSvc shadow.
 type simpleRequest struct {
 	ctx     context.Context
 	thingId string
-	msg     ControlMessage
+	typ     string
+	payload []byte
 }
 
 func (h *SimpleHandler) Start(ctx context.Context) error {
 	err := h.connector.QueueSubscribe(ctx, TopicAllUp(), "tio-simple", func(msg connector.Message) {
-		thingId, level, err := ParseTopic(msg.Topic())
+		thingId, direction, typ, err := ParseTopic(msg.Topic())
 		if err != nil {
 			slog.Error("parse simple topic", "error", err, "topic", msg.Topic())
 			return
 		}
-		if level != LevelUp {
-			slog.Error("unexpected topic level", "level", level, "topic", msg.Topic())
+		if direction != LevelUp {
+			slog.Error("unexpected topic direction", "direction", direction, "topic", msg.Topic())
 			return
 		}
 
-		var ctrl ControlMessage
-		if err := h.codec.Unmarshal(msg.Payload(), &ctrl); err != nil {
-			slog.Error("unmarshal control message", "error", err, "topic", msg.Topic())
-			return
-		}
-
-		switch ctrl.Type {
-		case MsgTypeReply:
-			h.handleReply(thingId, ctrl)
-			return
-		case MsgTypeReport:
-			if err := validateReport(ctrl); err != nil {
-				slog.Error("invalid report message", "error", err, "thingId", thingId)
-				return
+		switch typ {
+		case TypeMethodResp:
+			h.handleMethodResp(thingId, msg.Payload())
+		case TypeNtpReq:
+			h.handleNtpReq(thingId, msg.Payload())
+		case TypeShadowGet, TypeShadowUpdate:
+			if err := h.pool.Invoke(simpleRequest{ctx: ctx, thingId: thingId, typ: typ, payload: msg.Payload()}); err != nil {
+				slog.Error("invoke worker", "error", err, "thingId", thingId)
 			}
-		case MsgTypeGet:
 		default:
-			slog.Error("unknown message type", "type", ctrl.Type, "thingId", thingId)
-			return
-		}
-
-		if err := h.pool.Invoke(simpleRequest{ctx: ctx, thingId: thingId, msg: ctrl}); err != nil {
-			slog.Error("invoke worker", "error", err, "thingId", thingId)
+			slog.Warn("unknown up type", "type", typ, "thingId", thingId)
 		}
 	})
 	if err != nil {
 		return errors.Wrap(err, "subscribe to simple up topic")
 	}
 
-	h.shadowSvc.SubscribeUpdate(h.handleShadowUpdate)
+	h.shadowSvc.SubscribeUpdate(h.handleShadowDesired)
 	go func() {
 		<-ctx.Done()
 		h.Stop()
@@ -109,122 +96,167 @@ func (h *SimpleHandler) Start(ctx context.Context) error {
 	return nil
 }
 
-func (h *SimpleHandler) handleRequest(ctx context.Context, thingId string, msg ControlMessage) {
-	switch msg.Type {
-	case MsgTypeReport:
-		h.handleReport(ctx, thingId, msg)
-	case MsgTypeGet:
-		h.handleGet(ctx, thingId, msg)
+func (h *SimpleHandler) handlePoolRequest(ctx context.Context, thingId, typ string, payload []byte) {
+	switch typ {
+	case TypeShadowGet:
+		h.handleShadowGet(ctx, thingId)
+	case TypeShadowUpdate:
+		h.handleShadowUpdate(ctx, thingId, payload)
 	default:
-		slog.Error("unknown message type", "type", msg.Type, "thingId", thingId)
+		slog.Warn("unknown pool request type", "type", typ, "thingId", thingId)
 	}
 }
 
-func (h *SimpleHandler) handleReport(ctx context.Context, thingId string, msg ControlMessage) {
-	data := msg.Data.(map[string]any)
-	state := data["state"].(map[string]any)
-
-	req := shadow.StateReq{
-		State:       shadow.StateDR{Reported: state},
-		ClientToken: msg.ID,
-		Version:     0,
-	}
-
-	_, err := h.shadowSvc.SetReported(ctx, thingId, req)
+func (h *SimpleHandler) handleShadowGet(ctx context.Context, thingId string) {
+	ss, err := h.shadowSvc.Get(ctx, thingId)
 	if err != nil {
-		slog.Error("set reported", "error", err, "thingId", thingId)
+		h.publish(TopicDown(thingId, TypeShadowGetReply), ShadowGetReply{
+			Code:    500,
+			Message: "Failed to read shadow",
+		})
+		return
 	}
+
+	desired := ss.State.Desired
+	if desired == nil {
+		desired = map[string]any{}
+	}
+	reported := ss.State.Reported
+	if reported == nil {
+		reported = map[string]any{}
+	}
+
+	h.publish(TopicDown(thingId, TypeShadowGetReply), ShadowGetReply{
+		Code:    200,
+		Version: ss.Version,
+		State: &ShadowState{
+			Desired:  desired,
+			Reported: reported,
+		},
+	})
 }
 
-func validateReport(msg ControlMessage) error {
-	data, ok := msg.Data.(map[string]any)
-	if !ok {
-		return errors.New("report data must be object")
+func (h *SimpleHandler) handleShadowUpdate(ctx context.Context, thingId string, payload []byte) {
+	var req ShadowUpdateReq
+	if err := h.codec.Unmarshal(payload, &req); err != nil {
+		h.publish(TopicDown(thingId, TypeShadowUpdateReply), ShadowUpdateReply{
+			Code:    400,
+			Message: "Invalid shadow update",
+		})
+		return
 	}
-	if _, ok := data["state"].(map[string]any); !ok {
-		return errors.New("report state must be object")
+	if err := validateShadowUpdate(req); err != nil {
+		h.publish(TopicDown(thingId, TypeShadowUpdateReply), ShadowUpdateReply{
+			Code:    400,
+			Message: err.Error(),
+		})
+		return
 	}
-	if !isNonNegativeInteger(data["version"]) {
-		return errors.New("report version must be a non-negative integer")
+
+	sr := shadow.StateReq{
+		State:   shadow.StateDR{Reported: req.State},
+		Version: req.Version,
+	}
+	ss, err := h.shadowSvc.SetReported(ctx, thingId, sr)
+	if err != nil {
+		code := 500
+		var version int64
+		if errors.Is(err, model.ErrVersionConflict) {
+			code = 409
+			if cur, gErr := h.shadowSvc.Get(ctx, thingId); gErr == nil {
+				version = cur.Version
+			}
+		} else if errors.Is(err, model.ErrNotFound) {
+			code = 404
+		} else if errors.Is(err, model.ErrShadowFormat) || errors.Is(err, model.ErrInvalidParams) {
+			code = 400
+		}
+		reply := ShadowUpdateReply{
+			Code:    code,
+			Message: err.Error(),
+		}
+		if code == 409 {
+			reply.Version = version
+		}
+		h.publish(TopicDown(thingId, TypeShadowUpdateReply), reply)
+		return
+	}
+
+	h.publish(TopicDown(thingId, TypeShadowUpdateReply), ShadowUpdateReply{
+		Code:    200,
+		Version: ss.Version,
+	})
+}
+
+func validateShadowUpdate(req ShadowUpdateReq) error {
+	if req.State == nil {
+		return errors.New("state must be object")
 	}
 	return nil
 }
 
-func isNonNegativeInteger(value any) bool {
-	switch n := value.(type) {
-	case int:
-		return n >= 0
-	case int8:
-		return n >= 0
-	case int16:
-		return n >= 0
-	case int32:
-		return n >= 0
-	case int64:
-		return n >= 0
-	case uint, uint8, uint16, uint32:
-		return true
-	case uint64:
-		return n <= math.MaxInt64
-	case float32:
-		return n >= 0 && n < float32(math.MaxInt64) && float32(math.Trunc(float64(n))) == n
-	case float64:
-		return n >= 0 && n < float64(math.MaxInt64) && math.Trunc(n) == n
-	default:
-		return false
-	}
-}
+func (h *SimpleHandler) handleNtpReq(thingId string, payload []byte) {
+	serverRecvTime := time.Now().UnixMilli()
 
-func (h *SimpleHandler) handleGet(ctx context.Context, thingId string, msg ControlMessage) {
-	ss, err := h.shadowSvc.Get(ctx, thingId)
-	if err != nil {
-		slog.Error("get shadow", "error", err, "thingId", thingId)
+	var req NtpReq
+	if err := h.codec.Unmarshal(payload, &req); err != nil {
+		h.publish(TopicDown(thingId, TypeNtpResp), NtpResp{
+			Code:    400,
+			Message: "Invalid ntp request",
+		})
+		return
+	}
+	if req.ClientSendTime <= 0 {
+		h.publish(TopicDown(thingId, TypeNtpResp), NtpResp{
+			Code:    400,
+			Message: "Invalid clientSendTime",
+		})
 		return
 	}
 
-	setMsg := ControlMessage{
-		Type: MsgTypeSet,
-		ID:   msg.ID,
-		Data: map[string]any{
-			"version": ss.Version,
-			"state":   ss.State.Desired,
-		},
-	}
+	serverSendTime := time.Now().UnixMilli()
 
-	payload, err := h.codec.Marshal(setMsg)
-	if err != nil {
-		slog.Error("marshal set message", "error", err, "thingId", thingId)
+	h.publish(TopicDown(thingId, TypeNtpResp), NtpResp{
+		Code:           200,
+		ClientSendTime: req.ClientSendTime,
+		ServerRecvTime: serverRecvTime,
+		ServerSendTime: serverSendTime,
+	})
+}
+
+func (h *SimpleHandler) handleMethodResp(thingId string, payload []byte) {
+	var resp MethodResp
+	if err := h.codec.Unmarshal(payload, &resp); err != nil {
+		slog.Error("unmarshal method resp", "error", err, "thingId", thingId)
+		return
+	}
+	if resp.ID == "" {
+		slog.Warn("method resp missing id", "thingId", thingId)
 		return
 	}
 
-	if err := h.connector.PublishReliable(TopicDown(thingId), payload); err != nil {
-		slog.Error("publish set message", "error", err, "thingId", thingId)
-	}
-}
-
-func (h *SimpleHandler) handleReply(thingId string, msg ControlMessage) {
 	h.pendingMu.Lock()
 	defer h.pendingMu.Unlock()
 
 	thingPending, ok := h.pendingCalls[thingId]
 	if !ok {
-		slog.Warn("reply for unknown thing", "thingId", thingId, "id", msg.ID)
+		slog.Warn("method resp for unknown thing", "thingId", thingId, "id", resp.ID)
 		return
 	}
 
-	ch, ok := thingPending[msg.ID]
+	ch, ok := thingPending[resp.ID]
 	if !ok {
-		slog.Warn("reply for unknown call", "thingId", thingId, "id", msg.ID)
+		slog.Warn("method resp for unknown call", "thingId", thingId, "id", resp.ID)
 		return
 	}
 
 	select {
-	case ch <- msg:
+	case ch <- resp:
 	default:
 	}
 }
 
-func (h *SimpleHandler) handleShadowUpdate(thingId string, notice shadow.StateUpdatedNotice) {
+func (h *SimpleHandler) handleShadowDesired(thingId string, notice shadow.StateUpdatedNotice) {
 	if shadow.IsStateValueEmpty(notice.Current.State.Desired) {
 		return
 	}
@@ -238,89 +270,87 @@ func (h *SimpleHandler) handleShadowUpdate(thingId string, notice shadow.StateUp
 		return
 	}
 
-	setMsg := ControlMessage{
-		Type: MsgTypeSet,
-		Data: map[string]any{
-			"version": notice.Current.Version,
-			"state":   notice.Current.State.Desired,
-		},
-	}
-
-	payload, err := h.codec.Marshal(setMsg)
-	if err != nil {
-		slog.Error("marshal set message", "error", err, "thingId", thingId)
-		return
-	}
-
-	if err := h.connector.PublishReliable(TopicDown(thingId), payload); err != nil {
-		slog.Error("publish set message", "error", err, "thingId", thingId)
-	}
+	h.publish(TopicDown(thingId, TypeShadowDesired), ShadowDesired{
+		Version: notice.Current.Version,
+		State:   notice.Current.State.Desired,
+	})
 }
 
 func previousDesiredDiffers(prev, curr map[string]any) bool {
 	return !reflect.DeepEqual(prev, curr)
 }
 
-func (h *SimpleHandler) Invoke(ctx context.Context, thingId string, method string, params any, timeout time.Duration) (any, error) {
+func (h *SimpleHandler) Invoke(ctx context.Context, thingId string, method string, params any, timeout time.Duration) (SimpleInvokeResult, error) {
 	online, err := h.connector.IsConnected(thingId)
 	if err != nil {
-		return nil, errors.Wrap(err, "check connection")
+		return SimpleInvokeResult{}, errors.Wrap(err, "check connection")
 	}
 	if !online {
-		return nil, model.ErrDirectMethodThingOffline
+		return SimpleInvokeResult{}, model.ErrDirectMethodThingOffline
 	}
 
 	callID, err := uuid.NewV4()
 	if err != nil {
-		return nil, errors.Wrap(err, "generate call ID")
+		return SimpleInvokeResult{}, errors.Wrap(err, "generate call ID")
 	}
 	callIDStr := callID.String()
 
-	callData := map[string]any{}
-	if params != nil {
-		if paramsMap, ok := params.(map[string]any); ok {
-			maps.Copy(callData, paramsMap)
-		} else {
-			callData["p"] = params
-		}
-	}
-	callData["m"] = method
-
-	callMsg := ControlMessage{
-		Type: MsgTypeCall,
-		ID:   callIDStr,
-		Data: callData,
+	req := MethodReq{
+		ID:     callIDStr,
+		Method: method,
+		Data:   params,
 	}
 
-	payload, err := h.codec.Marshal(callMsg)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal call message")
-	}
-
-	replyCh := make(chan ControlMessage, 1)
+	replyCh := make(chan MethodResp, 1)
 	h.addPendingCall(thingId, callIDStr, replyCh)
 	defer h.removePendingCall(thingId, callIDStr)
 
-	if err := h.connector.PublishReliable(TopicDown(thingId), payload); err != nil {
-		return nil, errors.Wrap(err, "publish call message")
+	if err := h.publishReq(TopicDown(thingId, TypeMethodReq), req); err != nil {
+		return SimpleInvokeResult{}, errors.Wrap(err, "publish method request")
 	}
 
 	select {
 	case <-time.After(timeout):
-		return nil, model.ErrDirectMethodTimeout
+		return SimpleInvokeResult{}, model.ErrDirectMethodTimeout
 	case <-ctx.Done():
-		return nil, ctx.Err()
-	case reply := <-replyCh:
-		return reply.Data, nil
+		return SimpleInvokeResult{}, ctx.Err()
+	case resp := <-replyCh:
+		return SimpleInvokeResult{
+			Code:    resp.Code,
+			Data:    resp.Data,
+			Message: resp.Message,
+		}, nil
 	}
 }
 
-func (h *SimpleHandler) addPendingCall(thingId, callID string, ch chan ControlMessage) {
+func (h *SimpleHandler) publish(topic string, msg any) {
+	payload, err := h.codec.Marshal(msg)
+	if err != nil {
+		slog.Error("marshal message", "error", err, "topic", topic)
+		return
+	}
+	if err := h.connector.PublishReliable(topic, payload); err != nil {
+		slog.Error("publish message", "error", err, "topic", topic)
+	}
+}
+
+func (h *SimpleHandler) publishReq(topic string, msg any) error {
+	payload, err := h.codec.Marshal(msg)
+	if err != nil {
+		return errors.Wrap(err, "marshal message")
+	}
+	if err := h.connector.PublishReliable(topic, payload); err != nil {
+		return errors.Wrap(err, "publish message")
+	}
+	return nil
+}
+
+func (h *SimpleHandler) addPendingCall(thingId, callID string, ch chan MethodResp) {
 	h.pendingMu.Lock()
 	defer h.pendingMu.Unlock()
 
 	if h.pendingCalls[thingId] == nil {
-		h.pendingCalls[thingId] = make(map[string]chan ControlMessage)
+		h.pendingCalls[thingId] = make(map[string]chan MethodResp)
 	}
 	h.pendingCalls[thingId][callID] = ch
 }

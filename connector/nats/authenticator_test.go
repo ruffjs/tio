@@ -257,14 +257,20 @@ func TestNatsAuthenticator_SimpleThingPermissionsExcludeLegacy(t *testing.T) {
 	perms := authn.thingPermissions("test-thing")
 
 	require.Equal(t, []string{
-		"tio.test-thing.up",
-		"tio.test-thing.event",
-		"tio.test-thing.data",
+		"tio.test-thing.>",
 	}, perms.Publish.Allow)
 	require.Equal(t, []string{
 		"tio.test-thing.down",
+		"tio.test-thing.down.>",
+	}, perms.Publish.Deny)
+	require.Equal(t, []string{
+		"tio.test-thing.>",
 		"$MQTT.sub.>",
 	}, perms.Subscribe.Allow)
+	require.Equal(t, []string{
+		"tio.test-thing.up",
+		"tio.test-thing.up.>",
+	}, perms.Subscribe.Deny)
 }
 
 func TestNatsAuthenticator_SimpleSuperUserPermissionsExcludeLegacy(t *testing.T) {

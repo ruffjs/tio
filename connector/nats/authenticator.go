@@ -203,15 +203,18 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 		}
 	}
 
-	var pubAllow, subAllow []string
+	var pubAllow, pubDeny, subAllow, subDeny []string
 	if a.protocolMode == "simple" {
-		simpleUp := "tio." + thingId + ".up"
-		simpleDown := "tio." + thingId + ".down"
-		simpleEvent := "tio." + thingId + ".event"
-		simpleData := "tio." + thingId + ".data"
+		thingPrefix := "tio." + thingId + ".>"
+		downExact := "tio." + thingId + ".down"
+		downWild := "tio." + thingId + ".down.>"
+		upExact := "tio." + thingId + ".up"
+		upWild := "tio." + thingId + ".up.>"
 
-		pubAllow = []string{simpleUp, simpleEvent, simpleData}
-		subAllow = []string{simpleDown, "$MQTT.sub.>"}
+		pubAllow = []string{thingPrefix}
+		pubDeny = []string{downExact, downWild}
+		subAllow = []string{thingPrefix, "$MQTT.sub.>"}
+		subDeny = []string{upExact, upWild}
 	} else {
 		thingPrefix := "$iothub.things." + thingId + ".>"
 		userPrefix := "$iothub.user.things." + thingId + ".>"
@@ -226,13 +229,16 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 		} else {
 			for _, bid := range boundIds {
 				if a.protocolMode == "simple" {
-					boundUp := "tio." + bid + ".up"
-					boundDown := "tio." + bid + ".down"
-					boundEvent := "tio." + bid + ".event"
-					boundData := "tio." + bid + ".data"
+					boundPrefix := "tio." + bid + ".>"
+					boundDownExact := "tio." + bid + ".down"
+					boundDownWild := "tio." + bid + ".down.>"
+					boundUpExact := "tio." + bid + ".up"
+					boundUpWild := "tio." + bid + ".up.>"
 
-					pubAllow = append(pubAllow, boundUp, boundEvent, boundData)
-					subAllow = append(subAllow, boundDown)
+					pubAllow = append(pubAllow, boundPrefix)
+					pubDeny = append(pubDeny, boundDownExact, boundDownWild)
+					subAllow = append(subAllow, boundPrefix)
+					subDeny = append(subDeny, boundUpExact, boundUpWild)
 				} else {
 					boundPub := "$iothub.things." + bid + ".>"
 					boundUser := "$iothub.user.things." + bid + ".>"
@@ -246,9 +252,11 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 	return &server.Permissions{
 		Publish: &server.SubjectPermission{
 			Allow: pubAllow,
+			Deny:  pubDeny,
 		},
 		Subscribe: &server.SubjectPermission{
 			Allow: subAllow,
+			Deny:  subDeny,
 		},
 	}
 }

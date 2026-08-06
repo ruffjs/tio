@@ -35,7 +35,7 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 				return false
 			}
 
-			thingId, level, err := protocol.ParseTopic(topic)
+			thingId, direction, err := protocol.ParseTopicDir(topic)
 			if err != nil {
 				slog.Error("Parse simple topic error", "thingId", username, "topic", topic, "error", err)
 				return false
@@ -49,17 +49,16 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 				}
 			}
 
-			// Enforce directional ACLs
+			// Deny-list: only restrict known directions, allow everything else
+			// under tio/{thingId}/# for free messaging via NATS.
 			if write {
-				// Devices can publish to up, event, data
-				if level != protocol.LevelUp && level != protocol.LevelEvent && level != protocol.LevelData {
-					slog.Debug("Simple protocol publish denied", "thingId", username, "topic", topic, "level", level)
+				if direction == protocol.LevelDown {
+					slog.Debug("Simple protocol publish denied", "thingId", username, "topic", topic, "direction", direction)
 					return false
 				}
 			} else {
-				// Devices can only subscribe to down
-				if level != protocol.LevelDown {
-					slog.Debug("Simple protocol subscribe denied", "thingId", username, "topic", topic, "level", level)
+				if direction == protocol.LevelUp {
+					slog.Debug("Simple protocol subscribe denied", "thingId", username, "topic", topic, "direction", direction)
 					return false
 				}
 			}

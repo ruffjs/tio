@@ -18,7 +18,22 @@ import (
 	rest "ruff.io/tio/pkg/restapi"
 )
 
-func TestSimpleProtocol_IncrementalReport(t *testing.T) {
+func toInt64(v any) int64 {
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case uint64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	default:
+		return 0
+	}
+}
+
+func TestSimpleProtocol_ShadowUpdate(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
@@ -34,32 +49,32 @@ func TestSimpleProtocol_IncrementalReport(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	setCh := make(chan map[string]any, 10)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
+	replyCh := make(chan map[string]any, 10)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_update_reply", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "set" {
-			setCh <- msg
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			replyCh <- msg
 		}
 	})
 	require.NoError(t, err)
 
-	reportMsg := map[string]any{
-		"t":  "report",
-		"id": "rpt-1",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"color": "red",
-				"temp":  25,
-			},
+	updateMsg := map[string]any{
+		"state": map[string]any{
+			"color": "red",
+			"temp":  25,
 		},
 	}
-	payload, _ := testCodec.Marshal(reportMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload)
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
 	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, 2, reply["version"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for shadow_update_reply")
+	}
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
@@ -68,24 +83,27 @@ func TestSimpleProtocol_IncrementalReport(t *testing.T) {
 
 	ss, err := shadowSvc.Get(ctx, thingId)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), ss.Version)
+	require.Equal(t, int64(2), ss.Version)
 	require.Equal(t, "red", ss.State.Reported["color"])
-	require.Equal(t, float64(25), ss.State.Reported["temp"])
+	require.EqualValues(t, 25, ss.State.Reported["temp"])
 
-	reportMsg2 := map[string]any{
-		"t":  "report",
-		"id": "rpt-2",
-		"d": map[string]any{
-			"version": 1,
-			"state": map[string]any{
-				"color":    "blue",
-				"humidity": 60,
-			},
+	updateMsg2 := map[string]any{
+		"state": map[string]any{
+			"color":    "blue",
+			"humidity": 60,
 		},
 	}
-	payload2, _ := testCodec.Marshal(reportMsg2)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload2)
+	payload2, _ := testCodec.Marshal(updateMsg2)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload2)
 	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, 3, reply["version"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for second shadow_update_reply")
+	}
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
@@ -94,10 +112,10 @@ func TestSimpleProtocol_IncrementalReport(t *testing.T) {
 
 	ss, err = shadowSvc.Get(ctx, thingId)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), ss.Version)
+	require.Equal(t, int64(3), ss.Version)
 	require.Equal(t, "blue", ss.State.Reported["color"])
-	require.Equal(t, float64(25), ss.State.Reported["temp"])
-	require.Equal(t, float64(60), ss.State.Reported["humidity"])
+	require.EqualValues(t, 25, ss.State.Reported["temp"])
+	require.EqualValues(t, 60, ss.State.Reported["humidity"])
 }
 
 func TestSimpleProtocol_RecursiveMergeAndNullDelete(t *testing.T) {
@@ -116,46 +134,33 @@ func TestSimpleProtocol_RecursiveMergeAndNullDelete(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	reportMsg := map[string]any{
-		"t":  "report",
-		"id": "rpt-merge-1",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"config": map[string]any{
-					"mode":    "auto",
-					"level":   5,
-					"options": []any{"a", "b"},
-				},
-			},
-		},
+	publishUpdate := func(state map[string]any) {
+		msg := map[string]any{"state": state}
+		payload, _ := testCodec.Marshal(msg)
+		err := deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+		require.NoError(t, err)
 	}
-	payload, _ := testCodec.Marshal(reportMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload)
-	require.NoError(t, err)
+
+	publishUpdate(map[string]any{
+		"config": map[string]any{
+			"mode":    "auto",
+			"level":   5,
+			"options": []any{"a", "b"},
+		},
+	})
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
 		return err == nil && ss.State.Reported["config"] != nil
 	}, 5*time.Second, 50*time.Millisecond)
 
-	reportMsg2 := map[string]any{
-		"t":  "report",
-		"id": "rpt-merge-2",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"config": map[string]any{
-					"level":   10,
-					"options": []any{"c"},
-					"debug":   true,
-				},
-			},
+	publishUpdate(map[string]any{
+		"config": map[string]any{
+			"level":   10,
+			"options": []any{"c"},
+			"debug":   true,
 		},
-	}
-	payload2, _ := testCodec.Marshal(reportMsg2)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload2)
-	require.NoError(t, err)
+	})
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
@@ -173,26 +178,16 @@ func TestSimpleProtocol_RecursiveMergeAndNullDelete(t *testing.T) {
 	require.NoError(t, err)
 	cfgMap := ss.State.Reported["config"].(map[string]any)
 	require.Equal(t, "auto", cfgMap["mode"])
-	require.Equal(t, float64(10), cfgMap["level"])
+	require.EqualValues(t, 10, cfgMap["level"])
 	require.Equal(t, true, cfgMap["debug"])
 	opts := cfgMap["options"].([]any)
 	require.Equal(t, []any{"c"}, opts)
 
-	reportMsg3 := map[string]any{
-		"t":  "report",
-		"id": "rpt-merge-3",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"config": map[string]any{
-					"debug": nil,
-				},
-			},
+	publishUpdate(map[string]any{
+		"config": map[string]any{
+			"debug": nil,
 		},
-	}
-	payload3, _ := testCodec.Marshal(reportMsg3)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload3)
-	require.NoError(t, err)
+	})
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
@@ -208,7 +203,7 @@ func TestSimpleProtocol_RecursiveMergeAndNullDelete(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond)
 }
 
-func TestSimpleProtocol_GetReturnsFullState(t *testing.T) {
+func TestSimpleProtocol_ShadowGetReturnsFullState(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
@@ -224,18 +219,11 @@ func TestSimpleProtocol_GetReturnsFullState(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	reportMsg := map[string]any{
-		"t":  "report",
-		"id": "rpt-get-1",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"color": "green",
-			},
-		},
+	updateMsg := map[string]any{
+		"state": map[string]any{"color": "green"},
 	}
-	payload, _ := testCodec.Marshal(reportMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload)
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -257,59 +245,175 @@ func TestSimpleProtocol_GetReturnsFullState(t *testing.T) {
 		return err == nil && ss.State.Desired["brightness"] == float64(80)
 	}, 5*time.Second, 50*time.Millisecond)
 
-	downCh := make(chan map[string]any, 5)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
+	replyCh := make(chan map[string]any, 5)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_get_reply", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			replyCh <- msg
 		}
-		downCh <- msg
 	})
 	require.NoError(t, err)
 
-	getMsg := map[string]any{
-		"t":  "get",
-		"id": "get-1",
-	}
-	getPayload, _ := testCodec.Marshal(getMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, getPayload)
+	getPayload, _ := testCodec.Marshal(map[string]any{})
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_get", 1, false, getPayload)
 	require.NoError(t, err)
 
-	var setMsg map[string]any
+	var getReply map[string]any
 	select {
-	case setMsg = <-downCh:
+	case getReply = <-replyCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for set response to get")
+		t.Fatal("timeout waiting for shadow_get_reply")
 	}
 
-	require.Equal(t, "set", setMsg["t"])
-	require.Equal(t, "get-1", setMsg["id"])
-
-	data := setMsg["d"].(map[string]any)
-	state := data["state"].(map[string]any)
-	require.Equal(t, float64(80), state["brightness"])
+	require.EqualValues(t, 200, getReply["code"])
 
 	ss, err := shadowSvc.Get(ctx, thingId)
 	require.NoError(t, err)
+	require.EqualValues(t, ss.Version, getReply["version"])
+
+	state := getReply["state"].(map[string]any)
+	desired := state["desired"].(map[string]any)
+	reported := state["reported"].(map[string]any)
+	require.EqualValues(t, 80, desired["brightness"])
+	require.Equal(t, "green", reported["color"])
+
 	verAfterGet := ss.Version
 
-	getMsg2 := map[string]any{
-		"t":  "get",
-		"id": "get-2",
-	}
-	getPayload2, _ := testCodec.Marshal(getMsg2)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, getPayload2)
+	getPayload2, _ := testCodec.Marshal(map[string]any{})
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_get", 1, false, getPayload2)
 	require.NoError(t, err)
 
 	select {
-	case <-downCh:
+	case <-replyCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for second set response to get")
+		t.Fatal("timeout waiting for second shadow_get_reply")
 	}
 
 	ss, err = shadowSvc.Get(ctx, thingId)
 	require.NoError(t, err)
 	require.Equal(t, verAfterGet, ss.Version, "get should not change version")
+}
+
+func TestSimpleProtocol_ShadowUpdateVersionConflict(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	replyCh := make(chan map[string]any, 5)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_update_reply", 1, func(c mqtt.Client, m mqtt.Message) {
+		var msg map[string]any
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			replyCh <- msg
+		}
+	})
+	require.NoError(t, err)
+
+	updateMsg := map[string]any{
+		"state": map[string]any{"color": "red"},
+	}
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, 2, reply["version"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for first update reply")
+	}
+
+	conflictMsg := map[string]any{
+		"version": 1,
+		"state":   map[string]any{"color": "blue"},
+	}
+	conflictPayload, _ := testCodec.Marshal(conflictMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, conflictPayload)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 409, reply["code"])
+		require.EqualValues(t, 2, reply["version"])
+		require.NotEmpty(t, reply["message"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for conflict reply")
+	}
+
+	ss, err := shadowSvc.Get(ctx, thingId)
+	require.NoError(t, err)
+	require.Equal(t, "red", ss.State.Reported["color"])
+}
+
+func TestSimpleProtocol_ShadowUpdateNoOp(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	replyCh := make(chan map[string]any, 5)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_update_reply", 1, func(c mqtt.Client, m mqtt.Message) {
+		var msg map[string]any
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			replyCh <- msg
+		}
+	})
+	require.NoError(t, err)
+
+	updateMsg := map[string]any{
+		"state": map[string]any{"color": "red"},
+	}
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, 2, reply["version"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for first update reply")
+	}
+
+	noopMsg := map[string]any{
+		"state": map[string]any{"color": "red"},
+	}
+	noopPayload, _ := testCodec.Marshal(noopMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, noopPayload)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, 2, reply["version"], "no-op should not increment version")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for no-op reply")
+	}
+
+	ss, err := shadowSvc.Get(ctx, thingId)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), ss.Version, "no-op should not increment version")
 }
 
 func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
@@ -329,12 +433,9 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 	waitConnected(t, thingId)
 
 	callCh := make(chan map[string]any, 5)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/method_req", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "call" {
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
 			callCh <- msg
 		}
 	})
@@ -345,9 +446,9 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 		case callMsg := <-callCh:
 			callID := callMsg["id"].(string)
 			replyMsg := map[string]any{
-				"t":  "reply",
-				"id": callID,
-				"d": map[string]any{
+				"id":   callID,
+				"code": 200,
+				"data": map[string]any{
 					"result": "success",
 					"nested": map[string]any{
 						"value": 42,
@@ -355,7 +456,7 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 				},
 			}
 			replyPayload, _ := testCodec.Marshal(replyMsg)
-			deviceClient.Publish("tio/"+thingId+"/up", 1, false, replyPayload)
+			deviceClient.Publish("tio/"+thingId+"/up/method_resp", 1, false, replyPayload)
 		case <-ctx.Done():
 		}
 	}()
@@ -372,25 +473,23 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var respBody rest.Resp[any]
+	var respBody rest.Resp[rest.H]
 	err = json.NewDecoder(resp.Body).Decode(&respBody)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, respBody.Code)
-	replyData, ok := respBody.Data.(map[string]any)
-	require.True(t, ok, "reply data should be an object")
-	require.Equal(t, "success", replyData["result"])
-	nested, ok := replyData["nested"].(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, float64(42), nested["value"])
+	require.Equal(t, 200, respBody.Code)
+	respData := respBody.Data["data"].(map[string]any)
+	require.Equal(t, "success", respData["result"])
+	nested := respData["nested"].(map[string]any)
+	require.EqualValues(t, 42, nested["value"])
 	resp.Body.Close()
 }
 
-func TestSimpleProtocol_MethodCallMNotOverridden(t *testing.T) {
+func TestSimpleProtocol_MethodCallTimeout(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
 
-	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(testCtx, 15*time.Second)
 	defer cancel()
 
 	thingId := ID()
@@ -402,38 +501,99 @@ func TestSimpleProtocol_MethodCallMNotOverridden(t *testing.T) {
 	waitConnected(t, thingId)
 
 	callCh := make(chan map[string]any, 5)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/method_req", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "call" {
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
 			callCh <- msg
 		}
 	})
 	require.NoError(t, err)
 
 	methodBody := strings.NewReader(`{
-		"method": "realMethod",
-		"params": {"m": "evil", "action": "test"},
-		"timeout": 2
+		"method": "timeoutTest",
+		"params": {"key": "value"},
+		"timeout": 1
 	}`)
 	req, _ := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := httpSvr.Client().Do(req)
 	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var respBody rest.Resp[any]
+	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	require.NoError(t, err)
+	require.Equal(t, 504, respBody.Code, "should return timeout error code")
 	resp.Body.Close()
 
-	var callMsg map[string]any
 	select {
-	case callMsg = <-callCh:
+	case <-callCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for call message")
+	}
+}
+
+func TestSimpleProtocol_MethodCallHTTPCancellation(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 15*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	callReceived := make(chan struct{}, 1)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/method_req", 1, func(c mqtt.Client, m mqtt.Message) {
+		select {
+		case callReceived <- struct{}{}:
+		default:
+		}
+	})
+	require.NoError(t, err)
+
+	httpCtx, httpCancel := context.WithCancel(ctx)
+	methodBody := strings.NewReader(`{
+		"method": "cancelTest",
+		"params": {"key": "value"},
+		"timeout": 30
+	}`)
+	req, _ := http.NewRequestWithContext(httpCtx, http.MethodPost,
+		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
+	req.Header.Set("Content-Type", "application/json")
+
+	done := make(chan struct{})
+	var resp *http.Response
+	var doErr error
+	go func() {
+		resp, doErr = httpSvr.Client().Do(req)
+		close(done)
+	}()
+
+	select {
+	case <-callReceived:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for call message")
 	}
 
-	d := callMsg["d"].(map[string]any)
-	require.Equal(t, "realMethod", d["m"], "m field must be the method name, not overridable by params")
+	httpCancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for HTTP request to complete after cancellation")
+	}
+
+	if doErr == nil {
+		resp.Body.Close()
+	}
 }
 
 func TestSimpleProtocol_EventDataTransparent(t *testing.T) {
@@ -497,7 +657,7 @@ func TestSimpleProtocol_EventDataTransparent(t *testing.T) {
 	require.Empty(t, ss.State.Reported, "Shadow reported state should be empty")
 }
 
-func TestSimpleProtocol_DeltaSetNotification(t *testing.T) {
+func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
@@ -513,14 +673,11 @@ func TestSimpleProtocol_DeltaSetNotification(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	setCh := make(chan map[string]any, 10)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
+	desiredCh := make(chan map[string]any, 10)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_desired", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "set" {
-			setCh <- msg
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			desiredCh <- msg
 		}
 	})
 	require.NoError(t, err)
@@ -534,38 +691,32 @@ func TestSimpleProtocol_DeltaSetNotification(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	resp.Body.Close()
 
-	var setMsg map[string]any
+	var desiredMsg map[string]any
 	select {
-	case setMsg = <-setCh:
+	case desiredMsg = <-desiredCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for set notification")
+		t.Fatal("timeout waiting for shadow_desired notification")
 	}
 
-	require.Equal(t, "set", setMsg["t"])
-	data := setMsg["d"].(map[string]any)
-	state := data["state"].(map[string]any)
+	state := desiredMsg["state"].(map[string]any)
 	require.Equal(t, "red", state["color"])
-	require.Equal(t, float64(50), state["brightness"])
+	require.EqualValues(t, 50, state["brightness"])
 
-	reportMsg := map[string]any{
-		"t":  "report",
-		"id": "rpt-delta-1",
-		"d": map[string]any{
-			"version": 0,
-			"state": map[string]any{
-				"color":      "blue",
-				"brightness": float64(50),
-			},
+	updateMsg := map[string]any{
+		"state": map[string]any{
+			"color":      "blue",
+			"brightness": float64(50),
 		},
 	}
-	payload, _ := testCodec.Marshal(reportMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up", 1, false, payload)
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
 		return err == nil && ss.State.Reported["color"] == "blue"
 	}, 5*time.Second, 50*time.Millisecond)
+
 	beforeEqualDesired, err := shadowSvc.Get(ctx, thingId)
 	require.NoError(t, err)
 
@@ -579,8 +730,8 @@ func TestSimpleProtocol_DeltaSetNotification(t *testing.T) {
 	resp2.Body.Close()
 
 	select {
-	case <-setCh:
-		t.Fatal("should not receive set notification when desired equals reported")
+	case <-desiredCh:
+		t.Fatal("should not receive shadow_desired when desired equals reported")
 	case <-time.After(500 * time.Millisecond):
 	}
 
@@ -588,6 +739,147 @@ func TestSimpleProtocol_DeltaSetNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, beforeEqualDesired.Version+1, afterEqualDesired.Version,
 		"desired changing to equal reported must still increment version")
+}
+
+func TestSimpleProtocol_ReportedUpdateDoesNotTriggerDesired(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	desiredCh := make(chan map[string]any, 10)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_desired", 1, func(c mqtt.Client, m mqtt.Message) {
+		var msg map[string]any
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			desiredCh <- msg
+		}
+	})
+	require.NoError(t, err)
+
+	setDesiredBody := strings.NewReader(`{"clientToken":"ct-1","state":{"desired":{"color":"red","brightness":50}}}`)
+	req, _ := http.NewRequest(http.MethodPut,
+		fmt.Sprintf("%s/api/v1/things/%s/shadows/default/state/desired", httpSvr.URL, thingId), setDesiredBody)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpSvr.Client().Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp.Body.Close()
+
+	select {
+	case <-desiredCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for initial shadow_desired")
+	}
+
+	updateMsg := map[string]any{
+		"state": map[string]any{
+			"color":      "blue",
+			"brightness": 50,
+		},
+	}
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		ss, err := shadowSvc.Get(ctx, thingId)
+		return err == nil && ss.State.Reported["color"] == "blue"
+	}, 5*time.Second, 50*time.Millisecond)
+
+	select {
+	case <-desiredCh:
+		t.Fatal("reported update must not trigger shadow_desired")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func TestSimpleProtocol_NtpTimeSync(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	replyCh := make(chan map[string]any, 5)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/ntp_resp", 1, func(c mqtt.Client, m mqtt.Message) {
+		var msg map[string]any
+		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
+			replyCh <- msg
+		}
+	})
+	require.NoError(t, err)
+
+	clientSendTime := time.Now().UnixMilli()
+	ntpReq := map[string]any{"clientSendTime": clientSendTime}
+	payload, _ := testCodec.Marshal(ntpReq)
+	err = deviceClient.Publish("tio/"+thingId+"/up/ntp_req", 1, false, payload)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, clientSendTime, reply["clientSendTime"])
+		recv := toInt64(reply["serverRecvTime"])
+		send := toInt64(reply["serverSendTime"])
+		require.True(t, recv > 0)
+		require.True(t, send >= recv)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for ntp_resp")
+	}
+}
+
+func TestSimpleProtocol_CustomTopicFreePubSub(t *testing.T) {
+	if cfg.Protocol.Mode != "simple" {
+		t.Skip("Skipping test: only runs in simple protocol mode")
+	}
+
+	ctx, cancel := context.WithTimeout(testCtx, 10*time.Second)
+	defer cancel()
+
+	thingId := ID()
+	th := crateThing(thingId)
+	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
+	err := deviceClient.Connect(ctx)
+	require.NoError(t, err)
+	defer deviceClient.Disconnect()
+	waitConnected(t, thingId)
+
+	customTopic := "tio/" + thingId + "/custom/channel"
+	received := make(chan []byte, 5)
+	err = deviceClient.Subscribe(customTopic, 1, func(c mqtt.Client, m mqtt.Message) {
+		received <- m.Payload()
+	})
+	require.NoError(t, err)
+
+	payload := []byte(`{"hello":"world"}`)
+	err = deviceClient.Publish(customTopic, 1, false, payload)
+	require.NoError(t, err)
+
+	select {
+	case got := <-received:
+		require.Equal(t, payload, got, "custom topic payload should match")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for custom topic message")
+	}
 }
 
 func TestSimpleProtocol_ConfigValidation(t *testing.T) {
@@ -612,127 +904,6 @@ func TestSimpleProtocol_ConfigValidation(t *testing.T) {
 				require.Error(t, err)
 			}
 		})
-	}
-}
-
-func TestSimpleProtocol_MethodCallTimeout(t *testing.T) {
-	if cfg.Protocol.Mode != "simple" {
-		t.Skip("Skipping test: only runs in simple protocol mode")
-	}
-
-	ctx, cancel := context.WithTimeout(testCtx, 15*time.Second)
-	defer cancel()
-
-	thingId := ID()
-	th := crateThing(thingId)
-	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
-	err := deviceClient.Connect(ctx)
-	require.NoError(t, err)
-	defer deviceClient.Disconnect()
-	waitConnected(t, thingId)
-
-	callCh := make(chan map[string]any, 5)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
-		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "call" {
-			callCh <- msg
-		}
-	})
-	require.NoError(t, err)
-
-	methodBody := strings.NewReader(`{
-		"method": "timeoutTest",
-		"params": {"key": "value"},
-		"timeout": 1
-	}`)
-	req, _ := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpSvr.Client().Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var respBody rest.Resp[any]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
-	require.NoError(t, err)
-	require.Equal(t, 504, respBody.Code, "should return timeout error code")
-	resp.Body.Close()
-
-	select {
-	case <-callCh:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for call message")
-	}
-}
-
-func TestSimpleProtocol_MethodCallHTTPCancellation(t *testing.T) {
-	if cfg.Protocol.Mode != "simple" {
-		t.Skip("Skipping test: only runs in simple protocol mode")
-	}
-
-	ctx, cancel := context.WithTimeout(testCtx, 15*time.Second)
-	defer cancel()
-
-	thingId := ID()
-	th := crateThing(thingId)
-	deviceClient := newThingMqttClient(ctx, th.Id, th.AuthValue)
-	err := deviceClient.Connect(ctx)
-	require.NoError(t, err)
-	defer deviceClient.Disconnect()
-	waitConnected(t, thingId)
-
-	callReceived := make(chan struct{}, 1)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down", 1, func(c mqtt.Client, m mqtt.Message) {
-		var msg map[string]any
-		if err := testCodec.Unmarshal(m.Payload(), &msg); err != nil {
-			return
-		}
-		if msg["t"] == "call" {
-			select {
-			case callReceived <- struct{}{}:
-			default:
-			}
-		}
-	})
-	require.NoError(t, err)
-
-	httpCtx, httpCancel := context.WithCancel(ctx)
-	methodBody := strings.NewReader(`{
-		"method": "cancelTest",
-		"params": {"key": "value"},
-		"timeout": 30
-	}`)
-	req, _ := http.NewRequestWithContext(httpCtx, http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
-	req.Header.Set("Content-Type", "application/json")
-
-	done := make(chan struct{})
-	var resp *http.Response
-	var doErr error
-	go func() {
-		resp, doErr = httpSvr.Client().Do(req)
-		close(done)
-	}()
-
-	select {
-	case <-callReceived:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for call message")
-	}
-
-	httpCancel()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for HTTP request to complete after cancellation")
-	}
-
-	if doErr == nil {
-		resp.Body.Close()
 	}
 }
 

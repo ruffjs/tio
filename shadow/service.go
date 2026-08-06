@@ -195,7 +195,7 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 			ClientToken: sr.ClientToken,
 			Version:     ss.Version,
 		}
-		if !slices.Contains(s.cfg.IgnoreMetadataFor, TopicUpdateAccepted) {
+		if updatedMeta != nil && !slices.Contains(s.cfg.IgnoreMetadataFor, TopicUpdateAccepted) {
 			sar.Metadata = Metadata{Reported: updatedMeta}
 		}
 		s.notifyAccepted(thingId, sr.ClientToken, sar)
@@ -374,15 +374,13 @@ func (s *shadowSvc) setState(
 		merged, didChange := MergePatch(currentState, patch)
 		changed = didChange
 
-		if isDesired && !changed {
+		if !changed {
 			persisted = ss
 			return nil
 		}
 
 		updatedMeta = applyMergedState(ss, merged, isDesired, patch)
-		if isDesired && changed {
-			ss.Version++
-		}
+		ss.Version++
 
 		persisted, err = txtRepo.Update(ctx, thingId, version, *ss)
 		if err != nil {

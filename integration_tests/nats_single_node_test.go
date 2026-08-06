@@ -35,7 +35,7 @@ func newSuperClient(ctx context.Context, name string) *mq.DeviceClient {
 
 func deviceDownTopic(thingId, legacySuffix string) string {
 	if cfg.Protocol.Mode == "simple" {
-		return protocol.TopicDown(thingId)
+		return protocol.TopicDown(thingId, protocol.TypeShadowDesired)
 	}
 	return "$iothub/things/" + thingId + "/" + legacySuffix
 }
@@ -82,7 +82,7 @@ func TestCrossThingAccessDenied(t *testing.T) {
 	received := int32(0)
 	topic := shadow.TopicDeltaStateOf(thingB)
 	if cfg.Protocol.Mode == "simple" {
-		topic = protocol.TopicDown(thingB)
+		topic = protocol.TopicDown(thingB, protocol.TypeShadowDesired)
 	}
 	err = clientA.Subscribe(topic, 0, func(_ mqtt.Client, m mqtt.Message) {
 		atomic.AddInt32(&received, 1)

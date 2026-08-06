@@ -7,12 +7,13 @@ import (
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
+	"ruff.io/tio/pkg/protocol"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/thing"
 )
 
 type SimpleInvoker interface {
-	Invoke(ctx context.Context, thingId, method string, params any, timeout time.Duration) (any, error)
+	Invoke(ctx context.Context, thingId, method string, params any, timeout time.Duration) (protocol.SimpleInvokeResult, error)
 }
 
 type SimpleInvokeReq struct {
@@ -88,6 +89,10 @@ func SimpleInvokeHandler(
 			return
 		}
 
-		rest.SendResp(w, 200, rest.RespOK(result))
+		rest.SendResp(w, 200, rest.RespOK(MethodInvokeResp{
+			Code:    result.Code,
+			Message: result.Message,
+			Data:    result.Data,
+		}))
 	}
 }
