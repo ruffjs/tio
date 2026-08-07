@@ -82,6 +82,9 @@ func (c *Connector) Start(ctx context.Context) error {
 	if c.started {
 		return errors.New("connector already started")
 	}
+	if c.natsSvr != nil {
+		return errors.New("server already started: use StartClients to continue")
+	}
 
 	appAcc, err := c.startServer()
 	if err != nil {
@@ -90,6 +93,64 @@ func (c *Connector) Start(ctx context.Context) error {
 	sysAcc, _ := c.natsSvr.Server().LookupAccount(SysAccountName)
 	c.auth.SetAccounts(appAcc, sysAcc)
 
+	if err := c.startServerAndClients(ctx); err != nil {
+		return err
+	}
+
+	c.started = true
+	return nil
+}
+
+// StartServerOnly starts the embedded NATS server and configures the
+// authenticator, but does not connect internal clients or start
+// presence/control. This is intended for cluster testing where all
+// servers must be running before MQTT clients can connect.
+// StartClients must be called afterwards to complete startup.
+func (c *Connector) StartServerOnly() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.configured {
+		return errors.New("connector not configured: call ConfigureAuth first")
+	}
+	if c.started || c.natsSvr != nil {
+		return errors.New("connector already started")
+	}
+
+	appAcc, err := c.startServer()
+	if err != nil {
+		return err
+	}
+	sysAcc, _ := c.natsSvr.Server().LookupAccount(SysAccountName)
+	c.auth.SetAccounts(appAcc, sysAcc)
+	return nil
+}
+
+// StartClients connects internal NATS/MQTT clients and starts presence
+// and control subsystems. Must be called after StartServerOnly.
+func (c *Connector) StartClients(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.configured {
+		return errors.New("connector not configured: call ConfigureAuth first")
+	}
+	if c.started {
+		return errors.New("connector already started")
+	}
+	if c.natsSvr == nil {
+		return errors.New("server not started: call StartServerOnly first")
+	}
+
+	if err := c.startServerAndClients(ctx); err != nil {
+		return err
+	}
+
+	c.started = true
+	return nil
+}
+
+// startServerAndClients connects clients, starts MQTT publisher, and
+// initializes presence/control. The server must already be started.
+func (c *Connector) startServerAndClients(ctx context.Context) error {
 	if err := c.connectClients(ctx); err != nil {
 		c.cleanupLocked()
 		return err
@@ -111,8 +172,6 @@ func (c *Connector) Start(ctx context.Context) error {
 		c.cleanupLocked()
 		return err
 	}
-
-	c.started = true
 	return nil
 }
 
