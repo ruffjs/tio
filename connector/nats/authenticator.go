@@ -194,10 +194,10 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 			}
 			return &server.Permissions{
 				Publish: &server.SubjectPermission{
-					Allow: allow,
+					Allow: append(allow, "$JS.API.>", "$JS.ACK.>"),
 				},
 				Subscribe: &server.SubjectPermission{
-					Allow: append(append([]string{}, allow...), "$MQTT.sub.>", "_INBOX.>"),
+					Allow: append(append(allow, "$JS.API.>"), "$MQTT.sub.>", "_INBOX.>"),
 				},
 			}
 		}

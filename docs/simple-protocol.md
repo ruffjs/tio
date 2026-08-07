@@ -204,3 +204,59 @@ Topic：`tio/{thingId}/down/ntp_resp`
 - CBOR 解码后的对象使用字符串键。
 
 HTTP API、数据库 JSON、OpenAPI、connector 内部 NATS/KV 记录以及 Rule source/sink Payload 不会因该配置自动转换。
+
+## 业务服务订阅 Data/Event
+
+data 和 event 消息不被 Tio 处理，直接透传到 NATS subject。业务服务可通过 JetStream durable consumer 可靠消费，支持离线消息保留和多消费者独立消费。
+
+### 连接
+
+使用 super-user 凭证通过 **NATS 协议**连接（非 MQTT），端口为 `config.nats.server.port`：
+
+```go
+nc, _ := nats.Connect("nats://host:port", nats.UserInfo("$biz", "password"))
+js, _ := nc.JetStream()
+```
+
+### 创建 Stream
+
+业务服务自行创建 JetStream stream，按需选择 subjects、retention 和 MaxAge：
+
+```go
+js.AddStream(&nats.StreamConfig{
+    Name:      "BIZ_DATA",
+    Subjects:  []string{"tio.*.data", "tio.*.event"},
+    Retention: nats.LimitsPolicy,
+    MaxAge:    7 * 24 * time.Hour,
+    Storage:   nats.FileStorage,
+    Replicas:  3, // 集群节点数
+})
+```
+
+Stream 必须在设备开始发布消息**之前**创建，否则之前的消息不会被捕获。`AddStream` 是幂等的，多节点同时创建不会冲突。
+
+### Durable Consumer
+
+Pull 模式（主动拉取）：
+
+```go
+sub, _ := js.PullSubscribe("tio.*.data", "biz-data", nats.ManualAck())
+msgs, _ := sub.Fetch(10, 5*time.Second)
+for _, msg := range msgs {
+    fmt.Printf("%s: %s\n", msg.Subject, msg.Data)
+    msg.Ack()
+}
+```
+
+Push 模式（自动推送）：
+
+```go
+js.Subscribe("tio.*.event", func(msg *nats.Msg) {
+    fmt.Printf("%s: %s\n", msg.Subject, msg.Data)
+    msg.Ack()
+}, nats.Durable("biz-event"), nats.ManualAck())
+```
+
+相同 durable name 的多实例**负载均衡**（每条消息只投递给一个实例）；不同 durable name 的多服务**独立消费**（各收全量消息）。
+
+业务服务离线时消息在 stream 中保留（受 `MaxAge` 限制），重连后从上次 ack 位置继续消费。

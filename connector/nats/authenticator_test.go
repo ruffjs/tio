@@ -280,8 +280,8 @@ func TestNatsAuthenticator_SimpleSuperUserPermissionsExcludeLegacy(t *testing.T)
 	}
 	perms := authn.thingPermissions("admin")
 
-	require.Equal(t, []string{"tio.>"}, perms.Publish.Allow)
-	require.Equal(t, []string{"tio.>", "$MQTT.sub.>", "_INBOX.>"}, perms.Subscribe.Allow)
+	require.Equal(t, []string{"tio.>", "$JS.API.>", "$JS.ACK.>"}, perms.Publish.Allow)
+	require.Equal(t, []string{"tio.>", "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"}, perms.Subscribe.Allow)
 }
 
 type stubBindingGetter struct {
