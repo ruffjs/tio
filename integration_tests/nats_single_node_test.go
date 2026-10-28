@@ -16,6 +16,7 @@ import (
 
 	tioconnector "ruff.io/tio/connector"
 	mq "ruff.io/tio/internal/mqtttest"
+	"ruff.io/tio/pkg/model"
 	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
 )
@@ -361,6 +362,15 @@ func TestShadowSetReportedAcceptance(t *testing.T) {
 func TestPresenceConnectDisconnect(t *testing.T) {
 	thingId := ID()
 	crateThing(thingId)
+	assertConnected := func(connected bool) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			page, err := shadowSvc.Query(context.Background(), model.PageQuery{PageIndex: 1, PageSize: 20},
+				"select thingId, connected from shadow where thingId = '"+thingId+"'")
+			return err == nil && len(page.Content) == 1 &&
+				page.Content[0].(map[string]any)["connected"] == connected
+		}, 2*time.Second, 20*time.Millisecond, "shadow query connected=%v", connected)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -406,6 +416,7 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for connect presence event")
 	}
+	assertConnected(true)
 
 	device.Disconnect()
 
@@ -414,6 +425,7 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for disconnect presence event")
 	}
+	assertConnected(false)
 }
 
 func TestMultiplePresenceSubscribers(t *testing.T) {

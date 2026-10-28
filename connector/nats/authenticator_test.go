@@ -296,3 +296,19 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
 }
+
+func TestNatsAuthenticator_SystemAccountRequired(t *testing.T) {
+	cfg := testConnectorConfig(t)
+	authn := NewNatsAuthenticator(nil, nil, nil, cfg.AppClient, cfg.SystemClient, cfg.MqttPublisher)
+	s, err := StartNatsServer(cfg.Server, authn)
+	require.NoError(t, err)
+	defer s.Shutdown()
+	appAcc, err := s.Server().LookupAccount(AppAccountName)
+	require.NoError(t, err)
+	authn.SetAccounts(appAcc, nil)
+	nc, err := nats.Connect(s.ClientURL(), nats.UserInfo(cfg.SystemClient.User, cfg.SystemClient.Password))
+	if nc != nil {
+		nc.Close()
+	}
+	require.ErrorIs(t, err, nats.ErrAuthorization)
+}

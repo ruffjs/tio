@@ -5,30 +5,35 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
+	"time"
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
 
-	"github.com/nats-io/nats.go"
 	server "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 )
 
 type Connector struct {
-	cfg        config.NatsConfig
-	natsSvr    *NatsServer
-	auth       *NatsAuthenticator
-	mqttPub    *mqttPublisher
+	cfg     config.NatsConfig
+	natsSvr *NatsServer
+	auth    *NatsAuthenticator
+	mqttPub *mqttPublisher
 
-	natsConn   *nats.Conn
-	sysConn    *nats.Conn
-	js         nats.JetStreamContext
-	kv         nats.KeyValue
+	natsConn *nats.Conn
+	sysConn  *nats.Conn
+	js       nats.JetStreamContext
+	kv       nats.KeyValue
 
-	presenceHandler connector.PresenceHandler
+	presenceHandler   connector.PresenceHandler
+	presenceMu        sync.Mutex
+	presenceReconnect chan struct{}
+	pendingPresence   map[string]string
 
-	ctx        context.Context
-	cancel     context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	configured bool
 	started    bool
@@ -36,7 +41,7 @@ type Connector struct {
 }
 
 func NewConnector(cfg config.NatsConfig) (*Connector, error) {
-	return &Connector{cfg: cfg}, nil
+	return &Connector{cfg: cfg, presenceReconnect: make(chan struct{}, 1)}, nil
 }
 
 func (c *Connector) ConfigureAuth(authzFn connector.AuthzFn, bg connector.BindingGetter) error {
@@ -70,9 +75,18 @@ func (c *Connector) Start(ctx context.Context) error {
 
 	appAcc, err := c.startServer()
 	if err != nil {
+		c.cleanupLocked()
 		return err
 	}
-	sysAcc, _ := c.natsSvr.Server().LookupAccount(SysAccountName)
+	sysAcc, err := c.natsSvr.Server().LookupAccount(SysAccountName)
+	if err != nil {
+		c.cleanupLocked()
+		return fmt.Errorf("lookup system account %q: %w", SysAccountName, err)
+	}
+	if c.natsSvr.Server().SystemAccount() != sysAcc {
+		c.cleanupLocked()
+		return fmt.Errorf("account %q is not the system account", SysAccountName)
+	}
 	c.auth.SetAccounts(appAcc, sysAcc)
 
 	if err := c.connectClients(ctx); err != nil {
@@ -129,6 +143,16 @@ func (c *Connector) connectClients(ctx context.Context) error {
 		c.natsSvr.ClientURL(),
 		nats.UserInfo(c.cfg.SystemClient.User, c.cfg.SystemClient.Password),
 		nats.Name("tio-sys-internal"),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			if err := nc.FlushTimeout(2 * time.Second); err != nil {
+				slog.Error("restore presence subscriptions", "error", err)
+				return
+			}
+			select {
+			case c.presenceReconnect <- struct{}{}:
+			default:
+			}
+		}),
 	)
 	if err != nil {
 		appConn.Close()
@@ -155,7 +179,7 @@ func (c *Connector) startMqttPublisher(ctx context.Context) error {
 	if mqttPort <= 0 {
 		return fmt.Errorf("MQTT gateway port not available")
 	}
-	
+
 	var pubTLS *tls.Config
 	if !tlsConfigEmpty(c.cfg.Server.MqttTLS) {
 		tlsCfg, err := buildMqttPublisherTLSConfig(c.cfg.Server.MqttTLS)
@@ -164,7 +188,7 @@ func (c *Connector) startMqttPublisher(ctx context.Context) error {
 		}
 		pubTLS = tlsCfg
 	}
-	
+
 	pub := newMqttPublisher(
 		c.cfg.Server.ServerName,
 		mqttPort,
@@ -191,6 +215,9 @@ func (c *Connector) cleanupLocked() error {
 		c.cancel()
 		c.cancel = nil
 	}
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	c.pendingPresence = nil
 	if c.natsConn != nil {
 		if err := c.natsConn.Drain(); err != nil && firstErr == nil {
 			firstErr = err
@@ -239,6 +266,8 @@ func (c *Connector) SysConn() *nats.Conn              { return c.sysConn }
 func (c *Connector) JetStream() nats.JetStreamContext { return c.js }
 
 func (c *Connector) OnLocalPresence(handler connector.PresenceHandler) {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
 	c.presenceHandler = handler
 }
 

@@ -121,6 +121,8 @@ connector:
     superUsers:
       - name: $biz
         password: public
+      - name: $tio
+        password: public
 
 # Shadow (device state) configuration
 shadow:

@@ -138,7 +138,10 @@ func (c *Connector) Close(thingId string) error {
 }
 
 func (c *Connector) Remove(thingId string) error {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
 	_ = c.Close(thingId)
+	delete(c.pendingPresence, thingId)
 
 	key := presenceKeyPrefix + thingId
 	if c.kv != nil {

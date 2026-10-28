@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -138,38 +139,9 @@ func (c *Connector) handleConnectEvent(msg *nats.Msg) {
 		return
 	}
 
-	now := time.Now()
-	rec := PresenceRecord{
-		ThingId:    thingId,
-		Connected:  true,
-		ServerId:   evt.Server.Name,
-		ClientId:   evt.Client.MQTTClient,
-		RemoteAddr: evt.Client.Host,
-		Timestamp:  now.UnixMilli(),
-	}
-
-	data, err := json.Marshal(rec)
-	if err != nil {
-		slog.Error("marshal presence record", "error", err)
-		return
-	}
-	key := presenceKeyPrefix + thingId
-	if _, err := c.kv.Put(key, data); err != nil {
-		slog.Error("put presence record", "key", key, "error", err)
-		return
-	}
-
-	c.publishMqttPresence(thingId, now, connector.EventConnected, rec)
-
-	if c.presenceHandler != nil {
-		c.presenceHandler(connector.ClientInfo{
-			ClientId:    thingId,
-			Username:    thingId,
-			Connected:   true,
-			ConnectedAt: &now,
-			RemoteAddr:  evt.Client.Host,
-		})
-	}
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	c.syncLocalPresence(thingId, "")
 }
 
 func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
@@ -178,54 +150,145 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 		slog.Error("parse disconnect event", "error", err)
 		return
 	}
-
 	if evt.Server.Name != c.cfg.Server.ServerName {
 		return
 	}
-
 	thingId := evt.Client.User
 	if thingId == "" || strings.HasPrefix(thingId, "$") {
 		return
 	}
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	c.syncLocalPresence(thingId, evt.Reason)
+}
 
+// Call with presenceMu held; each retry reads both the latest owner and connections.
+func (c *Connector) syncLocalPresence(thingId, reason string) {
+	for attempt := 0; attempt < 3; attempt++ {
+		if c.ctx.Err() != nil {
+			return
+		}
+		err := c.trySyncLocalPresence(thingId, reason)
+		if err == nil {
+			delete(c.pendingPresence, thingId)
+			return
+		}
+		if !errors.Is(err, nats.ErrKeyExists) {
+			slog.Error("update local presence", "thingId", thingId, "error", err)
+			return
+		}
+	}
+	if c.pendingPresence == nil {
+		c.pendingPresence = make(map[string]string)
+	}
+	c.pendingPresence[thingId] = reason
+	slog.Warn("presence revision conflicts; deferred reconciliation", "thingId", thingId)
+}
+
+func (c *Connector) trySyncLocalPresence(thingId, reason string) error {
+	if err := c.ctx.Err(); err != nil {
+		return err
+	}
 	key := presenceKeyPrefix + thingId
-
-	// If the key was already removed (e.g. via Remove), don't recreate it.
-	if _, err := c.kv.Get(key); err == nats.ErrKeyNotFound {
-		return
+	entry, err := c.kv.Get(key)
+	if err != nil && err != nats.ErrKeyNotFound {
+		return fmt.Errorf("get presence record: %w", err)
 	}
-
-	now := time.Now()
-	rec := PresenceRecord{
-		ThingId:    thingId,
-		Connected:  false,
-		ServerId:   evt.Server.Name,
-		ClientId:   evt.Client.MQTTClient,
-		RemoteAddr: evt.Client.Host,
-		Timestamp:  now.UnixMilli(),
+	var rec PresenceRecord
+	var revision uint64
+	if err == nil {
+		if err := json.Unmarshal(entry.Value(), &rec); err != nil {
+			return fmt.Errorf("parse presence record: %w", err)
+		}
+		revision = entry.Revision()
 	}
-
-	data, err := json.Marshal(rec)
+	conns, err := c.localConnections(thingId)
 	if err != nil {
-		slog.Error("marshal presence record", "error", err)
-		return
+		return fmt.Errorf("get local presence connections: %w", err)
 	}
-	if _, err := c.kv.Put(key, data); err != nil {
-		slog.Error("put presence record on disconnect", "key", key, "error", err)
-		return
+	connected := len(conns) > 0
+	if !connected && (revision == 0 || !rec.Connected || rec.ServerId != c.cfg.Server.ServerName) {
+		return nil
 	}
-
-	c.publishMqttPresence(thingId, now, connector.EventDisconnected, rec)
-
+	if connected {
+		ci := conns[len(conns)-1]
+		if rec.Connected && rec.ServerId == c.cfg.Server.ServerName && rec.ClientId == ci.MQTTClient && rec.RemoteAddr == ci.IP {
+			return nil
+		}
+		rec.ClientId, rec.RemoteAddr = ci.MQTTClient, ci.IP
+	}
+	now := time.Now()
+	rec.ThingId, rec.ServerId = thingId, c.cfg.Server.ServerName
+	rec.Connected, rec.Timestamp = connected, now.UnixMilli()
+	data, _ := json.Marshal(rec)
+	if revision == 0 {
+		_, err = c.kv.Create(key, data)
+	} else {
+		_, err = c.kv.Update(key, data, revision)
+	}
+	if err != nil {
+		return err
+	}
+	eventType := connector.EventDisconnected
+	ci := connector.ClientInfo{ClientId: thingId, Username: thingId, Connected: connected, RemoteAddr: rec.RemoteAddr}
+	if connected {
+		eventType = connector.EventConnected
+		ci.ConnectedAt = &now
+	} else {
+		ci.DisconnectedAt, ci.DisconnectReason = &now, reason
+	}
+	c.publishMqttPresence(thingId, now, eventType, rec)
 	if c.presenceHandler != nil {
-		c.presenceHandler(connector.ClientInfo{
-			ClientId:         thingId,
-			Username:         thingId,
-			Connected:        false,
-			DisconnectedAt:   &now,
-			DisconnectReason: evt.Reason,
-			RemoteAddr:       evt.Client.Host,
-		})
+		c.presenceHandler(ci)
+	}
+	return nil
+}
+
+func (c *Connector) localConnections(user string) ([]*server.ConnInfo, error) {
+	opts := server.ConnzOptions{Username: true, Account: AppAccountName, User: user, Limit: server.DefaultConnListSize}
+	var result []*server.ConnInfo
+	for {
+		if err := c.ctx.Err(); err != nil {
+			return nil, err
+		}
+		page, err := c.natsSvr.Server().Connz(&opts)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, page.Conns...)
+		opts.Offset += opts.Limit
+		if len(page.Conns) < opts.Limit || opts.Offset >= page.Total {
+			return result, nil
+		}
+	}
+}
+
+func (c *Connector) compensatePresence() {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	conns, err := c.localConnections("")
+	if err != nil {
+		slog.Error("scan presence connections", "error", err)
+		return
+	}
+	keys, err := c.kv.Keys()
+	if err != nil && err != nats.ErrNoKeysFound {
+		slog.Error("scan presence records", "error", err)
+		return
+	}
+	users := make(map[string]bool)
+	for _, ci := range conns {
+		users[ci.AuthorizedUser] = true
+	}
+	for _, key := range keys {
+		if strings.HasPrefix(key, presenceKeyPrefix) {
+			users[strings.TrimPrefix(key, presenceKeyPrefix)] = true
+		}
+	}
+	for user := range users {
+		if user != "" && !strings.HasPrefix(user, "$") {
+			c.syncLocalPresence(user, "reconciled after system reconnect")
+		}
 	}
 }
 
@@ -255,28 +318,46 @@ func (c *Connector) startReconciliation(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-c.presenceReconnect:
+			c.mu.Lock()
+			if c.ctx.Err() == nil {
+				c.compensatePresence()
+			}
+			c.mu.Unlock()
 		case <-ticker.C:
-			c.reconcile()
+			c.mu.Lock()
+			if c.ctx.Err() == nil {
+				c.reconcile()
+			}
+			c.mu.Unlock()
 		}
 	}
 }
 
 func (c *Connector) reconcile() {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	if c.ctx.Err() != nil {
+		return
+	}
 	if c.natsSvr == nil || c.kv == nil {
 		return
 	}
 
+	for thingId, reason := range c.pendingPresence {
+		c.syncLocalPresence(thingId, reason)
+	}
+
 	aliveServers := c.queryAliveServers()
 
-	opts := server.ConnzOptions{Username: true}
-	connz, err := c.natsSvr.Server().Connz(&opts)
+	conns, err := c.localConnections("")
 	if err != nil {
 		slog.Error("reconcile: get connz", "error", err)
 		return
 	}
 
 	activeUsers := make(map[string]bool)
-	for _, ci := range connz.Conns {
+	for _, ci := range conns {
 		user := ci.AuthorizedUser
 		if user == "" || strings.HasPrefix(user, "$") {
 			continue
@@ -303,11 +384,15 @@ func (c *Connector) reconcile() {
 			continue
 		}
 
+		if rec.ServerId == c.cfg.Server.ServerName {
+			if rec.Connected && !activeUsers[rec.ThingId] {
+				c.syncLocalPresence(rec.ThingId, "reconciled stale presence")
+			}
+			continue
+		}
+
 		shouldDisconnect := false
 		if rec.Connected && !aliveServers[rec.ServerId] {
-			shouldDisconnect = true
-		}
-		if rec.Connected && rec.ServerId == c.cfg.Server.ServerName && !activeUsers[rec.ThingId] {
 			shouldDisconnect = true
 		}
 
