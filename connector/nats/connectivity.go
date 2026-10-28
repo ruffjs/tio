@@ -161,14 +161,17 @@ func (c *Connector) Close(thingId string) error {
 }
 
 func (c *Connector) Remove(thingId string) error {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
 	_ = c.Close(thingId)
+	delete(c.pendingPresence, thingId)
 
 	key := presenceKeyPrefix + thingId
 	if c.kv != nil {
 		_ = c.kv.Delete(key)
 	}
 
-	_ = c.publishMqtt(connector.TopicPresence(thingId), 1, true, nil)
+	_ = c.publishMqttLocked(connector.TopicPresence(thingId), 1, true, nil)
 
 	return nil
 }

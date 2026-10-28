@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
+	"time"
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
@@ -26,7 +28,10 @@ type Connector struct {
 	js       nats.JetStreamContext
 	kv       nats.KeyValue
 
-	presenceHandler connector.PresenceHandler
+	presenceHandler   connector.PresenceHandler
+	presenceMu        sync.Mutex
+	presenceReconnect chan struct{}
+	pendingPresence   map[string]string
 
 	deviceCodec  codec.Codec
 	protocolMode string
@@ -47,9 +52,10 @@ func NewConnector(cfg config.NatsConfig, deviceCodec codec.Codec, protocolMode s
 		return nil, fmt.Errorf("invalid protocol mode: %q", protocolMode)
 	}
 	return &Connector{
-		cfg:          cfg,
-		deviceCodec:  deviceCodec,
-		protocolMode: protocolMode,
+		cfg:               cfg,
+		deviceCodec:       deviceCodec,
+		protocolMode:      protocolMode,
+		presenceReconnect: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -88,9 +94,18 @@ func (c *Connector) Start(ctx context.Context) error {
 
 	appAcc, err := c.startServer()
 	if err != nil {
+		c.cleanupLocked()
 		return err
 	}
-	sysAcc, _ := c.natsSvr.Server().LookupAccount(SysAccountName)
+	sysAcc, err := c.natsSvr.Server().LookupAccount(SysAccountName)
+	if err != nil {
+		c.cleanupLocked()
+		return fmt.Errorf("lookup system account %q: %w", SysAccountName, err)
+	}
+	if c.natsSvr.Server().SystemAccount() != sysAcc {
+		c.cleanupLocked()
+		return fmt.Errorf("account %q is not the system account", SysAccountName)
+	}
 	c.auth.SetAccounts(appAcc, sysAcc)
 
 	if err := c.startServerAndClients(ctx); err != nil {
@@ -118,9 +133,18 @@ func (c *Connector) StartServerOnly() error {
 
 	appAcc, err := c.startServer()
 	if err != nil {
+		c.cleanupLocked()
 		return err
 	}
-	sysAcc, _ := c.natsSvr.Server().LookupAccount(SysAccountName)
+	sysAcc, err := c.natsSvr.Server().LookupAccount(SysAccountName)
+	if err != nil {
+		c.cleanupLocked()
+		return fmt.Errorf("lookup system account %q: %w", SysAccountName, err)
+	}
+	if c.natsSvr.Server().SystemAccount() != sysAcc {
+		c.cleanupLocked()
+		return fmt.Errorf("account %q is not the system account", SysAccountName)
+	}
 	c.auth.SetAccounts(appAcc, sysAcc)
 	return nil
 }
@@ -203,6 +227,16 @@ func (c *Connector) connectClients(ctx context.Context) error {
 		c.natsSvr.ClientURL(),
 		nats.UserInfo(c.cfg.SystemClient.User, c.cfg.SystemClient.Password),
 		nats.Name("tio-sys-internal"),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			if err := nc.FlushTimeout(2 * time.Second); err != nil {
+				slog.Error("restore presence subscriptions", "error", err)
+				return
+			}
+			select {
+			case c.presenceReconnect <- struct{}{}:
+			default:
+			}
+		}),
 	)
 	if err != nil {
 		appConn.Close()
@@ -265,6 +299,9 @@ func (c *Connector) cleanupLocked() error {
 		c.cancel()
 		c.cancel = nil
 	}
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	c.pendingPresence = nil
 	if c.natsConn != nil {
 		if err := c.natsConn.Drain(); err != nil && firstErr == nil {
 			firstErr = err
@@ -310,6 +347,11 @@ func (c *Connector) PublishRetained(topic string, payload []byte) error {
 func (c *Connector) publishMqtt(topic string, qos byte, retained bool, payload []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.publishMqttLocked(topic, qos, retained, payload)
+}
+
+// Caller must hold mu or presenceMu to protect the publisher from shutdown.
+func (c *Connector) publishMqttLocked(topic string, qos byte, retained bool, payload []byte) error {
 	if c.mqttPub == nil {
 		return errors.New("mqtt publisher not started")
 	}
@@ -322,6 +364,8 @@ func (c *Connector) SysConn() *nats.Conn              { return c.sysConn }
 func (c *Connector) JetStream() nats.JetStreamContext { return c.js }
 
 func (c *Connector) OnLocalPresence(handler connector.PresenceHandler) {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
 	c.presenceHandler = handler
 }
 

@@ -98,7 +98,7 @@ func (a *NatsAuthenticator) registerInternalSysUser(c server.ClientAuthenticatio
 	slog.Debug("NATS internal SYS client authenticated", "user", a.sysClient.User)
 	acc := a.sysAcc
 	if acc == nil {
-		acc = a.appAcc
+		return false
 	}
 	user := &server.User{
 		Username: a.sysClient.User,

@@ -44,6 +44,9 @@ func TestServerAccountsExist(t *testing.T) {
 	if appAcc.GetName() != AppAccountName {
 		t.Fatalf("APP account name = %q, want %q", appAcc.GetName(), AppAccountName)
 	}
+	if srv.SystemAccount() != sysAcc {
+		t.Fatal("TIO_SYS must be the server system account")
+	}
 	if sysAcc.GetName() != SysAccountName {
 		t.Fatalf("SYS account name = %q, want %q", sysAcc.GetName(), SysAccountName)
 	}
