@@ -243,7 +243,7 @@ const submitForm = async () => {
 :global(:root[data-theme="light"]) {
   .login-view {
     background:
-      radial-gradient(circle at 24% 18%, rgba(82, 101, 125, 0.08), transparent 30%),
+      radial-gradient(circle at 24% 18%, var(--tio-accent-soft), transparent 30%),
       var(--tio-bg);
   }
 }

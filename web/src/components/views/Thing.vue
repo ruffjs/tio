@@ -263,8 +263,8 @@ onMounted(() => {
     justify-content: space-between;
     align-items: flex-start;
     gap: 18px;
-    margin-bottom: 14px;
-    padding: 4px 2px 14px;
+    margin-bottom: 16px;
+    padding: 4px 2px 16px;
     border-bottom: 1px solid var(--tio-line);
     background: transparent;
 
@@ -368,10 +368,13 @@ onMounted(() => {
   .thing-workspace {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
-    gap: 14px;
+    gap: 16px;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    padding: 16px;
+    border-radius: var(--tio-radius-lg);
+    background: var(--tio-bg-elevated);
 
     .thing-sidebar {
       display: flex;
@@ -469,7 +472,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
   .thing-view {
     overflow-y: auto;
 

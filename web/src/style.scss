@@ -15,20 +15,22 @@
   --layout-top-gap: 0px;
   --layout-bottom-gap: 20px;
 
-  --tio-bg: #111418;
-  --tio-bg-elevated: #171b21;
-  --tio-surface: #1b2027;
-  --tio-surface-soft: #191e25;
-  --tio-surface-raised: #1b2027;
-  --tio-surface-solid: #171b21;
-  --tio-border: #303844;
-  --tio-border-strong: #46515f;
-  --tio-text: #c7ced8;
-  --tio-text-strong: #edf1f6;
-  --tio-muted: #8e99a8;
-  --tio-accent: #64748b;
-  --tio-accent-strong: #475569;
-  --tio-accent-soft: rgba(100, 116, 139, 0.16);
+  --tio-bg: #111827;
+  --tio-bg-elevated: #182131;
+  --tio-surface: #1f2937;
+  --tio-surface-soft: #273449;
+  --tio-surface-raised: #1f2937;
+  --tio-surface-solid: #182131;
+  --tio-border: #374151;
+  --tio-border-strong: #64748b;
+  --tio-text: #e5e7eb;
+  --tio-text-strong: #f8fafc;
+  --tio-muted: #a3afc2;
+  --tio-accent: #4f46e5;
+  --tio-accent-strong: #4338ca;
+  --tio-accent-soft: rgba(99, 102, 241, 0.18);
+  --tio-link: #a5b4fc;
+  --tio-link-hover: #c7d2fe;
   --tio-danger: #ef4444;
   --tio-danger-strong: #b91c1c;
   --tio-danger-soft: rgba(239, 68, 68, 0.1);
@@ -39,7 +41,7 @@
   --tio-warning-strong: #b45309;
   --tio-warning-soft: rgba(245, 158, 11, 0.1);
   --tio-radius: 6px;
-  --tio-radius-lg: 10px;
+  --tio-radius-lg: 8px;
   --tio-shadow: none;
   --tio-shadow-soft: none;
   --tio-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -52,10 +54,10 @@
 
   --el-color-primary: var(--tio-accent);
   --el-color-primary-dark-2: var(--tio-accent-strong);
-  --el-color-primary-light-3: #8492a6;
-  --el-color-primary-light-5: rgba(100, 116, 139, 0.5);
-  --el-color-primary-light-7: rgba(100, 116, 139, 0.28);
-  --el-color-primary-light-8: rgba(100, 116, 139, 0.2);
+  --el-color-primary-light-3: #818cf8;
+  --el-color-primary-light-5: rgba(99, 102, 241, 0.5);
+  --el-color-primary-light-7: rgba(99, 102, 241, 0.28);
+  --el-color-primary-light-8: rgba(99, 102, 241, 0.2);
   --el-color-primary-light-9: var(--tio-accent-soft);
   --el-bg-color: var(--tio-bg-elevated);
   --el-bg-color-overlay: var(--tio-surface-solid);
@@ -69,7 +71,7 @@
   --el-text-color-primary: var(--tio-text-strong);
   --el-text-color-regular: var(--tio-text);
   --el-text-color-secondary: var(--tio-muted);
-  --el-text-color-placeholder: #686d77;
+  --el-text-color-placeholder: #939dab;
   --el-mask-color: rgba(12, 13, 16, 0.72);
   --el-box-shadow: var(--tio-shadow);
   --el-box-shadow-light: var(--tio-shadow-soft);
@@ -86,39 +88,44 @@
 }
 
 :root[data-theme="light"] {
-  --tio-bg: #f2efe8;
-  --tio-bg-elevated: #fbf8f1;
-  --tio-surface: #fbf8f1;
-  --tio-surface-soft: #f6f2ea;
-  --tio-surface-raised: #fbf8f1;
-  --tio-surface-solid: #fbf8f1;
-  --tio-border: #ded7cb;
-  --tio-border-strong: #c9bfb0;
-  --tio-text: #413d36;
-  --tio-text-strong: #201d18;
-  --tio-muted: #766f64;
-  --tio-accent: #52657d;
-  --tio-accent-strong: #39495c;
-  --tio-accent-soft: rgba(82, 101, 125, 0.1);
+  --tio-bg: #f0efeb;
+  --tio-bg-elevated: #faf9f5;
+  --tio-surface: #faf9f5;
+  --tio-surface-soft: #e9e8e2;
+  --tio-surface-raised: #faf9f5;
+  --tio-surface-solid: #f7f6f2;
+  --tio-border: #d4d5cd;
+  --tio-border-strong: #8a9189;
+  --tio-text: #3f4443;
+  --tio-text-strong: #292e2c;
+  --tio-muted: #626965;
+  --tio-accent: #5b5796;
+  --tio-accent-strong: #484477;
+  --tio-accent-soft: #e9e7f1;
+  --tio-link: #5b5796;
+  --tio-link-hover: #484477;
+  --tio-danger: #b91c1c;
+  --tio-success: #15803d;
+  --tio-warning: #b45309;
   --tio-danger-soft: rgba(185, 28, 28, 0.07);
   --tio-success-soft: rgba(22, 163, 74, 0.08);
   --tio-warning-soft: rgba(217, 119, 6, 0.08);
   --tio-shadow: none;
   --tio-shadow-soft: none;
 
-  --el-color-primary-light-3: #718197;
-  --el-color-primary-light-5: rgba(82, 101, 125, 0.34);
-  --el-color-primary-light-7: rgba(82, 101, 125, 0.2);
-  --el-color-primary-light-8: rgba(82, 101, 125, 0.14);
-  --el-bg-color: #fbf8f1;
-  --el-bg-color-overlay: #fffdf8;
-  --el-fill-color: #eee8dd;
-  --el-fill-color-light: #f4f0e8;
-  --el-fill-color-lighter: #f8f4ed;
-  --el-fill-color-blank: #fbf8f1;
-  --el-border-color-light: #e6ded1;
-  --el-border-color-lighter: #eee7dc;
-  --el-text-color-placeholder: #a0988b;
+  --el-color-primary-light-3: #8b88b4;
+  --el-color-primary-light-5: rgba(91, 87, 150, 0.34);
+  --el-color-primary-light-7: rgba(91, 87, 150, 0.2);
+  --el-color-primary-light-8: rgba(91, 87, 150, 0.14);
+  --el-bg-color: var(--tio-surface);
+  --el-bg-color-overlay: var(--tio-surface);
+  --el-fill-color: var(--tio-surface-soft);
+  --el-fill-color-light: var(--tio-bg-elevated);
+  --el-fill-color-lighter: var(--tio-surface);
+  --el-fill-color-blank: var(--tio-surface);
+  --el-border-color-light: var(--tio-border);
+  --el-border-color-lighter: var(--tio-border);
+  --el-text-color-placeholder: var(--tio-muted);
   --el-mask-color: rgba(17, 24, 39, 0.32);
   color-scheme: light;
 }
@@ -222,7 +229,7 @@ textarea {
 
 .el-button {
   --el-button-text-color: var(--tio-text);
-  --el-button-bg-color: var(--tio-surface-soft);
+  --el-button-bg-color: var(--tio-surface-raised);
   --el-button-border-color: var(--tio-border);
   --el-button-hover-text-color: var(--tio-text-strong);
   --el-button-hover-bg-color: var(--tio-accent-soft);
@@ -253,7 +260,7 @@ textarea {
   --el-button-active-bg-color: var(--tio-accent-strong);
   --el-button-active-border-color: var(--tio-accent-strong);
   --el-button-disabled-text-color: #ffffff;
-  --el-button-disabled-bg-color: rgba(100, 116, 139, 0.42);
+  --el-button-disabled-bg-color: var(--tio-accent-soft);
   --el-button-disabled-border-color: transparent;
 }
 
@@ -262,8 +269,8 @@ textarea {
   --el-button-bg-color: var(--tio-success-strong);
   --el-button-border-color: var(--tio-success-strong);
   --el-button-hover-text-color: #ffffff;
-  --el-button-hover-bg-color: var(--tio-success);
-  --el-button-hover-border-color: var(--tio-success);
+  --el-button-hover-bg-color: var(--tio-success-strong);
+  --el-button-hover-border-color: var(--tio-success-strong);
   --el-button-active-text-color: #ffffff;
   --el-button-active-bg-color: var(--tio-success-strong);
   --el-button-active-border-color: var(--tio-success-strong);
@@ -274,8 +281,8 @@ textarea {
   --el-button-bg-color: var(--tio-warning-strong);
   --el-button-border-color: var(--tio-warning-strong);
   --el-button-hover-text-color: #ffffff;
-  --el-button-hover-bg-color: var(--tio-warning);
-  --el-button-hover-border-color: var(--tio-warning);
+  --el-button-hover-bg-color: var(--tio-warning-strong);
+  --el-button-hover-border-color: var(--tio-warning-strong);
   --el-button-active-text-color: #ffffff;
   --el-button-active-bg-color: var(--tio-warning-strong);
   --el-button-active-border-color: var(--tio-warning-strong);
@@ -286,8 +293,8 @@ textarea {
   --el-button-bg-color: var(--tio-danger-strong);
   --el-button-border-color: var(--tio-danger-strong);
   --el-button-hover-text-color: #ffffff;
-  --el-button-hover-bg-color: var(--tio-danger);
-  --el-button-hover-border-color: var(--tio-danger);
+  --el-button-hover-bg-color: var(--tio-danger-strong);
+  --el-button-hover-border-color: var(--tio-danger-strong);
   --el-button-active-text-color: #ffffff;
   --el-button-active-bg-color: var(--tio-danger-strong);
   --el-button-active-border-color: var(--tio-danger-strong);
@@ -306,29 +313,29 @@ textarea {
 }
 
 .el-button.is-link {
-  --el-button-text-color: var(--tio-accent);
-  --el-button-hover-link-text-color: var(--tio-accent-strong);
-  --el-button-active-color: var(--tio-accent-strong);
+  --el-button-text-color: var(--tio-link);
+  --el-button-hover-link-text-color: var(--tio-link-hover);
+  --el-button-active-color: var(--tio-link-hover);
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-  color: var(--tio-accent);
+  color: var(--tio-link);
 }
 
 .el-button.is-link:hover,
 .el-button.is-link:focus {
   border-color: transparent;
   background: transparent;
-  color: var(--tio-accent-strong);
+  color: var(--tio-link-hover);
 }
 
 .el-button.is-link.el-button--primary {
-  color: var(--tio-accent);
+  color: var(--tio-link);
 }
 
 .el-button.is-link.el-button--primary:hover,
 .el-button.is-link.el-button--primary:focus {
-  color: var(--tio-accent-strong);
+  color: var(--tio-link-hover);
 }
 
 .el-button.is-link.el-button--danger {
@@ -349,7 +356,7 @@ textarea {
 .el-button--default,
 .el-button.is-plain {
   --el-button-text-color: var(--tio-text);
-  --el-button-bg-color: var(--tio-surface-soft);
+  --el-button-bg-color: var(--tio-surface-raised);
   --el-button-border-color: var(--tio-border);
   --el-button-hover-text-color: var(--tio-text-strong);
   --el-button-hover-bg-color: var(--tio-accent-soft);
@@ -361,13 +368,18 @@ textarea {
 
 .el-button--primary.is-plain,
 .el-button--primary.is-text {
-  --el-button-text-color: var(--tio-accent);
+  --el-button-text-color: var(--tio-link);
   --el-button-bg-color: var(--tio-accent-soft);
-  --el-button-border-color: rgba(100, 116, 139, 0.34);
-  --el-button-hover-text-color: var(--tio-accent-strong);
+  --el-button-border-color: rgba(79, 70, 229, 0.34);
+  --el-button-hover-text-color: var(--tio-link-hover);
   --el-button-hover-bg-color: var(--tio-accent-soft);
   --el-button-hover-border-color: var(--tio-accent-strong);
-  --el-button-active-text-color: var(--tio-accent-strong);
+  --el-button-active-text-color: var(--tio-link-hover);
+}
+
+:root[data-theme="light"] .el-button--primary.is-plain,
+:root[data-theme="light"] .el-button--primary.is-text {
+  --el-button-border-color: var(--el-color-primary-light-5);
 }
 
 .el-button--success.is-plain,
@@ -377,7 +389,7 @@ textarea {
   --el-button-border-color: rgba(34, 197, 94, 0.24);
   --el-button-hover-text-color: var(--tio-success);
   --el-button-hover-bg-color: var(--tio-success-soft);
-  --el-button-hover-border-color: var(--tio-success);
+  --el-button-hover-border-color: var(--tio-success-strong);
   --el-button-active-text-color: var(--tio-success);
 }
 
@@ -388,7 +400,7 @@ textarea {
   --el-button-border-color: rgba(245, 158, 11, 0.24);
   --el-button-hover-text-color: var(--tio-warning-strong);
   --el-button-hover-bg-color: var(--tio-warning-soft);
-  --el-button-hover-border-color: var(--tio-warning);
+  --el-button-hover-border-color: var(--tio-warning-strong);
   --el-button-active-text-color: var(--tio-warning-strong);
 }
 
@@ -399,7 +411,7 @@ textarea {
   --el-button-border-color: rgba(239, 68, 68, 0.24);
   --el-button-hover-text-color: var(--tio-danger);
   --el-button-hover-bg-color: var(--tio-danger-soft);
-  --el-button-hover-border-color: var(--tio-danger);
+  --el-button-hover-border-color: var(--tio-danger-strong);
   --el-button-active-text-color: var(--tio-danger);
 }
 
@@ -426,6 +438,11 @@ textarea {
   --el-button-text-color: var(--tio-danger-strong);
   --el-button-hover-text-color: var(--tio-danger-strong);
   --el-button-active-text-color: var(--tio-danger-strong);
+}
+
+.el-button.is-text {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
 }
 
 .el-card__header {
@@ -474,12 +491,12 @@ textarea {
 .el-textarea,
 .el-select,
 .el-input-number {
-  --el-input-bg-color: rgba(28, 30, 35, 0.82);
+  --el-input-bg-color: var(--tio-surface);
   --el-input-border-color: var(--tio-border);
   --el-input-hover-border-color: var(--tio-accent-strong);
   --el-input-focus-border-color: var(--tio-accent);
   --el-input-text-color: var(--tio-text);
-  --el-input-placeholder-color: #686d77;
+  --el-input-placeholder-color: #939dab;
 }
 
 :root[data-theme="light"] .el-input,
@@ -487,12 +504,31 @@ textarea {
 :root[data-theme="light"] .el-select,
 :root[data-theme="light"] .el-input-number {
   --el-input-bg-color: var(--tio-surface-raised);
-  --el-input-placeholder-color: #a0988b;
+  --el-input-placeholder-color: var(--tio-muted);
+}
+
+:root[data-theme="light"] .json-editor-n-viewer {
+  --jse-theme-color: var(--tio-bg-elevated);
+  --jse-background-color: var(--tio-bg-elevated);
+  --jse-background-color-highlight: var(--tio-surface-soft);
+}
+
+:root[data-theme="light"] .CodeMirror {
+  background: var(--tio-surface);
+  color: var(--tio-text);
+}
+
+button:focus-visible,
+a:focus-visible,
+.el-button:focus-visible,
+.el-menu-item:focus-visible {
+  outline: 2px solid var(--tio-link);
+  outline-offset: 2px;
 }
 
 .el-input__wrapper,
 .el-textarea__inner {
-  box-shadow: 0 0 0 1px var(--tio-border) inset, inset 0 1px 0 rgba(210, 214, 220, 0.02);
+  box-shadow: 0 0 0 1px var(--tio-border) inset;
 }
 
 .el-input__wrapper.is-focus,
@@ -548,7 +584,7 @@ textarea {
 }
 
 :root[data-theme="light"] .el-loading-mask {
-  background-color: rgba(255, 255, 255, 0.72);
+  background-color: rgba(250, 249, 245, 0.72);
 }
 
 .el-overlay {

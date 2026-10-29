@@ -818,6 +818,7 @@ const delSink = async row => {
   overflow-x: auto;
   border: 1px solid var(--tio-line);
   border-radius: var(--tio-radius);
+  background: var(--tio-surface);
 }
 
 .clean-table {

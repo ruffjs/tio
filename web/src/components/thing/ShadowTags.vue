@@ -37,9 +37,6 @@
     </div>
     <div v-else class="shadow-tags-empty">
       <p>{{ $t('things.noTagsRightNow') }}</p>
-      <el-button type="default" icon="Plus" size="small" @click="emit('update')"
-        >{{ $t('things.addSomeNow') }}</el-button
-      >
     </div>
   </section>
   <ObjectViewer
@@ -124,14 +121,14 @@ watch(
 <style scoped lang="scss">
 .shadow-tags-card {
   width: 100%;
-  padding: 14px 16px;
+  padding: 10px 16px;
   background: transparent;
 
   .shadow-tags-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 
     > span {
       color: var(--tio-text-strong);
@@ -147,12 +144,13 @@ watch(
     justify-content: start;
     align-items: start;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 
     .shadow-tags-item {
       height: auto;
-      min-height: 34px;
-      padding: 4px 6px 4px 10px;
+      min-height: 28px;
+      max-width: 100%;
+      padding: 2px 6px 2px 8px;
       border-radius: var(--tio-radius);
       user-select: none;
 
@@ -161,16 +159,27 @@ watch(
       }
 
       .shadow-tags-item-label {
-        line-height: 14px;
-        font-size: 14px;
+        display: inline;
+        overflow-wrap: anywhere;
+        line-height: 20px;
+        font-size: 12px;
         font-weight: 700;
         cursor: default;
+
+        &::after {
+          content: ":";
+          margin-right: 4px;
+        }
       }
       .shadow-tags-item-value {
-        line-height: 30px;
+        display: inline;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        line-height: 20px;
         font-size: 12px;
         &:has(button) {
-          line-height: 24px;
+          display: inline-flex;
+          line-height: 20px;
         }
         button {
           padding: 0;
@@ -181,11 +190,9 @@ watch(
 
   .shadow-tags-empty {
     display: flex;
-    flex-direction: row;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    gap: 10px;
-    min-height: 48px;
+    min-height: 28px;
     color: var(--tio-muted);
     font-size: 12px;
 

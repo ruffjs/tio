@@ -85,18 +85,42 @@ watch(
   }
 }
 
+.left,
+.top-nav-bar {
+  --tio-text: #dbe4f0;
+  --tio-text-strong: #f8fafc;
+  --tio-muted: #aebdd1;
+  --tio-line: #3b4a60;
+  --tio-surface: #233047;
+  --tio-surface-soft: #2d3d56;
+  --tio-accent: #a5b4fc;
+  --tio-accent-strong: #818cf8;
+  --tio-accent-soft: #303b66;
+  --tio-link: #c7d2fe;
+}
+
+.top-nav-bar {
+  --tio-surface-solid: #243247;
+}
+
 .left {
+  --tio-surface-solid: #182337;
   position: fixed;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 180px;
   padding: 12px 10px;
+  overflow: hidden;
   border-right: 1px solid var(--tio-line);
   background: var(--tio-surface-solid);
   box-shadow: none;
 
   .menu {
-    height: calc(100vh - 72px);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     border-right: 0;
     background: transparent;
 
@@ -115,9 +139,9 @@ watch(
       }
 
       &.is-active {
-        border-color: var(--tio-accent-strong);
+        border-color: var(--tio-link);
         background: var(--tio-accent-soft);
-        color: var(--tio-text-strong);
+        color: var(--tio-link);
       }
     }
   }
@@ -224,5 +248,28 @@ watch(
 
 .el-main {
   padding: 0;
+}
+@media (max-width: 900px) {
+  .layout-shell:not(.standalone) { flex-direction: column; }
+  .left {
+    position: relative;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    padding: 8px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--tio-line);
+    .logo-con { height: 44px; margin: 0 12px 0 0; }
+    .menu { display: flex; }
+  }
+  .right {
+    min-width: 0;
+    margin-left: 0;
+    .top-nav-bar { position: relative; width: 100%; }
+    .playground { padding: 16px 12px 48px; }
+    .tool-area { width: 100%; min-width: 0; overflow-x: auto; }
+  }
+  .standalone .right .playground { padding: 0; }
 }
 </style>

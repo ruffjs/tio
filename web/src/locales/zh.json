@@ -91,6 +91,7 @@
     "redisNote": "接收的数据格式需要为 <a href='https://redis.io/docs/latest/commands/' target='_blank'>redis 命令</a>。"
   },
   "things": {
+    "noResults": "没有匹配的设备，请调整查询条件。",
     "navTitle": "设备",
     "title": "设备",
     "thingId": "设备ID",

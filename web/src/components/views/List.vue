@@ -4,6 +4,7 @@
       <router-view></router-view>
     </div>
     <div v-show="showList" class="thing-list" :class="{ active }" v-loading="querying">
+      <header class="list-heading"><h1>{{ $t('things.navTitle') }}</h1><p>{{ $t('things.queryShortcut') }}</p></header>
       <!-- 搜索区域 -->
       <div class="list-view-search">
         <div class="list-view-search-left">
@@ -45,7 +46,7 @@
             </div>
           </div>
           <div class="query-history-content">
-            <div v-for="(historyQuery, index) in queryHistory" :key="index" class="query-history-item"
+            <div v-for="(historyQuery, index) in queryHistory" :key="index" class="query-history-item" role="button" tabindex="0" @keydown.enter.prevent="selectFromHistory(historyQuery)" @keydown.space.prevent="selectFromHistory(historyQuery)"
               @click.stop="selectFromHistory(historyQuery)">
               <div class="query-history-item-content">
                 {{ historyQuery }}
@@ -71,7 +72,7 @@
             </el-button>
           </div>
           <div class="sql-editor-tpls-content">
-            <div v-for="(suggestion, index) in suggestions" :key="index" class="sql-editor-tpl-item"
+            <div v-for="(suggestion, index) in suggestions" :key="index" class="sql-editor-tpl-item" role="button" tabindex="0" @keydown.enter.prevent="handleSelect(suggestion)" @keydown.space.prevent="handleSelect(suggestion)"
               @click.stop="handleSelect(suggestion)">
               <div class="sql-editor-tpl-item-header">
                 <el-tag size="small" type="primary">
@@ -97,7 +98,7 @@
 
         <!-- 空状态 -->
         <div v-else-if="empty" class="list-view-empty">
-          <el-empty :image-size="120" :description="$t('things.queryTips')">
+          <el-empty :image-size="120" :description="$t('things.noResults')">
             <el-button type="primary" @click="handleClear">
               {{ $t('common.reset') }}
             </el-button>
@@ -176,7 +177,7 @@ const empty = ref(false);
 const error = ref("");
 const showHistory = ref(false);
 const queryHistory = ref([]);
-const active = computed(() => focused.value || total.value > 0);
+const active = computed(() => focused.value || total.value > 0 || empty.value);
 
 const router = useRoute();
 const showList = computed(() => !router.path.includes('/things/'));
@@ -255,7 +256,6 @@ const clearQueryHistory = () => {
 };
 
 const selectFromHistory = (historyQuery) => {
-  debugger
   query.value = historyQuery;
   showHistory.value = false;
   handleSearch(false);
@@ -277,6 +277,7 @@ const handlePageIndexChange = (value) => {
 };
 
 const handlePageSizeChange = (value) => {
+  params.pageIndex = 1;
   params.pageSize = value;
   fetchList();
 };
@@ -355,9 +356,16 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
 </script>
 
 <style scoped lang="scss">
+.list-heading {
+  width: 100%;
+  margin-bottom: 16px;
+  h1 { margin: 0; font-size: 24px; }
+  p { margin: 4px 0 0; color: var(--tio-muted); font-size: 13px; }
+}
+
 .main-view {
   width: 100%;
-  padding: 16px;
+  padding: 0;
   overflow: hidden;
   color: var(--tio-text);
 
@@ -376,30 +384,6 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
     height: 100%;
     min-height: 400px;
     margin-bottom: 20px;
-
-    &.active {
-      justify-content: start;
-
-      .list-view-search {
-        width: 100%;
-        height: 100px;
-        border-radius: var(--tio-radius-lg);
-
-        .list-view-search-left {
-          height: 100px;
-
-          .list-view-query-editor .list-view-query-link {
-            top: 8px;
-          }
-        }
-
-        .list-view-search-right {
-          width: auto;
-          min-width: 200px;
-          height: 100px;
-        }
-      }
-    }
 
     .list-view-search,
     .list-view-things,
@@ -433,6 +417,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
           position: relative;
           width: 100%;
           height: 100%;
+          white-space: nowrap;
           overflow: hidden;
           border: 1px solid var(--tio-border);
           border-radius: var(--tio-radius);
@@ -453,7 +438,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             height: 28px;
             line-height: 28px;
             text-align: center;
-            opacity: 0;
+            opacity: 1;
           }
 
           &:hover .list-view-query-link {
@@ -468,7 +453,8 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
         justify-content: center;
         align-items: center;
         gap: 12px;
-        width: auto;
+        width: 200px;
+        flex: 0 0 200px;
         min-width: 200px;
         height: 70px;
         padding: 8px 16px;
@@ -488,7 +474,8 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             padding: 0;
             color: var(--tio-muted);
 
-            &:hover {
+            &:hover,
+            &:focus-visible {
               background: var(--tio-accent-soft);
               color: var(--tio-text-strong);
             }
@@ -500,19 +487,19 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
     .list-view-active-body {
       flex: 1;
       width: 100%;
-      height: 0;
+      min-height: 360px;
       margin-top: 16px;
 
       .list-view-things {
         width: 100%;
-        height: 100%;
+        height: clamp(360px, 60vh, 800px);
         overflow: hidden;
         border-radius: var(--tio-radius);
       }
 
       .sql-editor-tpls {
         width: 100%;
-        height: 100%;
+        height: clamp(360px, 60vh, 800px);
         overflow: hidden;
         border-radius: var(--tio-radius);
 
@@ -546,7 +533,8 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             cursor: pointer;
             transition: background-color 0.18s ease, border-color 0.18s ease;
 
-            &:hover {
+            &:hover,
+            &:focus-visible {
               border-color: var(--tio-accent-strong);
               background: var(--tio-accent-soft);
             }
@@ -570,7 +558,7 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
 
       .query-history {
         width: 100%;
-        max-width: 800px;
+        max-width: none;
         height: 400px;
         overflow: hidden;
         margin: 16px auto;
@@ -611,7 +599,8 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
             cursor: pointer;
             transition: background-color 0.18s ease, border-color 0.18s ease;
 
-            &:hover {
+            &:hover,
+            &:focus-visible {
               border-color: var(--tio-accent-strong);
               background: var(--tio-accent-soft);
             }

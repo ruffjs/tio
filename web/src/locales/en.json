@@ -87,6 +87,7 @@
     "redisNote": "The format of the received data needs to be a <a href='https://redis.io/docs/latest/commands/' target='_blank'>redis command</a>."
   },
   "things": {
+    "noResults": "No matching devices. Try adjusting your query.",
     "navTitle": "Things",
     "title": "Things",
     "thingId": "Thing ID",

@@ -50,10 +50,11 @@ const handlePageSizeChange = (value) => {
   justify-content: start;
   align-items: center;
   width: 100%;
+  height: 100%;
   .things-list-container {
     flex: 1;
     width: 100%;
-    height: 0;
+    min-height: 0;
     padding-top: 10px;
     overflow: hidden;
     .things-list-items {
@@ -63,10 +64,13 @@ const handlePageSizeChange = (value) => {
   }
   .things-list-paging {
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
     width: 100%;
-    height: 40px;
+    min-height: 48px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    border-top: 1px solid var(--tio-border);
     padding: 2px 15px 3px;
   }
 }
