@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/config"
@@ -248,8 +249,59 @@ func TestNatsAuthenticator_ThingPermissions(t *testing.T) {
 		"$iothub.user.things.test-thing.>",
 		"$MQTT.sub.>",
 		"$iothub.events.things.>",
+		"$iothub.things.test-thing",
+		"$iothub.user.things.test-thing",
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
+}
+
+func TestNatsAuthenticator_MqttThingWildcardSubscriptions(t *testing.T) {
+	cfg := testServerConfig(t)
+	cfg.MqttPort = freeTCPPort(t)
+	authzFn := func(ctx connector.AuthContext) (connector.AuthResult, bool) {
+		return connector.AuthResult{Principal: ctx.Username, AuthMethod: "password"}, ctx.Username == "gateway-1"
+	}
+	authn := NewNatsAuthenticator(authzFn,
+		&stubBindingGetter{boundThings: []string{"device-a"}}, nil,
+		config.NatsClientConfig{User: "app", Password: "app"},
+		config.NatsClientConfig{User: "sys", Password: "sys"},
+		config.NatsClientConfig{User: "mqtt", Password: "mqtt"}, "legacy")
+	s, err := StartNatsServer(cfg, authn)
+	require.NoError(t, err)
+	defer s.Shutdown()
+	appAcc, err := s.Server().LookupAccount(AppAccountName)
+	require.NoError(t, err)
+	sysAcc, err := s.Server().LookupAccount(SysAccountName)
+	require.NoError(t, err)
+	authn.SetAccounts(appAcc, sysAcc)
+	c := testMqttSubscriber(t, getMqttPort(t, s), "gateway-1", "pass")
+	defer c.Disconnect(100)
+
+	for _, tt := range []struct {
+		topic string
+		allow bool
+	}{
+		{"$iothub/things/gateway-1/#", true},
+		{"$iothub/user/things/gateway-1/#", true},
+		{"$iothub/things/device-a/#", true},
+		{"$iothub/user/things/device-a/#", true},
+		{"$iothub/things/device-b/#", false},
+		{"$iothub/user/things/device-b/#", false},
+		{"$iothub/things/#", false},
+	} {
+		t.Run(tt.topic, func(t *testing.T) {
+			token := c.Subscribe(tt.topic, 0, nil)
+			require.True(t, token.WaitTimeout(3*time.Second))
+			require.NoError(t, token.Error())
+			result := token.(*mqtt.SubscribeToken).Result()
+			require.Contains(t, result, tt.topic)
+			if tt.allow {
+				require.Equal(t, byte(0), result[tt.topic])
+			} else {
+				require.Equal(t, byte(128), result[tt.topic])
+			}
+		})
+	}
 }
 
 func TestNatsAuthenticator_SimpleThingPermissionsExcludeLegacy(t *testing.T) {
@@ -321,10 +373,16 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 		"$iothub.user.things.gateway-1.>",
 		"$MQTT.sub.>",
 		"$iothub.events.things.>",
+		"$iothub.things.gateway-1",
+		"$iothub.user.things.gateway-1",
 		"$iothub.things.device-a.>",
 		"$iothub.user.things.device-a.>",
+		"$iothub.things.device-a",
+		"$iothub.user.things.device-a",
 		"$iothub.things.device-b.>",
 		"$iothub.user.things.device-b.>",
+		"$iothub.things.device-b",
+		"$iothub.user.things.device-b",
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
 }

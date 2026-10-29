@@ -55,6 +55,18 @@ func TestTopicAcl(t *testing.T) {
 			result: true,
 		},
 		{
+			name:   "user can subscribe to all of their own topics",
+			user:   "863644074573511",
+			topic:  "$iothub/things/863644074573511/#",
+			result: true,
+		},
+		{
+			name:   "user cannot subscribe to another thing's topics",
+			user:   "863644074573511",
+			topic:  "$iothub/things/other/#",
+			result: false,
+		},
+		{
 			name:   "gateway can access bound thing's topic",
 			supers: []config.UserPassword{{Name: "a"}, {Name: "b"}},
 			user:   "e",
@@ -73,7 +85,7 @@ func TestTopicAcl(t *testing.T) {
 			}
 
 			aclFn := auth.TopicAcl(mBg, c.supers, "legacy")
-			r := aclFn(c.user, c.user, c.topic, true)
+			r := aclFn(c.user, c.user, c.topic, false)
 			require.Equal(t, c.result, r, fmt.Sprintf("user %s should access %s : %t", c.user, c.topic, c.result))
 
 			call.Unset()

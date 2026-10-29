@@ -63,7 +63,7 @@ func initLogger(cfg struct {
 		panic("Wrong log level config: " + cfg.Level)
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l}))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 	slog.SetDefault(logger)
 }
 

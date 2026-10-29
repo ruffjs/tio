@@ -216,10 +216,11 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 		subAllow = []string{thingPrefix, "$MQTT.sub.>"}
 		subDeny = []string{upExact, upWild}
 	} else {
-		thingPrefix := "$iothub.things." + thingId + ".>"
-		userPrefix := "$iothub.user.things." + thingId + ".>"
-		pubAllow = []string{thingPrefix, userPrefix}
-		subAllow = []string{thingPrefix, userPrefix, "$MQTT.sub.>", "$iothub.events.things.>"}
+		thingPrefix := "$iothub.things." + thingId
+		userPrefix := "$iothub.user.things." + thingId
+		pubAllow = []string{thingPrefix + ".>", userPrefix + ".>"}
+		// MQTT /# also subscribes to the parent subject itself.
+		subAllow = []string{thingPrefix + ".>", userPrefix + ".>", "$MQTT.sub.>", "$iothub.events.things.>", thingPrefix, userPrefix}
 	}
 
 	if a.bindingGetter != nil {
@@ -240,10 +241,10 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 					subAllow = append(subAllow, boundPrefix)
 					subDeny = append(subDeny, boundUpExact, boundUpWild)
 				} else {
-					boundPub := "$iothub.things." + bid + ".>"
-					boundUser := "$iothub.user.things." + bid + ".>"
-					pubAllow = append(pubAllow, boundPub, boundUser)
-					subAllow = append(subAllow, boundPub, boundUser)
+					boundPub := "$iothub.things." + bid
+					boundUser := "$iothub.user.things." + bid
+					pubAllow = append(pubAllow, boundPub+".>", boundUser+".>")
+					subAllow = append(subAllow, boundPub+".>", boundUser+".>", boundPub, boundUser)
 				}
 			}
 		}

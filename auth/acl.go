@@ -31,20 +31,20 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 		// Check if it's a simple protocol topic
 		if strings.HasPrefix(topic, protocol.TopicSimplePrefix) {
 			if protocolMode != "simple" {
-				slog.Debug("Simple protocol topic rejected in legacy mode", "thingId", username, "topic", topic)
+				slog.Warn("MQTT ACL denied", "reason", "simple topic in legacy mode", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
 				return false
 			}
 
 			thingId, direction, err := protocol.ParseTopicDir(topic)
 			if err != nil {
-				slog.Error("Parse simple topic error", "thingId", username, "topic", topic, "error", err)
+				slog.Warn("MQTT ACL denied", "reason", "invalid simple topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "error", err)
 				return false
 			}
 
 			// Check if thing matches username or is bound to gateway
 			if thingId != username {
 				if bound, err := bg.IsBoundGateway(context.Background(), thingId, username); err != nil || !bound {
-					slog.Debug("Simple topic thingId mismatch", "thingId", username, "topic", topic, "targetThingId", thingId)
+					slog.Warn("MQTT ACL denied", "reason", "topic belongs to another thing", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "targetThingId", thingId, "error", err)
 					return false
 				}
 			}
@@ -53,12 +53,12 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 			// under tio/{thingId}/# for free messaging via NATS.
 			if write {
 				if direction == protocol.LevelDown {
-					slog.Debug("Simple protocol publish denied", "thingId", username, "topic", topic, "direction", direction)
+					slog.Warn("MQTT ACL denied", "reason", "device cannot publish to down topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
 					return false
 				}
 			} else {
 				if direction == protocol.LevelUp {
-					slog.Debug("Simple protocol subscribe denied", "thingId", username, "topic", topic, "direction", direction)
+					slog.Warn("MQTT ACL denied", "reason", "device cannot subscribe to up topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
 					return false
 				}
 			}
@@ -70,7 +70,7 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 		if protocolMode == "simple" {
 			// Reject legacy topics in simple mode
 			if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
-				slog.Debug("Legacy protocol topic rejected in simple mode", "thingId", username, "topic", topic)
+				slog.Warn("MQTT ACL denied", "reason", "legacy topic in simple mode", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
 				return false
 			}
 		}
@@ -86,7 +86,7 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 		if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
 			tingId, err := model.GetThingIdFromTopic(topic)
 			if err != nil {
-				slog.Error("Mqtt acl get thingId error", "thingId", username, "topic", topic, "error", err)
+				slog.Warn("MQTT ACL denied", "reason", "cannot parse target thing id", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "error", err)
 				return false
 			}
 			// Check whether the current thing is bound to the gateway
@@ -98,11 +98,18 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 			if write {
 				op = "publish"
 			}
-			slog.Debug("Mqqt acl deny", "op", op, "thingId", username, "topic", topic, "error", err)
+			slog.Warn("MQTT ACL denied", "reason", "target thing is not bound to gateway", "clientId", clientId, "username", username, "topic", topic, "operation", op, "targetThingId", tingId, "error", err)
 			return false
 		} else {
 			// Non-reserved topics
 			return true
 		}
 	}
+}
+
+func aclOperation(write bool) string {
+	if write {
+		return "publish"
+	}
+	return "subscribe"
 }
