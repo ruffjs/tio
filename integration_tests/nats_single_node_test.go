@@ -376,7 +376,6 @@ func TestShadowSetReportedAcceptance(t *testing.T) {
 }
 
 func TestPresenceConnectDisconnect(t *testing.T) {
-	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 	assertConnected := func(connected bool) {
@@ -446,7 +445,6 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 }
 
 func TestMultiplePresenceSubscribers(t *testing.T) {
-	skipIfNotLegacy(t)
 	thingId := ID()
 	crateThing(thingId)
 

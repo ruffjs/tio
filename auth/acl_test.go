@@ -93,6 +93,16 @@ func TestTopicAcl(t *testing.T) {
 	}
 }
 
+func TestTopicAclDual(t *testing.T) {
+	mBg := &mockBindingGetter{}
+	mBg.Mock.On("IsBoundGateway", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+	aclFn := auth.TopicAcl(mBg, nil, "dual")
+
+	require.True(t, aclFn("c", "c", "tio/c/up/shadow_get", true), "dual mode must allow simple topics")
+	require.False(t, aclFn("c", "c", "tio/c/down/shadow_get_reply", true), "device still cannot publish down")
+	require.True(t, aclFn("c", "c", "$iothub/things/c/shadow/get", true), "dual mode must keep legacy topics")
+}
+
 type mockBindingGetter struct {
 	mock.Mock
 }

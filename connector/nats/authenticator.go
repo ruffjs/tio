@@ -188,39 +188,35 @@ func (a *NatsAuthenticator) extractCertCN(c server.ClientAuthentication) string 
 func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions {
 	for _, su := range a.superUsers {
 		if su.Name == thingId {
-			allow := []string{"$iothub.>"}
-			if a.protocolMode == "simple" {
-				allow = []string{"tio.>"}
+			var pub, sub []string
+			switch a.protocolMode {
+			case "simple":
+				pub = []string{"tio.>"}
+				// Presence is published to backends in every mode.
+				sub = []string{"tio.>", "$iothub.things.*.presence", "$iothub.events.things.*.presence"}
+			case "dual":
+				pub = []string{"tio.>", "$iothub.>"}
+				sub = []string{"tio.>", "$iothub.>"}
+			default:
+				pub = []string{"$iothub.>"}
+				sub = []string{"$iothub.>"}
 			}
 			return &server.Permissions{
 				Publish: &server.SubjectPermission{
-					Allow: append(allow, "$JS.API.>", "$JS.ACK.>"),
+					Allow: append(pub, "$JS.API.>", "$JS.ACK.>"),
 				},
 				Subscribe: &server.SubjectPermission{
-					Allow: append(append(allow, "$JS.API.>"), "$MQTT.sub.>", "_INBOX.>"),
+					Allow: append(sub, "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"),
 				},
 			}
 		}
 	}
 
-	var pubAllow, pubDeny, subAllow, subDeny []string
-	if a.protocolMode == "simple" {
-		thingPrefix := "tio." + thingId + ".>"
-		downExact := "tio." + thingId + ".down"
-		downWild := "tio." + thingId + ".down.>"
-		upExact := "tio." + thingId + ".up"
-		upWild := "tio." + thingId + ".up.>"
-
-		pubAllow = []string{thingPrefix}
-		pubDeny = []string{downExact, downWild}
-		subAllow = []string{thingPrefix, "$MQTT.sub.>"}
-		subDeny = []string{upExact, upWild}
-	} else {
-		thingPrefix := "$iothub.things." + thingId
-		userPrefix := "$iothub.user.things." + thingId
-		pubAllow = []string{thingPrefix + ".>", userPrefix + ".>"}
-		// MQTT /# also subscribes to the parent subject itself.
-		subAllow = []string{thingPrefix + ".>", userPrefix + ".>", "$MQTT.sub.>", "$iothub.events.things.>", thingPrefix, userPrefix}
+	pubAllow, pubDeny, subAllow, subDeny := thingTopicPermissions(a.protocolMode, thingId)
+	// MQTT /# also subscribes to the parent subject itself.
+	subAllow = append(subAllow, "$MQTT.sub.>")
+	if a.protocolMode == "legacy" || a.protocolMode == "dual" {
+		subAllow = append(subAllow, "$iothub.events.things.>")
 	}
 
 	if a.bindingGetter != nil {
@@ -229,23 +225,11 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 			slog.Error("get bound things for gateway permissions", "gateway", thingId, "error", err)
 		} else {
 			for _, bid := range boundIds {
-				if a.protocolMode == "simple" {
-					boundPrefix := "tio." + bid + ".>"
-					boundDownExact := "tio." + bid + ".down"
-					boundDownWild := "tio." + bid + ".down.>"
-					boundUpExact := "tio." + bid + ".up"
-					boundUpWild := "tio." + bid + ".up.>"
-
-					pubAllow = append(pubAllow, boundPrefix)
-					pubDeny = append(pubDeny, boundDownExact, boundDownWild)
-					subAllow = append(subAllow, boundPrefix)
-					subDeny = append(subDeny, boundUpExact, boundUpWild)
-				} else {
-					boundPub := "$iothub.things." + bid
-					boundUser := "$iothub.user.things." + bid
-					pubAllow = append(pubAllow, boundPub+".>", boundUser+".>")
-					subAllow = append(subAllow, boundPub+".>", boundUser+".>", boundPub, boundUser)
-				}
+				boundPubAllow, boundPubDeny, boundSubAllow, boundSubDeny := thingTopicPermissions(a.protocolMode, bid)
+				pubAllow = append(pubAllow, boundPubAllow...)
+				pubDeny = append(pubDeny, boundPubDeny...)
+				subAllow = append(subAllow, boundSubAllow...)
+				subDeny = append(subDeny, boundSubDeny...)
 			}
 		}
 	}
@@ -260,4 +244,23 @@ func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions
 			Deny:  subDeny,
 		},
 	}
+}
+
+// thingTopicPermissions returns the device topics for one thing in the given mode.
+// Dual mode is the union of legacy and simple topics.
+func thingTopicPermissions(mode, thingId string) (pubAllow, pubDeny, subAllow, subDeny []string) {
+	if mode == "simple" || mode == "dual" {
+		thingPrefix := "tio." + thingId + ".>"
+		pubAllow = append(pubAllow, thingPrefix)
+		pubDeny = append(pubDeny, "tio."+thingId+".down", "tio."+thingId+".down.>")
+		subAllow = append(subAllow, thingPrefix)
+		subDeny = append(subDeny, "tio."+thingId+".up", "tio."+thingId+".up.>")
+	}
+	if mode == "legacy" || mode == "dual" {
+		thingPrefix := "$iothub.things." + thingId
+		userPrefix := "$iothub.user.things." + thingId
+		pubAllow = append(pubAllow, thingPrefix+".>", userPrefix+".>")
+		subAllow = append(subAllow, thingPrefix+".>", userPrefix+".>", thingPrefix, userPrefix)
+	}
+	return
 }

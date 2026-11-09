@@ -37,7 +37,7 @@ func TestNtpHandler(t *testing.T) {
 		_ = mc.Start(ctx)
 
 		cc, _ := codec.New("json")
-		handler := ntp.NewNtpHandler(mc, cc)
+		handler := ntp.NewNtpHandler(mc, cc, nil)
 		err := handler.InitNtpHandler(ctx)
 		require.NoError(t, err)
 

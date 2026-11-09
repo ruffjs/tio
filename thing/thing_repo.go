@@ -22,10 +22,12 @@ type Repo interface {
 }
 
 type thingPatch struct {
-	Enabled        *bool `json:"enabled"`
-	AuthType       *string
-	AuthValue      *string
-	GatewayThingId *string
+	Enabled         *bool `json:"enabled"`
+	AuthType        *string
+	AuthValue       *string
+	GatewayThingId  *string
+	MessageProtocol *string
+	PayloadEncoding *string
 }
 
 type thingRepo struct {
@@ -94,6 +96,12 @@ func (t *thingRepo) UpdateBatch(ctx context.Context, ids []string, tu thingPatch
 	}
 	if tu.AuthValue != nil {
 		u["auth_value"] = *tu.AuthValue
+	}
+	if tu.MessageProtocol != nil {
+		u["message_protocol"] = *tu.MessageProtocol
+	}
+	if tu.PayloadEncoding != nil {
+		u["payload_encoding"] = *tu.PayloadEncoding
 	}
 	if len(u) == 0 {
 		return nil

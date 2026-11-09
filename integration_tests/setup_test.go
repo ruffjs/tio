@@ -120,22 +120,25 @@ func TestMain(m *testing.M) {
 	var methodHandler shadow.MethodHandler
 	var simpleInvoker shadowApi.SimpleInvoker
 	var simpleHandler *protocol.SimpleHandler
+	var profiles connector.DeviceProfileGetter
+	if cfg.Protocol.Mode == "dual" {
+		profiles = thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
+	}
+	legacyMethodHandler := shadow.NewMethodHandler(natsConnector, deviceCodec, profiles)
+	shadowStateHandler := shadow.NewShadowHandler(natsConnector, deviceCodec, profiles)
+	ntpHandler := ntp.NewNtpHandler(natsConnector, deviceCodec, profiles)
 
-	if cfg.Protocol.Mode == "simple" {
-		simpleHandler, err = protocol.NewSimpleHandler(natsConnector, deviceCodec, shadowSvc)
+	if cfg.Protocol.Mode != "legacy" {
+		simpleHandler, err = protocol.NewSimpleHandler(natsConnector, deviceCodec, shadowSvc, profiles)
 		if err != nil {
 			log.Fatalf("Create simple handler error: %v", err)
 		}
 		if err := simpleHandler.Start(testCtx); err != nil {
 			log.Fatalf("Start simple handler error: %v", err)
 		}
-		simpleInvoker = simpleHandler
 		log.Printf("Simple protocol handler started (encoding=%s)", cfg.Protocol.Encoding)
-	} else {
-		legacyMethodHandler := shadow.NewMethodHandler(natsConnector, deviceCodec)
-		shadowStateHandler := shadow.NewShadowHandler(natsConnector, deviceCodec)
-		ntpHandler := ntp.NewNtpHandler(natsConnector, deviceCodec)
-
+	}
+	if cfg.Protocol.Mode != "simple" {
 		if err := legacyMethodHandler.InitMethodHandler(testCtx); err != nil {
 			log.Fatal(err)
 		}
@@ -145,17 +148,24 @@ func TestMain(m *testing.M) {
 		if err := shadow.Link(testCtx, shadowStateHandler, shadowSvc, shadow.Config{}); err != nil {
 			log.Fatal(err)
 		}
-		methodHandler = legacyMethodHandler
 		log.Printf("Legacy protocol handlers started (encoding=%s)", cfg.Protocol.Encoding)
+	}
+	switch cfg.Protocol.Mode {
+	case "legacy":
+		methodHandler = legacyMethodHandler
+	case "simple":
+		simpleInvoker = simpleHandler
+	case "dual":
+		router := &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
+		methodHandler = router
+		simpleInvoker = router
 	}
 
 	httpCon := restful.NewContainer()
 	thingWs := thingApi.Service(testCtx, thingSvc)
-	if cfg.Protocol.Mode == "simple" {
-		shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, nil)
+	shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
+	if simpleInvoker != nil {
 		shadowApi.SimpleMethodService(testCtx, thingWs, simpleInvoker, thingSvc)
-	} else {
-		shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
 	}
 	httpCon.Add(thingWs)
 

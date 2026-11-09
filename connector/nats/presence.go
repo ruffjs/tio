@@ -288,10 +288,6 @@ func (c *Connector) compensatePresence() {
 }
 
 func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType string, rec PresenceRecord) {
-	if c.protocolMode == "simple" {
-		return
-	}
-
 	if c.deviceCodec == nil {
 		return
 	}

@@ -35,6 +35,10 @@ type presenceRecord struct {
 }
 
 func startConnectorCluster(t *testing.T, n int) *connectorCluster {
+	return startConnectorClusterWithMode(t, n, "legacy")
+}
+
+func startConnectorClusterWithMode(t *testing.T, n int, protocolMode string) *connectorCluster {
 	t.Helper()
 	if n < 2 {
 		t.Fatal("cluster size must be at least 2")
@@ -90,7 +94,7 @@ func startConnectorCluster(t *testing.T, n int) *connectorCluster {
 			MqttPublisher: config.NatsClientConfig{User: "$tio-mqtt-publisher", Password: "public"},
 		}
 
-		c, err := natsConn.NewConnector(cfg, deviceCodec, "legacy")
+		c, err := natsConn.NewConnector(cfg, deviceCodec, protocolMode)
 		require.NoError(t, err)
 
 		authzFn := func(authCtx connector.AuthContext) (connector.AuthResult, bool) {

@@ -61,6 +61,9 @@ func NewSvc(repo Repo, idProvider tio.IdProvider, ss shadow.Service, connector c
 }
 
 func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, upsert bool) (Thing, error) {
+	if err := model.ValidateDeviceProfile(th.MessageProtocol, th.PayloadEncoding); err != nil {
+		return Thing{}, err
+	}
 	exist := false
 	if th.Id == "" {
 		id, err := t.idProvider.ID()
@@ -92,15 +95,24 @@ func (t *thingSvc) Create(ctx context.Context, th Thing, tags shadow.TagsValue, 
 	var err error
 	// TODO optimize: in one transaction
 	if upsert && exist {
-		err = t.repo.Update(ctx, th.Id, thingPatch{
+		patch := thingPatch{
 			AuthType:       &th.AuthType,
 			AuthValue:      &th.AuthValue,
 			Enabled:        &th.Enabled,
 			GatewayThingId: &th.GatewayThingId,
-		})
+		}
+		// upsert omits or clears profile fields to keep the stored value
+		if th.MessageProtocol != "" {
+			patch.MessageProtocol = &th.MessageProtocol
+		}
+		if th.PayloadEncoding != "" {
+			patch.PayloadEncoding = &th.PayloadEncoding
+		}
+		err = t.repo.Update(ctx, th.Id, patch)
 		if err != nil {
 			return Thing{}, err
 		}
+		invalidateDeviceProfile(th.Id)
 		if tags != nil {
 			if err := t.shadowSvc.SetTag(ctx, th.Id, shadow.TagsReq{Tags: tags}); err != nil {
 				return Thing{}, err
@@ -129,13 +141,30 @@ func (t *thingSvc) Update(ctx context.Context, id string, tu ThingPatch) error {
 	} else if !ok {
 		return errors.WithMessagef(model.ErrNotFound, "thing %q", id)
 	}
-	patch := thingPatch{Enabled: tu.Enabled}
+	if tu.MessageProtocol != nil || tu.PayloadEncoding != nil {
+		var mp, pe string
+		if tu.MessageProtocol != nil {
+			mp = *tu.MessageProtocol
+		}
+		if tu.PayloadEncoding != nil {
+			pe = *tu.PayloadEncoding
+		}
+		if err := model.ValidateDeviceProfile(mp, pe); err != nil {
+			return err
+		}
+	}
+	patch := thingPatch{
+		Enabled:         tu.Enabled,
+		MessageProtocol: tu.MessageProtocol,
+		PayloadEncoding: tu.PayloadEncoding,
+	}
 
 	if err := t.repo.Update(ctx, id, patch); err != nil {
 		return err
 	} else if tu.Enabled != nil && !*tu.Enabled {
 		t.connector.Close(id)
 	}
+	invalidateDeviceProfile(id)
 	return nil
 }
 
@@ -144,6 +173,7 @@ func (t *thingSvc) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	invalidateDeviceProfile(id)
 	err = t.connector.Remove(id)
 	if err != nil {
 		slog.Error("Failed to close thing connector client", "id", id, "error", err)

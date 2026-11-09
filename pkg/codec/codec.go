@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -18,10 +19,25 @@ func New(name string) (Codec, error) {
 	case "json":
 		return jsonCodec{}, nil
 	case "cbor":
-		return newCBORCodec()
+		return sharedCBOR()
 	default:
 		return nil, fmt.Errorf("unknown encoding: %q", name)
 	}
+}
+
+var (
+	cborOnce   sync.Once
+	cborShared cborCodec
+	cborErr    error
+)
+
+// sharedCBOR builds the CBOR codec once; its modes are safe for concurrent use.
+func sharedCBOR() (Codec, error) {
+	cborOnce.Do(func() { cborShared, cborErr = newCBORCodec() })
+	if cborErr != nil {
+		return nil, cborErr
+	}
+	return cborShared, nil
 }
 
 type jsonCodec struct{}

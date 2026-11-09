@@ -1,18 +1,30 @@
 package shadow_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"ruff.io/tio/connector"
 	"ruff.io/tio/connector/mock"
 	"ruff.io/tio/pkg/codec"
+	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 
 	"github.com/stretchr/testify/require"
 )
+
+type staticProfiles map[string]connector.DeviceProfile
+
+func (p staticProfiles) GetDeviceProfile(_ context.Context, thingId string) (connector.DeviceProfile, error) {
+	if v, ok := p[thingId]; ok {
+		return v, nil
+	}
+	return connector.DeviceProfile{}, model.ErrNotFound
+}
 
 func TestHandler_GetReq(t *testing.T) {
 	t.Parallel()
@@ -22,7 +34,7 @@ func TestHandler_GetReq(t *testing.T) {
 	mc := mock.NewMockConnector()
 	_ = mc.Start(ctx)
 
-	h := shadow.NewShadowHandler(mc, mustCodec(t))
+	h := shadow.NewShadowHandler(mc, mustCodec(t), nil)
 	ch, err := h.ShadowGetReq(ctx)
 	require.NoError(t, err)
 
@@ -39,6 +51,60 @@ func TestHandler_GetReq(t *testing.T) {
 	}
 }
 
+func TestHandler_GetReqUsesThingProfileCodec(t *testing.T) {
+	t.Parallel()
+
+	thingId := fmt.Sprintf("thing-%d", time.Now().UnixNano())
+	topic := strings.Replace(shadow.TopicAllGet(), "+", thingId, -1)
+	mc := mock.NewMockConnector()
+	_ = mc.Start(ctx)
+
+	cbor, err := codec.New("cbor")
+	require.NoError(t, err)
+	h := shadow.NewShadowHandler(mc, mustCodec(t), staticProfiles{
+		thingId: {MessageProtocol: "legacy", PayloadEncoding: "cbor"},
+	})
+	ch, err := h.ShadowGetReq(ctx)
+	require.NoError(t, err)
+
+	getReq := shadow.GetReq{ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixNano())}
+	payload, err := cbor.Marshal(getReq)
+	require.NoError(t, err)
+	mc.SimulateMessage(topic, payload)
+
+	select {
+	case msg := <-ch:
+		require.Equal(t, getReq.ClientToken, msg.Req.ClientToken)
+		require.Equal(t, thingId, msg.ThingId)
+	case <-time.After(time.Millisecond * 100):
+		t.Errorf("should have response for cbor get request")
+	}
+}
+
+func TestHandler_GetReqIgnoresOtherProtocol(t *testing.T) {
+	t.Parallel()
+
+	thingId := fmt.Sprintf("thing-%d", time.Now().UnixNano())
+	topic := strings.Replace(shadow.TopicAllGet(), "+", thingId, -1)
+	mc := mock.NewMockConnector()
+	_ = mc.Start(ctx)
+
+	h := shadow.NewShadowHandler(mc, mustCodec(t), staticProfiles{
+		thingId: {MessageProtocol: "simple", PayloadEncoding: "json"},
+	})
+	ch, err := h.ShadowGetReq(ctx)
+	require.NoError(t, err)
+
+	payload, _ := json.Marshal(shadow.GetReq{ClientToken: "tk-simple"})
+	mc.SimulateMessage(topic, payload)
+
+	select {
+	case <-ch:
+		t.Errorf("simple thing message must not reach the legacy handler")
+	case <-time.After(time.Millisecond * 100):
+	}
+}
+
 func TestHandler_StateReq(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +113,7 @@ func TestHandler_StateReq(t *testing.T) {
 	mc := mock.NewMockConnector()
 	_ = mc.Start(ctx)
 
-	h := shadow.NewShadowHandler(mc, mustCodec(t))
+	h := shadow.NewShadowHandler(mc, mustCodec(t), nil)
 	ch, err := h.StateUpdateReq(ctx)
 	require.NoError(t, err)
 
@@ -103,7 +169,7 @@ func TestHandler_Accepted(t *testing.T) {
 	for _, c := range cases {
 		mc := mock.NewMockConnector()
 		_ = mc.Start(ctx)
-		h := shadow.NewShadowHandler(mc, mustCodec(t))
+		h := shadow.NewShadowHandler(mc, mustCodec(t), nil)
 
 		err := h.AcceptedResp(ctx, c.msg)
 		require.NoError(t, err)
@@ -129,7 +195,7 @@ func Benchmark_GetReq(b *testing.B) {
 	_ = mc.Start(ctx)
 
 	c, _ := codec.New("json")
-	h := shadow.NewShadowHandler(mc, c)
+	h := shadow.NewShadowHandler(mc, c, nil)
 	ch, _ := h.ShadowGetReq(ctx)
 
 	b.ResetTimer()

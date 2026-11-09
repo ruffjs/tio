@@ -29,6 +29,9 @@ type Thing struct {
 	IsGateway      bool   `json:"isGateway"`
 	GatewayThingId string `json:"gatewayThingId,omitempty" optional:"true"`
 
+	MessageProtocol string `json:"messageProtocol"`
+	PayloadEncoding string `json:"payloadEncoding"`
+
 	UpdatedAt time.Time `json:"updatedAt"`
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -42,7 +45,9 @@ type ThingWithConnStatus struct {
 }
 
 type ThingPatch struct {
-	Enabled *bool `json:"enabled"`
+	Enabled         *bool   `json:"enabled"`
+	MessageProtocol *string `json:"messageProtocol"`
+	PayloadEncoding *string `json:"payloadEncoding"`
 }
 
 type ThingBindReq struct {

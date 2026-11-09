@@ -74,18 +74,20 @@ func topicMethodPrefix(thingId, methodName string) string {
 type mqttMethod struct {
 	connector connector.Connector
 	codec     codec.Codec
+	profiles  connector.DeviceProfileGetter
 	pending   sync.Map
 }
 
 type pendingResp struct {
 	respChan chan MethodResp
 	done     chan struct{}
+	codec    codec.Codec
 }
 
 var _ MethodHandler = (*mqttMethod)(nil)
 
-func NewMethodHandler(conn connector.Connector, c codec.Codec) MethodHandler {
-	return &mqttMethod{connector: conn, codec: c}
+func NewMethodHandler(conn connector.Connector, c codec.Codec, profiles connector.DeviceProfileGetter) MethodHandler {
+	return &mqttMethod{connector: conn, codec: c, profiles: profiles}
 }
 
 func (h *mqttMethod) InitMethodHandler(ctx context.Context) error {
@@ -115,13 +117,17 @@ func (h *mqttMethod) InvokeMethod(
 func (h *mqttMethod) doInvokeMethod(ctx context.Context,
 	msg MethodReqMsg,
 ) (MethodResp, error) {
+	c, err := codec.ForDevice(ctx, h.codec, h.profiles, msg.ThingId, "legacy")
+	if err != nil {
+		return MethodResp{}, err
+	}
 	topic := TopicMethodRequest(msg.ThingId, msg.Method)
-	j, err := h.codec.Marshal(msg.Req)
+	j, err := c.Marshal(msg.Req)
 	if err != nil {
 		return MethodResp{}, errors.WithMessage(err, "request json marshal")
 	}
 
-	outCh := h.addPending(msg.ThingId, msg.Req.ClientToken)
+	outCh := h.addPending(msg.ThingId, msg.Req.ClientToken, c)
 	defer h.removePending(msg.ThingId, msg.Req.ClientToken)
 
 	if err = h.connector.PublishReliable(topic, j); err != nil {
@@ -155,10 +161,10 @@ func (h *mqttMethod) removePending(thingId, clientToken string) {
 	}
 }
 
-func (h *mqttMethod) addPending(thingId, clientToken string) <-chan MethodResp {
+func (h *mqttMethod) addPending(thingId, clientToken string, c codec.Codec) <-chan MethodResp {
 	outCh := make(chan MethodResp)
 	tokenMap, _ := h.pending.LoadOrStore(thingId, new(sync.Map))
-	tokenMap.(*sync.Map).Store(clientToken, pendingResp{respChan: outCh, done: make(chan struct{})})
+	tokenMap.(*sync.Map).Store(clientToken, pendingResp{respChan: outCh, done: make(chan struct{}), codec: c})
 	return outCh
 }
 
@@ -171,17 +177,22 @@ func (h *mqttMethod) subscribeMethodResp(ctx context.Context) error {
 				slog.Error("Got wrong topic msg topic for method response")
 				return
 			}
-			var r MethodResp
-			err = h.codec.Unmarshal(msg.Payload(), &r)
-			if err != nil {
-				slog.Error("Invalid message payload for method response")
+			tokenMap, ok := h.pending.Load(thingId)
+			if !ok {
+				slog.Debug("Method response got no request", "thingId", thingId)
 				return
 			}
-			res := MethodRespMsg{
-				ThingId: thingId,
-				Resp:    r,
-			}
-			h.sendResp(ctx, res)
+			// A thing may have calls in flight with different encodings while its
+			// profile changes, so try each pending call's codec.
+			tokenMap.(*sync.Map).Range(func(key, value any) bool {
+				resp := value.(pendingResp)
+				var r MethodResp
+				if err := resp.codec.Unmarshal(msg.Payload(), &r); err != nil || r.ClientToken != key.(string) {
+					return true
+				}
+				h.sendResp(ctx, MethodRespMsg{ThingId: thingId, Resp: r})
+				return false
+			})
 		}()
 	})
 

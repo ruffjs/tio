@@ -49,6 +49,11 @@ func TopicAllUp() string {
 	return TopicSimplePrefix + "+/" + LevelUp + "/#"
 }
 
+// TopicAllUpOf returns the MQTT subscription filter for one up message type.
+func TopicAllUpOf(typ string) string {
+	return TopicSimplePrefix + "+/" + LevelUp + "/" + typ
+}
+
 // ParseTopic parses a simple protocol topic.
 // Returns thingId, direction (up/down/event/data), typ (message type, empty for event/data), err.
 func ParseTopic(topic string) (thingId, direction, typ string, err error) {

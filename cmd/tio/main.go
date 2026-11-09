@@ -145,9 +145,16 @@ func main() {
 
 	var methodHandler shadow.MethodHandler
 	var simpleInvoker shadowApi.SimpleInvoker
+	var profiles connector.DeviceProfileGetter
+	if cfg.Protocol.Mode == "dual" {
+		profiles = thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
+	}
+	legacyMethodHandler := shadow.NewMethodHandler(conn, deviceCodec, profiles)
+	shadowStateHandler := shadow.NewShadowHandler(conn, deviceCodec, profiles)
+	ntpHandler := ntp.NewNtpHandler(conn, deviceCodec, profiles)
 	var simpleHandler *protocol.SimpleHandler
-	if cfg.Protocol.Mode == "simple" {
-		simpleHandler, err = protocol.NewSimpleHandler(conn, deviceCodec, shadowSvc)
+	if cfg.Protocol.Mode != "legacy" {
+		simpleHandler, err = protocol.NewSimpleHandler(conn, deviceCodec, shadowSvc, profiles)
 		if err != nil {
 			log.Fatalf("Create simple handler error: %v", err)
 		}
@@ -155,13 +162,9 @@ func main() {
 		if err := simpleHandler.Start(ctx); err != nil {
 			log.Fatalf("Start simple handler error: %v", err)
 		}
-		simpleInvoker = simpleHandler
 		slog.Info("Simple protocol handler started")
-	} else {
-		legacyMethodHandler := shadow.NewMethodHandler(conn, deviceCodec)
-		shadowStateHandler := shadow.NewShadowHandler(conn, deviceCodec)
-		ntpHandler := ntp.NewNtpHandler(conn, deviceCodec)
-
+	}
+	if cfg.Protocol.Mode != "simple" {
 		if err := legacyMethodHandler.InitMethodHandler(ctx); err != nil {
 			log.Fatalf("Init method handler error: %v", err)
 		}
@@ -172,8 +175,17 @@ func main() {
 		if err := shadow.Link(ctx, shadowStateHandler, shadowSvc, cfg.Shadow); err != nil {
 			log.Fatalf("Link shadow service to connector error %v", err)
 		}
-		methodHandler = legacyMethodHandler
 		slog.Info("Legacy protocol handlers started")
+	}
+	switch cfg.Protocol.Mode {
+	case "legacy":
+		methodHandler = legacyMethodHandler
+	case "simple":
+		simpleInvoker = simpleHandler
+	case "dual":
+		router := &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
+		methodHandler = router
+		simpleInvoker = router
 	}
 
 	httpCon := restful.NewContainer()
@@ -182,11 +194,9 @@ func main() {
 	tio.RouteWeb(httpCon)
 	azf := api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
 	thingWs := thingApi.Service(ctx, thingSvc)
-	if cfg.Protocol.Mode == "simple" {
-		shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, nil)
+	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
+	if simpleInvoker != nil {
 		shadowApi.SimpleMethodService(ctx, thingWs, simpleInvoker, thingSvc)
-	} else {
-		shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
 	}
 	thingWs.Filter(metrics.Middleware).
 		Filter(api.LoggingMiddleware).

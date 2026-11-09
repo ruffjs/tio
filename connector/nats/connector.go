@@ -48,7 +48,7 @@ func NewConnector(cfg config.NatsConfig, deviceCodec codec.Codec, protocolMode s
 	if deviceCodec == nil {
 		return nil, errors.New("device codec is required")
 	}
-	if protocolMode != "legacy" && protocolMode != "simple" {
+	if protocolMode != "legacy" && protocolMode != "simple" && protocolMode != "dual" {
 		return nil, fmt.Errorf("invalid protocol mode: %q", protocolMode)
 	}
 	return &Connector{

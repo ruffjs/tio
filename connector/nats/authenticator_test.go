@@ -231,7 +231,7 @@ func TestNatsAuthenticator_ThingCannotAccessSysSubjects(t *testing.T) {
 }
 
 func TestNatsAuthenticator_ThingPermissions(t *testing.T) {
-	authn := &NatsAuthenticator{}
+	authn := &NatsAuthenticator{protocolMode: "legacy"}
 	perms := authn.thingPermissions("test-thing")
 
 	require.NotNil(t, perms)
@@ -247,10 +247,10 @@ func TestNatsAuthenticator_ThingPermissions(t *testing.T) {
 	expectedSubscribe := []string{
 		"$iothub.things.test-thing.>",
 		"$iothub.user.things.test-thing.>",
-		"$MQTT.sub.>",
-		"$iothub.events.things.>",
 		"$iothub.things.test-thing",
 		"$iothub.user.things.test-thing",
+		"$MQTT.sub.>",
+		"$iothub.events.things.>",
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
 }
@@ -333,7 +333,48 @@ func TestNatsAuthenticator_SimpleSuperUserPermissionsExcludeLegacy(t *testing.T)
 	perms := authn.thingPermissions("admin")
 
 	require.Equal(t, []string{"tio.>", "$JS.API.>", "$JS.ACK.>"}, perms.Publish.Allow)
-	require.Equal(t, []string{"tio.>", "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"}, perms.Subscribe.Allow)
+	// Presence is published to backends in every mode, so super users can subscribe to it.
+	require.Equal(t, []string{
+		"tio.>",
+		"$iothub.things.*.presence",
+		"$iothub.events.things.*.presence",
+		"$JS.API.>",
+		"$MQTT.sub.>",
+		"_INBOX.>",
+	}, perms.Subscribe.Allow)
+}
+
+func TestNatsAuthenticator_DualThingPermissions(t *testing.T) {
+	authn := &NatsAuthenticator{protocolMode: "dual"}
+	perms := authn.thingPermissions("test-thing")
+
+	require.Equal(t, []string{
+		"tio.test-thing.>",
+		"$iothub.things.test-thing.>",
+		"$iothub.user.things.test-thing.>",
+	}, perms.Publish.Allow)
+	require.Equal(t, []string{"tio.test-thing.down", "tio.test-thing.down.>"}, perms.Publish.Deny)
+	require.Equal(t, []string{
+		"tio.test-thing.>",
+		"$iothub.things.test-thing.>",
+		"$iothub.user.things.test-thing.>",
+		"$iothub.things.test-thing",
+		"$iothub.user.things.test-thing",
+		"$MQTT.sub.>",
+		"$iothub.events.things.>",
+	}, perms.Subscribe.Allow)
+	require.Equal(t, []string{"tio.test-thing.up", "tio.test-thing.up.>"}, perms.Subscribe.Deny)
+}
+
+func TestNatsAuthenticator_DualSuperUserPermissions(t *testing.T) {
+	authn := &NatsAuthenticator{
+		protocolMode: "dual",
+		superUsers:   []config.UserPassword{{Name: "admin"}},
+	}
+	perms := authn.thingPermissions("admin")
+
+	require.Equal(t, []string{"tio.>", "$iothub.>", "$JS.API.>", "$JS.ACK.>"}, perms.Publish.Allow)
+	require.Equal(t, []string{"tio.>", "$iothub.>", "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"}, perms.Subscribe.Allow)
 }
 
 type stubBindingGetter struct {
@@ -371,10 +412,10 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 	expectedSubscribe := []string{
 		"$iothub.things.gateway-1.>",
 		"$iothub.user.things.gateway-1.>",
-		"$MQTT.sub.>",
-		"$iothub.events.things.>",
 		"$iothub.things.gateway-1",
 		"$iothub.user.things.gateway-1",
+		"$MQTT.sub.>",
+		"$iothub.events.things.>",
 		"$iothub.things.device-a.>",
 		"$iothub.user.things.device-a.>",
 		"$iothub.things.device-a",
@@ -385,6 +426,41 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 		"$iothub.user.things.device-b",
 	}
 	require.Equal(t, expectedSubscribe, perms.Subscribe.Allow)
+}
+
+func TestDualThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
+	bg := &stubBindingGetter{boundThings: []string{"device-a"}}
+	authn := NewNatsAuthenticator(nil, bg, nil,
+		config.NatsClientConfig{User: "app", Password: "app"},
+		config.NatsClientConfig{User: "sys", Password: "sys"},
+		config.NatsClientConfig{User: "mqtt", Password: "mqtt"}, "dual")
+
+	perms := authn.thingPermissions("gateway-1")
+
+	require.Equal(t, []string{
+		"tio.gateway-1.>",
+		"$iothub.things.gateway-1.>",
+		"$iothub.user.things.gateway-1.>",
+		"tio.device-a.>",
+		"$iothub.things.device-a.>",
+		"$iothub.user.things.device-a.>",
+	}, perms.Publish.Allow)
+	require.Equal(t, []string{"tio.gateway-1.down", "tio.gateway-1.down.>", "tio.device-a.down", "tio.device-a.down.>"}, perms.Publish.Deny)
+	require.Equal(t, []string{
+		"tio.gateway-1.>",
+		"$iothub.things.gateway-1.>",
+		"$iothub.user.things.gateway-1.>",
+		"$iothub.things.gateway-1",
+		"$iothub.user.things.gateway-1",
+		"$MQTT.sub.>",
+		"$iothub.events.things.>",
+		"tio.device-a.>",
+		"$iothub.things.device-a.>",
+		"$iothub.user.things.device-a.>",
+		"$iothub.things.device-a",
+		"$iothub.user.things.device-a",
+	}, perms.Subscribe.Allow)
+	require.Equal(t, []string{"tio.gateway-1.up", "tio.gateway-1.up.>", "tio.device-a.up", "tio.device-a.up.>"}, perms.Subscribe.Deny)
 }
 
 func TestNatsAuthenticator_SystemAccountRequired(t *testing.T) {

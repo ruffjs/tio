@@ -40,13 +40,14 @@ func TopicReq(thingId string) string {
 	return strings.Replace(TopicReqTmpl, "{thingId}", thingId, -1)
 }
 
-func NewNtpHandler(cl connector.PubSub, c codec.Codec) Handler {
-	return &ntpHandler{cl, c}
+func NewNtpHandler(cl connector.PubSub, c codec.Codec, profiles connector.DeviceProfileGetter) Handler {
+	return &ntpHandler{client: cl, codec: c, profiles: profiles}
 }
 
 type ntpHandler struct {
-	client connector.PubSub
-	codec  codec.Codec
+	client   connector.PubSub
+	codec    codec.Codec
+	profiles connector.DeviceProfileGetter
 }
 
 func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
@@ -59,8 +60,13 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 				slog.Error("Got wrong topic msg topic for ntp request", "error", err, "topic", msg.Topic())
 				return
 			}
+			c, err := codec.ForDevice(ctx, h.codec, h.profiles, thingId, "legacy")
+			if err != nil {
+				slog.Debug("Skip ntp request for other protocol", "thingId", thingId, "error", err)
+				return
+			}
 			var r Req
-			err = h.codec.Unmarshal(msg.Payload(), &r)
+			err = c.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for ntp request", "payload", msg.Payload(), "topic", msg.Topic())
 				return
@@ -71,7 +77,7 @@ func (h *ntpHandler) InitNtpHandler(ctx context.Context) error {
 				ServerRecvTime: serverRecvTime,
 				ServerSendTime: serverSendTime,
 			}
-			j, err := h.codec.Marshal(res)
+			j, err := c.Marshal(res)
 			if err != nil {
 				slog.Error("Marshal ntp response", "response", res, "error", err, "topic", msg.Topic())
 			}

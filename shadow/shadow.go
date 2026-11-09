@@ -70,12 +70,13 @@ const (
 )
 
 type shadowHandler struct {
-	client connector.PubSub
-	codec  codec.Codec
+	client   connector.PubSub
+	codec    codec.Codec
+	profiles connector.DeviceProfileGetter
 }
 
-func NewShadowHandler(client connector.PubSub, c codec.Codec) StateHandler {
-	return &shadowHandler{client: client, codec: c}
+func NewShadowHandler(client connector.PubSub, c codec.Codec, profiles connector.DeviceProfileGetter) StateHandler {
+	return &shadowHandler{client: client, codec: c, profiles: profiles}
 }
 
 var _ StateHandler = (*shadowHandler)(nil)
@@ -89,8 +90,13 @@ func (h *shadowHandler) ShadowGetReq(ctx context.Context) (<-chan GetReqMsg, err
 				slog.Error("Got wrong topic msg topic for shadow get request")
 				return
 			}
+			c, err := codec.ForDevice(ctx, h.codec, h.profiles, thingId, "legacy")
+			if err != nil {
+				slog.Debug("Skip shadow get for other protocol", "thingId", thingId, "error", err)
+				return
+			}
 			var r GetReq
-			err = h.codec.Unmarshal(msg.Payload(), &r)
+			err = c.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for shadow get request")
 				return
@@ -122,8 +128,13 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 			}
 			slog.Debug("Got shadow update msg", "thingId", thingId, "payload", string(msg.Payload()))
 
+			c, err := codec.ForDevice(ctx, h.codec, h.profiles, thingId, "legacy")
+			if err != nil {
+				slog.Debug("Skip shadow update for other protocol", "thingId", thingId, "error", err)
+				return
+			}
 			var r StateReq
-			err = h.codec.Unmarshal(msg.Payload(), &r)
+			err = c.Unmarshal(msg.Payload(), &r)
 			if err != nil {
 				slog.Error("Invalid message payload for state update request")
 				return
@@ -144,6 +155,17 @@ func (h *shadowHandler) StateUpdateReq(ctx context.Context) (<-chan StateReqMsg,
 	return outCh, nil
 }
 
+func (h *shadowHandler) resolveCodec(ctx context.Context, thingId string) (codec.Codec, bool) {
+	c, err := codec.ForDevice(ctx, h.codec, h.profiles, thingId, "legacy")
+	if err != nil {
+		if !errors.Is(err, codec.ErrProtocolMismatch) {
+			slog.Error("Resolve device codec", "thingId", thingId, "error", err)
+		}
+		return nil, false
+	}
+	return c, true
+}
+
 func (h *shadowHandler) RejectedResp(ctx context.Context, resp ErrRespMsg) error {
 	topic := ""
 	switch resp.Op {
@@ -154,7 +176,11 @@ func (h *shadowHandler) RejectedResp(ctx context.Context, resp ErrRespMsg) error
 	default:
 		return errors.Errorf("unsupported shadow operation %d", resp.Op)
 	}
-	j, err := h.codec.Marshal(resp.Resp)
+	c, ok := h.resolveCodec(ctx, resp.ThingId)
+	if !ok {
+		return nil
+	}
+	j, err := c.Marshal(resp.Resp)
 	if err != nil {
 		return err
 	}
@@ -172,7 +198,11 @@ func (h *shadowHandler) AcceptedResp(ctx context.Context, resp StateAcceptedResp
 	default:
 		return errors.Errorf("unsupported shadow operation %d", resp.Op)
 	}
-	j, err := h.codec.Marshal(resp.Resp)
+	c, ok := h.resolveCodec(ctx, resp.ThingId)
+	if !ok {
+		return nil
+	}
+	j, err := c.Marshal(resp.Resp)
 	if err != nil {
 		return err
 	}
@@ -181,8 +211,12 @@ func (h *shadowHandler) AcceptedResp(ctx context.Context, resp StateAcceptedResp
 }
 
 func (h *shadowHandler) StateDeltaNotify(ctx context.Context, msg DeltaStateNoticeMsg) error {
+	c, ok := h.resolveCodec(ctx, msg.ThingId)
+	if !ok {
+		return nil
+	}
 	topic := TopicDeltaStateOf(msg.ThingId)
-	j, err := h.codec.Marshal(msg.Notice)
+	j, err := c.Marshal(msg.Notice)
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}
@@ -191,9 +225,13 @@ func (h *shadowHandler) StateDeltaNotify(ctx context.Context, msg DeltaStateNoti
 }
 
 func (h *shadowHandler) StateUpdatedNotify(ctx context.Context, msg StateUpdatedNoticeMsg) error {
+	c, ok := h.resolveCodec(ctx, msg.ThingId)
+	if !ok {
+		return nil
+	}
 	topic := TopicStateUpdatedOf(msg.ThingId)
 
-	j, err := h.codec.Marshal(msg.Notice)
+	j, err := c.Marshal(msg.Notice)
 	if err != nil {
 		return errors.Wrapf(err, "marshal msg")
 	}

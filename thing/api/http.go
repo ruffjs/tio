@@ -24,6 +24,9 @@ type CreateReq struct {
 	AuthType  string `json:"authType,omitempty"`
 	IsGateway bool   `json:"isGateway"`
 
+	MessageProtocol string `json:"messageProtocol,omitempty"`
+	PayloadEncoding string `json:"payloadEncoding,omitempty"`
+
 	Tags map[string]any `json:"tags"`
 }
 
@@ -51,15 +54,14 @@ func (req CreateReq) validate() error {
 	}
 	switch req.authTypeOrDefault() {
 	case thing.AuthTypePassword:
-		return nil
 	case thing.AuthTypeCertificate:
 		if req.Password != "" {
 			return errors.New("certificate auth thing cannot set password")
 		}
-		return nil
 	default:
 		return errors.New("authType must be password or certificate")
 	}
+	return model.ValidateDeviceProfile(req.MessageProtocol, req.PayloadEncoding)
 }
 
 func (req CreateReq) authTypeOrDefault() string {
@@ -78,11 +80,13 @@ func (req CreateReq) authValue() string {
 
 func (req CreateReq) toThing() thing.Thing {
 	return thing.Thing{
-		Id:        req.ThingId,
-		Enabled:   true,
-		AuthType:  req.authTypeOrDefault(),
-		AuthValue: req.authValue(),
-		IsGateway: req.IsGateway,
+		Id:              req.ThingId,
+		Enabled:         true,
+		AuthType:        req.authTypeOrDefault(),
+		AuthValue:       req.authValue(),
+		IsGateway:       req.IsGateway,
+		MessageProtocol: req.MessageProtocol,
+		PayloadEncoding: req.PayloadEncoding,
 	}
 }
 

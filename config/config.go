@@ -89,9 +89,9 @@ func (p Protocol) Validate() error {
 		return fmt.Errorf("protocol.encoding must be 'json' or 'cbor', got %q", p.Encoding)
 	}
 	switch p.Mode {
-	case "legacy", "simple":
+	case "legacy", "simple", "dual":
 	default:
-		return fmt.Errorf("protocol.mode must be 'legacy' or 'simple', got %q", p.Mode)
+		return fmt.Errorf("protocol.mode must be 'legacy', 'simple' or 'dual', got %q", p.Mode)
 	}
 	return nil
 }

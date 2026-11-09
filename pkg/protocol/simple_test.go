@@ -1,14 +1,17 @@
 package protocol
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"ruff.io/tio/connector"
 	connmock "ruff.io/tio/connector/mock"
 	dbmock "ruff.io/tio/db/mock"
 	"ruff.io/tio/pkg/codec"
+	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/shadow"
 	shadowMock "ruff.io/tio/shadow/mock"
 	"ruff.io/tio/thing"
@@ -137,7 +140,7 @@ func TestSimpleHandler_ShadowGet(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 
@@ -183,7 +186,7 @@ func TestSimpleHandler_ShadowUpdate(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 
@@ -228,7 +231,7 @@ func TestSimpleHandler_ShadowUpdateVersionConflict(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 	require.NoError(t, handler.Start(ctx))
@@ -274,7 +277,7 @@ func TestSimpleHandler_ShadowUpdateNoOp(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 
@@ -325,7 +328,7 @@ func TestSimpleHandler_Invoke(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 
@@ -399,7 +402,7 @@ func TestSimpleHandler_NtpReq(t *testing.T) {
 	c, _ := codec.New("json")
 	shadowSvc := newTestShadowSvc()
 
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc)
+	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
 	require.NoError(t, err)
 	defer handler.Stop()
 
@@ -431,6 +434,55 @@ func TestSimpleHandler_NtpReq(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
+type staticProfiles map[string]connector.DeviceProfile
+
+func (p staticProfiles) GetDeviceProfile(_ context.Context, thingId string) (connector.DeviceProfile, error) {
+	if v, ok := p[thingId]; ok {
+		return v, nil
+	}
+	return connector.DeviceProfile{}, model.ErrNotFound
+}
+
+func TestSimpleHandler_UsesThingProfileCodec(t *testing.T) {
+	ctx := t.Context()
+	mockConn := connmock.NewMockConnector()
+	require.NoError(t, mockConn.Start(ctx))
+	jsonCodec, err := codec.New("json")
+	require.NoError(t, err)
+	cborCodec, err := codec.New("cbor")
+	require.NoError(t, err)
+	profiles := staticProfiles{
+		"thing-cbor":   {MessageProtocol: "simple", PayloadEncoding: "cbor"},
+		"thing-legacy": {MessageProtocol: "legacy", PayloadEncoding: "json"},
+	}
+	handler, err := NewSimpleHandler(mockConn, jsonCodec, newTestShadowSvc(), profiles)
+	require.NoError(t, err)
+	require.NoError(t, handler.Start(ctx))
+	defer handler.Stop()
+
+	payload, err := cborCodec.Marshal(NtpReq{ClientSendTime: 123})
+	require.NoError(t, err)
+	mockConn.SimulateMessage(TopicUp("thing-cbor", TypeNtpReq), payload)
+	require.Eventually(t, func() bool {
+		for _, pub := range mockConn.PublishedMessages() {
+			if pub.Topic != TopicDown("thing-cbor", TypeNtpResp) {
+				continue
+			}
+			var resp NtpResp
+			return cborCodec.Unmarshal(pub.Payload, &resp) == nil && resp.Code == 200
+		}
+		return false
+	}, time.Second, 10*time.Millisecond)
+
+	// A simple topic message from a legacy thing is ignored.
+	jsonPayload, err := jsonCodec.Marshal(NtpReq{ClientSendTime: 456})
+	require.NoError(t, err)
+	before := len(mockConn.PublishedMessages())
+	mockConn.SimulateMessage(TopicUp("thing-legacy", TypeNtpReq), jsonPayload)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, before, len(mockConn.PublishedMessages()))
+}
+
 func TestSimpleHandler_MethodRespBypassesWorkerPool(t *testing.T) {
 	ctx := t.Context()
 
@@ -438,13 +490,13 @@ func TestSimpleHandler_MethodRespBypassesWorkerPool(t *testing.T) {
 	require.NoError(t, mockConn.Start(ctx))
 	c, err := codec.New("json")
 	require.NoError(t, err)
-	handler, err := NewSimpleHandler(mockConn, c, newTestShadowSvc())
+	handler, err := NewSimpleHandler(mockConn, c, newTestShadowSvc(), nil)
 	require.NoError(t, err)
 	require.NoError(t, handler.Start(ctx))
 
 	handler.Stop()
 	replyCh := make(chan MethodResp, 1)
-	handler.addPendingCall("thing-1", "call-1", replyCh)
+	handler.addPendingCall("thing-1", "call-1", c, replyCh)
 	defer handler.removePendingCall("thing-1", "call-1")
 
 	payload, err := c.Marshal(MethodResp{

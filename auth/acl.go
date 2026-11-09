@@ -30,7 +30,7 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 
 		// Check if it's a simple protocol topic
 		if strings.HasPrefix(topic, protocol.TopicSimplePrefix) {
-			if protocolMode != "simple" {
+			if protocolMode == "legacy" {
 				slog.Warn("MQTT ACL denied", "reason", "simple topic in legacy mode", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
 				return false
 			}

@@ -41,7 +41,7 @@ db:
 protocol:
   # Global encoding for all Tio-owned device MQTT application messages: "json" or "cbor"
   encoding: json
-  # Exactly one device protocol is enabled at startup: "legacy" or "simple"
+  # Device protocol mode: "legacy", "simple", or "dual" (both, selected per Thing)
   mode: legacy
 
 connector:

@@ -234,6 +234,8 @@ func TestProtocolValidate(t *testing.T) {
 		{"json_simple", Protocol{Encoding: "json", Mode: "simple"}, false},
 		{"cbor_legacy", Protocol{Encoding: "cbor", Mode: "legacy"}, false},
 		{"cbor_simple", Protocol{Encoding: "cbor", Mode: "simple"}, false},
+		{"json_dual", Protocol{Encoding: "json", Mode: "dual"}, false},
+		{"cbor_dual", Protocol{Encoding: "cbor", Mode: "dual"}, false},
 		{"unknown_encoding", Protocol{Encoding: "xml", Mode: "legacy"}, true},
 		{"empty_encoding", Protocol{Encoding: "", Mode: "legacy"}, true},
 		{"unknown_mode", Protocol{Encoding: "json", Mode: "fast"}, true},

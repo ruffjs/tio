@@ -1,15 +1,16 @@
 # Tio Simple 设备协议
 
-Simple 协议是 legacy 设备协议的启动期替代模式。两种模式不会并行运行：
+Simple 协议是 legacy 设备协议的替代模式，也可以在 `dual` 模式下与 legacy 并存，由每个 Thing 的通信配置选择：
 
 ```yaml
 protocol:
-  mode: simple       # legacy 或 simple，默认 legacy
+  mode: dual         # legacy、simple 或 dual，默认 legacy
   encoding: json     # json 或 cbor，默认 json
 ```
 
 空值和未知值都会导致 Tio 拒绝启动。`mode: simple` 只注册 Simple MQTT Topic；
-`mode: legacy` 只注册 Legacy 设备 Topic。两种模式共享 Thing、Shadow 和 Method HTTP API。
+`mode: legacy` 只注册 Legacy 设备 Topic；`mode: dual` 同时注册两套 Topic，并按
+`Thing.messageProtocol` 选择处理器和编码。三种模式共享 Thing、Shadow 和 Method HTTP API。
 
 ## Topic 和权限
 
@@ -40,6 +41,17 @@ subscribe:
 ```
 
 网关只能按相同方向访问已绑定设备的 Topic。
+
+## Presence
+
+三种模式都会为所有 Thing 发布在线状态，供后端服务对接：
+
+| MQTT Topic | retain | 说明 |
+|---|---|---|
+| `$iothub/things/{thingId}/presence` | 是 | 当前在线状态快照 |
+| `$iothub/events/things/{thingId}/presence` | 否 | 上下线事件流 |
+
+Payload 编码统一使用部署的 `protocol.encoding`，不随 Thing 配置变化。Simple 模式的普通设备没有这些 Topic 的权限；Legacy/Dual 模式的设备沿用原有 `$iothub` 权限，可以订阅自己的 Presence 和事件流。使用超级用户凭证的后端服务在 Simple/Dual 模式下可以订阅。
 
 ### Type 列表
 
