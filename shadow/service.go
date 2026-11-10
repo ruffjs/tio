@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -100,6 +101,9 @@ type Repo interface {
 
 type Config struct {
 	IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
+	// FullFieldDelta makes delta contain the whole top-level desired field
+	// when any nested value under it differs.
+	FullFieldDelta bool `json:"fullFieldDelta"`
 }
 
 var _ Service = (*shadowSvc)(nil)
@@ -400,7 +404,7 @@ func (s *shadowSvc) setState(
 	}
 	slog.Debug("Successfully set shadow", "type", typ, "thingId", thingId, "content", sr)
 
-	s.notifyDeltaState(thingId, sr.ClientToken, persisted)
+	s.notifyDeltaState(thingId, sr.ClientToken, &pre, persisted)
 	s.notifyStateUpdate(thingId, sr.ClientToken, &pre, persisted)
 
 	return *persisted, updatedMeta, nil
@@ -503,10 +507,15 @@ func (s *shadowSvc) notifyStateUpdate(thingId, clientToken string, pre *Shadow, 
 	}
 }
 
-func (s *shadowSvc) notifyDeltaState(thingId, clientToken string, rs *Shadow) {
-	delta, deltaMeta := DeltaState(rs.State.Desired, rs.State.Reported, rs.Metadata.Desired)
+func (s *shadowSvc) notifyDeltaState(thingId, clientToken string, pre, rs *Shadow) {
+	delta, deltaMeta := DeltaState(rs.State.Desired, rs.State.Reported, rs.Metadata.Desired, s.cfg.FullFieldDelta)
 	if IsStateValueEmpty(delta) {
 		// ignore empty delta
+		return
+	}
+	prevDelta, _ := DeltaState(pre.State.Desired, pre.State.Reported, pre.Metadata.Desired, s.cfg.FullFieldDelta)
+	if reflect.DeepEqual(delta, prevDelta) {
+		// delta unchanged by this update, do not repeat the notification
 		return
 	}
 

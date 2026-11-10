@@ -115,6 +115,7 @@ type Config struct {
 	ProvisionSecret string    `json:"-"`
 	Shadow          struct {
 		IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
+		FullFieldDelta    bool     `json:"fullFieldDelta"`
 	} `json:"shadow"`
 	Pprof struct {
 		Port    int  `json:"port"`

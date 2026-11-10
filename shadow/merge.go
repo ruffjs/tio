@@ -169,7 +169,9 @@ func isScalar(v any) (bool, error) {
 
 // DeltaState get the delta state by diff
 // return the delta state and delta state metadata
-func DeltaState(desired, reported, meta map[string]any) (StateValue, MetaValue) {
+// When fullField is true, any change under a top-level field puts the whole
+// field value and its whole metadata subtree into the delta.
+func DeltaState(desired, reported, meta map[string]any, fullField bool) (StateValue, MetaValue) {
 	if desired == nil {
 		return nil, nil
 	}
@@ -180,6 +182,12 @@ func DeltaState(desired, reported, meta map[string]any) (StateValue, MetaValue) 
 	var deltaMeta = map[string]any{}
 	for k, v := range desired {
 		d, dm := deltaDiff(k, v, reported[k], meta)
+		if d != nil && fullField {
+			if _, ok := v.(map[string]any); ok {
+				d = v
+				dm = meta[k]
+			}
+		}
 		if d != nil {
 			delta[k] = d
 		}

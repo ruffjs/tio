@@ -27,8 +27,8 @@ type ShadowUpdateReply struct {
 	Message string `json:"message,omitempty"`
 }
 
-// ShadowDesired is the payload for tio/{thingId}/down/shadow_desired.
-type ShadowDesired struct {
+// ShadowDelta is the payload for tio/{thingId}/down/shadow_delta.
+type ShadowDelta struct {
 	Version int64          `json:"version"`
 	State   map[string]any `json:"state"`
 }

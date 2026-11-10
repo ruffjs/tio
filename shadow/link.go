@@ -86,8 +86,6 @@ func Link(ctx context.Context, conn StateHandler, svc Service, cfg Config) error
 		err := conn.StateDeltaNotify(ctx, msg)
 		if err != nil {
 			slog.Error("Notify state delta error", "error", err, "msg", msg)
-		} else {
-			slog.Debug("Notify state delta msg", "msg", msg)
 		}
 	})
 
@@ -145,7 +143,7 @@ func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req Ge
 		}
 		return
 	}
-	delta, _ := DeltaState(ss.State.Desired, ss.State.Reported, nil)
+	delta, _ := DeltaState(ss.State.Desired, ss.State.Reported, nil, cfg.FullFieldDelta)
 	resp := StateAcceptedResp{
 		Timestamp:   time.Now().UnixMilli(),
 		ClientToken: req.Req.ClientToken,

@@ -20,7 +20,7 @@ const (
 	TypeShadowGetReply    = "shadow_get_reply"
 	TypeShadowUpdate      = "shadow_update"
 	TypeShadowUpdateReply = "shadow_update_reply"
-	TypeShadowDesired     = "shadow_desired"
+	TypeShadowDelta       = "shadow_delta"
 	TypeMethodReq         = "method_req"
 	TypeMethodResp        = "method_resp"
 	TypeNtpReq            = "ntp_req"

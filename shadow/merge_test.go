@@ -379,9 +379,102 @@ func TestMerge_DeltaState(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		d, m := shadow.DeltaState(s2m(c.desired), s2m(c.reported), s2m(c.desiredMeta))
+		d, m := shadow.DeltaState(s2m(c.desired), s2m(c.reported), s2m(c.desiredMeta), false)
 		require.Equal(t, s2m(c.delta), map[string]any(d), "delta state mismatch")
 		require.Equal(t, s2m(c.deltaMeta), map[string]any(m), "delta meta mismatch")
+	}
+}
+
+func TestDeltaStateFullField(t *testing.T) {
+	s2m := func(s string) map[string]any {
+		if s == "" {
+			return nil
+		}
+		var m map[string]any
+		require.NoError(t, json.Unmarshal([]byte(s), &m), "Error unmarshalling: %s", s)
+		return m
+	}
+
+	cases := []struct {
+		name       string
+		full       bool
+		desired    string
+		reported   string
+		meta       string
+		wantDelta  string
+		wantDeltaM string
+	}{
+		{
+			name:       "disabled keeps leaf diff",
+			full:       false,
+			desired:    `{"a":1,"f":{"g":{"h":true,"i":3}},"same":{"x":1}}`,
+			reported:   `{"a":1,"f":{"g":{"h":false,"i":3}},"same":{"x":1}}`,
+			meta:       `{"f":{"g":{"h":{"timestamp":1},"i":{"timestamp":2}}}}`,
+			wantDelta:  `{"f":{"g":{"h":true}}}`,
+			wantDeltaM: `{"f":{"g":{"h":{"timestamp":1}}}}`,
+		},
+		{
+			name:       "enabled returns whole top field",
+			full:       true,
+			desired:    `{"a":1,"f":{"g":{"h":true,"i":3}},"same":{"x":1}}`,
+			reported:   `{"a":1,"f":{"g":{"h":false,"i":3}},"same":{"x":1}}`,
+			meta:       `{"f":{"g":{"h":{"timestamp":1},"i":{"timestamp":2}}}}`,
+			wantDelta:  `{"f":{"g":{"h":true,"i":3}}}`,
+			wantDeltaM: `{"f":{"g":{"h":{"timestamp":1},"i":{"timestamp":2}}}}`,
+		},
+		{
+			name:       "equal nested field is excluded",
+			full:       true,
+			desired:    `{"f":{"g":{"h":true}}}`,
+			reported:   `{"f":{"g":{"h":true}}}`,
+			meta:       `{"f":{"g":{"h":{"timestamp":1}}}}`,
+			wantDelta:  `{}`,
+			wantDeltaM: `{}`,
+		},
+		{
+			name:       "reported nil returns desired",
+			full:       true,
+			desired:    `{"f":{"g":1}}`,
+			reported:   ``,
+			meta:       `{"f":{"g":{"timestamp":1}}}`,
+			wantDelta:  `{"f":{"g":1}}`,
+			wantDeltaM: `{"f":{"g":{"timestamp":1}}}`,
+		},
+		{
+			name:       "scalar and array with enabled config",
+			full:       true,
+			desired:    `{"s":2,"arr":[1,2]}`,
+			reported:   `{"s":1,"arr":[1,3]}`,
+			meta:       `{"s":{"timestamp":1},"arr":{"timestamp":2}}`,
+			wantDelta:  `{"s":2,"arr":[1,2]}`,
+			wantDeltaM: `{"s":{"timestamp":1},"arr":{"timestamp":2}}`,
+		},
+		{
+			name:       "empty object field differs from missing",
+			full:       true,
+			desired:    `{"e":{}}`,
+			reported:   `{}`,
+			meta:       `{}`,
+			wantDelta:  `{"e":{}}`,
+			wantDeltaM: `{}`,
+		},
+		{
+			name:       "extra reported nested key is ignored",
+			full:       true,
+			desired:    `{"f":{"g":1}}`,
+			reported:   `{"f":{"g":1,"extra":2}}`,
+			meta:       `{"f":{"g":{"timestamp":1}}}`,
+			wantDelta:  `{}`,
+			wantDeltaM: `{}`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d, m := shadow.DeltaState(s2m(c.desired), s2m(c.reported), s2m(c.meta), c.full)
+			require.Equal(t, s2m(c.wantDelta), map[string]any(d))
+			require.Equal(t, s2m(c.wantDeltaM), map[string]any(m))
+		})
 	}
 }
 

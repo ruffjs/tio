@@ -157,7 +157,7 @@ func TestDualSameConnectionProfileChange(t *testing.T) {
 	defer client.Disconnect()
 	simpleDown := make(chan []byte, 8)
 	legacyDown := make(chan []byte, 8)
-	require.NoError(t, client.Subscribe(protocol.TopicDown(id, protocol.TypeShadowDesired), 1, func(_ mqtt.Client, m mqtt.Message) { simpleDown <- append([]byte(nil), m.Payload()...) }))
+	require.NoError(t, client.Subscribe(protocol.TopicDown(id, protocol.TypeShadowDelta), 1, func(_ mqtt.Client, m mqtt.Message) { simpleDown <- append([]byte(nil), m.Payload()...) }))
 	require.NoError(t, client.Subscribe(shadow.TopicDeltaStateOf(id), 1, func(_ mqtt.Client, m mqtt.Message) { legacyDown <- append([]byte(nil), m.Payload()...) }))
 	for _, p := range []connector.DeviceProfile{{MessageProtocol: "simple", PayloadEncoding: "cbor"}, {MessageProtocol: "legacy", PayloadEncoding: "json"}} {
 		require.NoError(t, thingSvc.Update(t.Context(), id, thing.ThingPatch{
@@ -194,11 +194,11 @@ func TestDualSameConnectionProfileChange(t *testing.T) {
 			var reply map[string]any
 			require.NoError(t, c.Unmarshal(raw, &reply))
 		case <-time.After(5 * time.Second):
-			t.Fatal("desired timeout")
+			t.Fatal("shadow delta timeout")
 		}
 		select {
 		case <-other:
-			t.Fatal("desired reached the other protocol")
+			t.Fatal("shadow delta reached the other protocol")
 		case <-time.After(50 * time.Millisecond):
 		}
 	}

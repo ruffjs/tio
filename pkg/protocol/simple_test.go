@@ -18,18 +18,22 @@ import (
 )
 
 func newTestShadowSvc() shadow.Service {
+	return newTestShadowSvcWithConfig(shadow.Config{})
+}
+
+func newTestShadowSvcWithConfig(cfg shadow.Config) shadow.Service {
 	db := dbmock.NewSqliteConnTest()
 	err := db.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{})
 	if err != nil {
 		panic(err)
 	}
 	time.Sleep(time.Millisecond * 100)
-	return shadow.NewTestSvc(shadow.NewShadowRepo(db), shadowMock.NewConnectivity(), shadow.Config{})
+	return shadow.NewTestSvc(shadow.NewShadowRepo(db), shadowMock.NewConnectivity(), cfg)
 }
 
 func TestTopicBuilders(t *testing.T) {
 	assert.Equal(t, "tio/device1/up/shadow_get", TopicUp("device1", TypeShadowGet))
-	assert.Equal(t, "tio/device1/down/shadow_desired", TopicDown("device1", TypeShadowDesired))
+	assert.Equal(t, "tio/device1/down/shadow_delta", TopicDown("device1", TypeShadowDelta))
 	assert.Equal(t, "tio/device1/event", TopicEvent("device1"))
 	assert.Equal(t, "tio/device1/data", TopicData("device1"))
 	assert.Equal(t, "tio/+/up/#", TopicAllUp())
@@ -45,7 +49,7 @@ func TestParseTopic(t *testing.T) {
 		wantErr     bool
 	}{
 		{"valid up", "tio/device1/up/shadow_get", "device1", LevelUp, TypeShadowGet, false},
-		{"valid down", "tio/device1/down/shadow_desired", "device1", LevelDown, TypeShadowDesired, false},
+		{"valid down", "tio/device1/down/shadow_delta", "device1", LevelDown, TypeShadowDelta, false},
 		{"valid method req", "tio/device1/down/method_req", "device1", LevelDown, TypeMethodReq, false},
 		{"valid method resp", "tio/device1/up/method_resp", "device1", LevelUp, TypeMethodResp, false},
 		{"valid ntp req", "tio/device1/up/ntp_req", "device1", LevelUp, TypeNtpReq, false},
@@ -84,7 +88,7 @@ func TestParseTopicDir(t *testing.T) {
 		wantErr     bool
 	}{
 		{"up with type", "tio/device1/up/shadow_get", "device1", "up", false},
-		{"down with type", "tio/device1/down/shadow_desired", "device1", "down", false},
+		{"down with type", "tio/device1/down/shadow_delta", "device1", "down", false},
 		{"event", "tio/device1/event", "device1", "event", false},
 		{"data", "tio/device1/data", "device1", "data", false},
 		{"custom single", "tio/device1/custom", "device1", "custom", false},
@@ -176,6 +180,76 @@ func TestSimpleHandler_ShadowGet(t *testing.T) {
 		}
 		return false
 	}, time.Second, 10*time.Millisecond)
+}
+
+func TestSimpleHandler_ShadowDelta(t *testing.T) {
+	cases := []struct {
+		name      string
+		fullField bool
+		want      map[string]any
+	}{
+		{
+			name:      "leaf delta when fullFieldDelta disabled",
+			fullField: false,
+			want:      map[string]any{"config": map[string]any{"b": float64(2)}},
+		},
+		{
+			name:      "whole top field when fullFieldDelta enabled",
+			fullField: true,
+			want:      map[string]any{"config": map[string]any{"a": float64(1), "b": float64(2)}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			mockConn := connmock.NewMockConnector()
+			mockConn.Start(ctx)
+			c, _ := codec.New("json")
+			shadowSvc := newTestShadowSvcWithConfig(shadow.Config{FullFieldDelta: tc.fullField})
+
+			handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
+			require.NoError(t, err)
+			defer handler.Stop()
+
+			err = handler.Start(ctx)
+			require.NoError(t, err)
+
+			thingId := "test-device-shadow-delta"
+			_, err = shadowSvc.Create(ctx, thingId)
+			require.NoError(t, err)
+
+			_, err = shadowSvc.SetReported(ctx, thingId, shadow.StateReq{
+				State: shadow.StateDR{
+					Reported: map[string]any{"config": map[string]any{"a": 1, "b": 0}},
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = shadowSvc.SetDesired(ctx, thingId, shadow.StateReq{
+				State: shadow.StateDR{
+					Desired: map[string]any{"config": map[string]any{"a": 1, "b": 2}},
+				},
+			})
+			require.NoError(t, err)
+
+			require.Eventually(t, func() bool {
+				for _, pub := range mockConn.PublishedMessages() {
+					if pub.Topic != TopicDown(thingId, TypeShadowDelta) {
+						continue
+					}
+					var delta ShadowDelta
+					if c.Unmarshal(pub.Payload, &delta) == nil {
+						require.Equal(t, int64(3), delta.Version)
+						require.Equal(t, tc.want, delta.State)
+						return true
+					}
+				}
+				return false
+			}, time.Second, 10*time.Millisecond)
+		})
+	}
 }
 
 func TestSimpleHandler_ShadowUpdate(t *testing.T) {

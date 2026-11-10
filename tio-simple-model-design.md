@@ -85,7 +85,7 @@ ACL 采用 deny-list 策略：设备不可发布到 `down/{type}`，不可订阅
 | `shadow_get_reply` | 下行 | Shadow 获取结果 |
 | `shadow_update` | 上行 | 更新 reported |
 | `shadow_update_reply` | 下行 | reported 更新结果 |
-| `shadow_desired` | 下行 | 主动下发完整 desired |
+| `shadow_delta` | 下行 | 主动下发 delta |
 | `method_req` | 下行 | 调用设备方法 |
 | `method_resp` | 上行 | 方法执行结果 |
 | `ntp_req` | 上行 | 时间同步请求 |
@@ -237,11 +237,11 @@ Patch：
 
 Tio 根据 desired 和 reported 动态计算 delta，用于：
 
-- 判断是否需要主动下发 desired；
-- Shadow HTTP API；
+- 主动通知 `shadow_delta`；
+- Shadow HTTP API 的 `delta` 字段；
 - 内部事件和规则处理。
 
-Simple MQTT 消息不返回 delta，也不返回字段级 metadata 或 timestamp。
+Simple MQTT 的请求响应（`shadow_get_reply`、`shadow_update_reply`）返回完整状态或更新结果，不返回 delta；未收敛的 desired 通过主动通知 `shadow_delta` 携带 delta 下发。Simple 消息不返回字段级 metadata 或 timestamp。
 
 ---
 
@@ -255,7 +255,7 @@ Simple MQTT 消息不返回 delta，也不返回字段级 metadata 或 timestamp
 → 再发送下一条 Shadow 请求
 ```
 
-`shadow_desired` 是主动通知，不受该限制。
+`shadow_delta` 是主动通知，不受该限制。
 
 ---
 
@@ -412,20 +412,20 @@ Shadow 不使用请求 ID，因此不保存请求级去重结果。
 
 ---
 
-## 10. 下发 Desired
+## 10. 下发 Delta
 
 Topic：
 
 ```text
-tio/{thingId}/down/shadow_desired
+tio/{thingId}/down/shadow_delta
 ```
 
-云端通过 Shadow HTTP API 更新 desired。desired 实际变化后：
+云端更新 desired 或设备更新 reported 后：
 
-1. 合并 desired；
-2. Shadow version 递增；
+1. 合并状态；
+2. 状态实际变化时 Shadow version 递增；
 3. 重新计算 delta；
-4. delta 非空时向在线设备发送完整 desired。
+4. delta 非空且与本次更新前不同，才向在线设备发送。
 
 Payload：
 
@@ -441,19 +441,20 @@ Payload：
 
 规则：
 
-- `state` 始终是完整 desired；
-- 重复写入相同 desired 不发送；
-- desired 与 reported 一致时不发送；
-- reported 更新不主动触发新的 `shadow_desired`；
+- `state` 是 delta，默认只包含变化的叶子字段；
+- 配置 `shadow.fullFieldDelta: true` 后，第一级字段下任意变化都携带该字段完整值；
+- 本次更新前后 delta 内容相同不发送（no-op、重复上报同一错值都不会重复下发）；
+- reported 更新导致 delta 变化时仍会发送；
+- desired 与 reported 一致（delta 为空）时不发送；
 - 设备上线或重连后通过 `shadow_get` 获取当前完整状态。
 
-reported 更新不主动触发 desired，可避免：
+delta 去重避免了重复上报同一值时的循环下发：
 
 ```text
-desired → update reported → desired → update reported
+desired → update reported → delta → update reported → ...
 ```
 
-形成循环下发。
+只有每次上报都改变 delta 内容时才会继续下发。
 
 ---
 

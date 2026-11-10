@@ -657,7 +657,7 @@ func TestSimpleProtocol_EventDataTransparent(t *testing.T) {
 	require.Empty(t, ss.State.Reported, "Shadow reported state should be empty")
 }
 
-func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
+func TestSimpleProtocol_DeltaNotification(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
@@ -673,11 +673,11 @@ func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	desiredCh := make(chan map[string]any, 10)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_desired", 1, func(c mqtt.Client, m mqtt.Message) {
+	deltaCh := make(chan map[string]any, 10)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_delta", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
 		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
-			desiredCh <- msg
+			deltaCh <- msg
 		}
 	})
 	require.NoError(t, err)
@@ -691,14 +691,14 @@ func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	resp.Body.Close()
 
-	var desiredMsg map[string]any
+	var deltaMsg map[string]any
 	select {
-	case desiredMsg = <-desiredCh:
+	case deltaMsg = <-deltaCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for shadow_desired notification")
+		t.Fatal("timeout waiting for shadow_delta notification")
 	}
 
-	state := desiredMsg["state"].(map[string]any)
+	state := deltaMsg["state"].(map[string]any)
 	require.Equal(t, "red", state["color"])
 	require.EqualValues(t, 50, state["brightness"])
 
@@ -711,6 +711,14 @@ func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 	payload, _ := testCodec.Marshal(updateMsg)
 	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
 	require.NoError(t, err)
+
+	select {
+	case deltaMsg = <-deltaCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for shadow_delta after reported changed")
+	}
+	require.Equal(t, map[string]any{"color": "red"}, deltaMsg["state"].(map[string]any),
+		"delta must contain only the different field")
 
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
@@ -730,8 +738,8 @@ func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 	resp2.Body.Close()
 
 	select {
-	case <-desiredCh:
-		t.Fatal("should not receive shadow_desired when desired equals reported")
+	case <-deltaCh:
+		t.Fatal("should not receive shadow_delta when desired equals reported")
 	case <-time.After(500 * time.Millisecond):
 	}
 
@@ -741,7 +749,7 @@ func TestSimpleProtocol_DeltaDesiredNotification(t *testing.T) {
 		"desired changing to equal reported must still increment version")
 }
 
-func TestSimpleProtocol_ReportedUpdateDoesNotTriggerDesired(t *testing.T) {
+func TestSimpleProtocol_UnchangedDeltaDoesNotNotify(t *testing.T) {
 	if cfg.Protocol.Mode != "simple" {
 		t.Skip("Skipping test: only runs in simple protocol mode")
 	}
@@ -757,14 +765,28 @@ func TestSimpleProtocol_ReportedUpdateDoesNotTriggerDesired(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	desiredCh := make(chan map[string]any, 10)
-	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_desired", 1, func(c mqtt.Client, m mqtt.Message) {
+	deltaCh := make(chan map[string]any, 10)
+	err = deviceClient.Subscribe("tio/"+thingId+"/down/shadow_delta", 1, func(c mqtt.Client, m mqtt.Message) {
 		var msg map[string]any
 		if testCodec.Unmarshal(m.Payload(), &msg) == nil {
-			desiredCh <- msg
+			deltaCh <- msg
 		}
 	})
 	require.NoError(t, err)
+
+	updateMsg := map[string]any{
+		"state": map[string]any{
+			"color":      "blue",
+			"brightness": float64(50),
+		},
+	}
+	payload, _ := testCodec.Marshal(updateMsg)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		ss, err := shadowSvc.Get(ctx, thingId)
+		return err == nil && ss.State.Reported["color"] == "blue"
+	}, 5*time.Second, 50*time.Millisecond)
 
 	setDesiredBody := strings.NewReader(`{"clientToken":"ct-1","state":{"desired":{"color":"red","brightness":50}}}`)
 	req, _ := http.NewRequest(http.MethodPut,
@@ -775,31 +797,40 @@ func TestSimpleProtocol_ReportedUpdateDoesNotTriggerDesired(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	resp.Body.Close()
 
+	var deltaMsg map[string]any
 	select {
-	case <-desiredCh:
+	case deltaMsg = <-deltaCh:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for initial shadow_desired")
+		t.Fatal("timeout waiting for initial shadow_delta")
 	}
+	require.Equal(t, map[string]any{"color": "red"}, deltaMsg["state"].(map[string]any))
 
-	updateMsg := map[string]any{
+	updateMsg2 := map[string]any{
 		"state": map[string]any{
-			"color":      "blue",
-			"brightness": 50,
+			"color": "green",
 		},
 	}
-	payload, _ := testCodec.Marshal(updateMsg)
-	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload)
+	payload2, _ := testCodec.Marshal(updateMsg2)
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload2)
 	require.NoError(t, err)
-
 	require.Eventually(t, func() bool {
 		ss, err := shadowSvc.Get(ctx, thingId)
-		return err == nil && ss.State.Reported["color"] == "blue"
+		return err == nil && ss.State.Reported["color"] == "green"
 	}, 5*time.Second, 50*time.Millisecond)
 
 	select {
-	case <-desiredCh:
-		t.Fatal("reported update must not trigger shadow_desired")
+	case <-deltaCh:
+		t.Fatal("unchanged delta must not be notified")
 	case <-time.After(500 * time.Millisecond):
+	}
+
+	err = deviceClient.Publish("tio/"+thingId+"/up/shadow_update", 1, false, payload2)
+	require.NoError(t, err)
+	time.Sleep(500 * time.Millisecond)
+	select {
+	case <-deltaCh:
+		t.Fatal("unchanged delta must not be notified again")
+	default:
 	}
 }
 
