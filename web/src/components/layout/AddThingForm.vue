@@ -39,6 +39,11 @@
           autocomplete="off"
         />
       </el-form-item>
+      <DeviceProfileFields
+        v-model:protocol="form.messageProtocol"
+        v-model:encoding="form.payloadEncoding"
+        :label-width="formLabelWidth"
+      />
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -53,6 +58,7 @@
 import { reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
+import DeviceProfileFields from "@/components/thing/DeviceProfileFields.vue";
 
 const { t } = useI18n();
 
@@ -100,6 +106,8 @@ const form = reactive({
   thingId: "",
   password: "",
   authType: "password",
+  messageProtocol: "",
+  payloadEncoding: "",
 });
 
 watch(

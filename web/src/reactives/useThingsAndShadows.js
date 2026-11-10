@@ -50,11 +50,13 @@ export default () => {
     }
   };
 
-  const addThing = async ({ thingId, password, authType }) => {
+  const addThing = async ({ thingId, password, authType, messageProtocol, payloadEncoding }) => {
     try {
       const payload = {
         thingId,
         authType,
+        messageProtocol,
+        payloadEncoding,
       };
       if (authType !== "certificate") {
         payload.password = password;

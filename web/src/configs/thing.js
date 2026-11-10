@@ -24,6 +24,16 @@ export const createMetaFields = (t) => [
     type: "password",
   },
   {
+    key: "messageProtocol",
+    label: t('things.messageProtocol'),
+    type: "string",
+  },
+  {
+    key: "payloadEncoding",
+    label: t('things.payloadEncoding'),
+    type: "string",
+  },
+  {
     key: "createdAt",
     label: t('things.createdAt'),
     type: "time",

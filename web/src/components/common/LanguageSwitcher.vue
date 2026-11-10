@@ -1,68 +1,41 @@
 <template>
-  <el-dropdown @command="handleCommand">
-    <span class="language-switcher">
-      <el-icon><Setting /></el-icon>
-      {{ currentLanguage }}
-      <el-icon class="el-icon--right"><arrow-down /></el-icon>
-    </span>
-    <template #dropdown>
-      <el-dropdown-menu>
-        <el-dropdown-item command="zh" :class="{ active: locale === 'zh' }">
-          中文
-        </el-dropdown-item>
-        <el-dropdown-item command="en" :class="{ active: locale === 'en' }">
-          English
-        </el-dropdown-item>
-      </el-dropdown-menu>
-    </template>
-  </el-dropdown>
+  <button
+    type="button"
+    class="nav-button language-switcher"
+    :title="nextLanguage"
+    @click="toggleLanguage"
+  >
+    <svg class="language-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path
+        d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v2h11.17c-.67 1.93-1.73 3.76-3.17 5.36-.93-1.03-1.7-2.16-2.31-3.35h-2c.73 1.63 1.73 3.17 2.98 4.56L3 17.54 4.46 19l5-5 3.11 3.11.3-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
+      />
+    </svg>
+    {{ currentLanguage }}
+  </button>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Setting, ArrowDown } from '@element-plus/icons-vue'
 
 const { locale } = useI18n()
 
-const currentLanguage = computed(() => {
-  return locale.value === 'zh' ? '中文' : 'English'
-})
+// 按钮上显示当前语言，点击切到另一种
+const currentLanguage = computed(() => (locale.value === 'zh' ? '中' : 'EN'))
+const nextLanguage = computed(() => (locale.value === 'zh' ? 'English' : '中文'))
 
-const handleCommand = (command) => {
-  locale.value = command
-  localStorage.setItem('tio-language', command)
+const toggleLanguage = () => {
+  locale.value = locale.value === 'zh' ? 'en' : 'zh'
+  localStorage.setItem('tio-language', locale.value)
 }
 </script>
 
 <style scoped lang="scss">
 .language-switcher {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--tio-line);
-  border-radius: var(--tio-radius);
-  background: transparent;
-  cursor: pointer;
-  color: var(--tio-text);
-  font-size: 12px;
-  font-weight: 650;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
-  
-  .el-icon {
+  .language-icon {
+    width: 15px;
+    height: 15px;
     margin-right: 4px;
   }
-  
-  &:hover {
-    border-color: var(--tio-accent-strong);
-    background: var(--tio-accent-soft);
-    color: var(--tio-text-strong);
-  }
-}
-
-:deep(.el-dropdown-menu__item.active) {
-  color: var(--el-color-primary);
-  font-weight: bold;
 }
 </style>

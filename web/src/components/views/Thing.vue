@@ -30,6 +30,9 @@
         </div>
       </div>
       <div class="thing-summary-actions">
+        <el-tooltip :content="$t('things.editThing')">
+          <el-button icon="Edit" plain circle @click="editVisible = true" />
+        </el-tooltip>
         <el-tooltip :content="$t('nav.kickOut')">
           <el-button v-if="shadow?.connected" type="danger" plain circle icon="RemoveFilled"
             @click="handleKickOutSelected" />
@@ -44,18 +47,7 @@
       <aside class="thing-sidebar">
         <section class="thing-side-section">
           <h3>{{ $t('things.basicInfo') }}</h3>
-          <div class="thing-meta-item">
-            <div class="thing-meta-label">{{ $t('things.enabled') }}</div>
-            <div class="thing-meta-value">
-              <el-switch
-                size="small"
-                v-model="thing.enabled"
-                :loading="updatingEnabled"
-                @change="handleToggleEnabled"
-              />
-            </div>
-          </div>
-          <KeyValueDisplayer :data="thing" :fields="metaFields" />
+          <KeyValueDisplayer :data="metaData" :fields="metaFields" />
         </section>
 
         <section class="thing-side-section">
@@ -80,6 +72,7 @@
   </div>
   <HttpPoster v-if="posterCode" :key="posterKey" :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
     @close="closePoster" />
+  <EditThingForm :visible="editVisible" :model="thing" @close="editVisible = false" @save="handleSaveThing" />
 </template>
 
 <script>
@@ -97,7 +90,7 @@ export default {
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { getThing, kickOutClient, patchThing } from "@/apis";
@@ -107,6 +100,7 @@ import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
 import ShadowTags from "@/components/thing/ShadowTags.vue";
 import ShadowData from "@/components/thing/ShadowData.vue";
 import HttpPoster from "@/components/thing/HttpPoster.vue";
+import EditThingForm from "@/components/thing/EditThingForm.vue";
 import MqttClients from "@/components/thing/MqttClientsOfThing.vue";
 import {
   TSCE_MQTO,
@@ -132,8 +126,14 @@ const thing = reactive({});
 const posterCode = ref("");
 const posterData = ref(null);
 const posterKey = ref(0);
-const updatingEnabled = ref(false);
-const metaFields = computed(() => createMetaFields(t).filter(({ key }) => key !== "enabled"));
+const editVisible = ref(false);
+const metaFields = computed(() => createMetaFields(t));
+// 设备级协议/编码为空时跟随部署配置
+const metaData = computed(() => ({
+  ...thing,
+  messageProtocol: thing.messageProtocol || t("things.followDeployDefault"),
+  payloadEncoding: thing.payloadEncoding || t("things.followDeployDefault"),
+}));
 
 const openPoster = async (code, payload = null) => {
   posterCode.value = "";
@@ -176,35 +176,16 @@ const getBasicInfo = async () => {
   }
 };
 
-const handleToggleEnabled = async (enabled) => {
-  const previousEnabled = !enabled;
+const handleSaveThing = async (payload) => {
   try {
-    await ElMessageBox.confirm(
-      enabled ? t("things.confirmEnableThing") : t("things.confirmDisableThing"),
-      t("common.warning"),
-      {
-        confirmButtonText: t("common.confirm"),
-        cancelButtonText: t("common.cancel"),
-        type: "warning",
-      }
-    );
-  } catch {
-    thing.enabled = previousEnabled;
-    return;
-  }
-
-  updatingEnabled.value = true;
-  try {
-    await patchThing(thingId.value, { enabled });
+    await patchThing(thingId.value, payload);
+    editVisible.value = false;
     await updateThings();
     await getBasicInfo();
     ElMessage.success(t("common.success"));
   } catch (error) {
-    thing.enabled = previousEnabled;
     console.error("error", error);
     ElMessage.error(t("common.error"));
-  } finally {
-    updatingEnabled.value = false;
   }
 };
 
@@ -443,32 +424,6 @@ onMounted(() => {
         border-top: 1px solid var(--tio-line);
       }
     }
-  }
-}
-
-.thing-meta-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 30px;
-  margin-bottom: 4px;
-  padding: 4px 0 8px;
-  border-bottom: 1px solid var(--tio-border);
-  color: var(--tio-text);
-
-  .thing-meta-label {
-    margin-right: 10px;
-    color: var(--tio-muted);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .thing-meta-value {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-height: 24px;
   }
 }
 
