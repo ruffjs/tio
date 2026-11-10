@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
@@ -107,7 +108,7 @@ func (h *SimpleHandler) Start(ctx context.Context) error {
 		return errors.Wrap(err, "subscribe to simple method response")
 	}
 
-	h.shadowSvc.SubscribeDelta(h.handleShadowDelta)
+	h.shadowSvc.SubscribeUpdate(h.handleShadowDesired)
 	go func() {
 		<-ctx.Done()
 		h.Stop()
@@ -295,16 +296,30 @@ func (h *SimpleHandler) handleMethodResp(thingId string, payload []byte) {
 	slog.Debug("method resp for unknown call", "thingId", thingId)
 }
 
-func (h *SimpleHandler) handleShadowDelta(thingId string, notice shadow.DeltaStateNotice) {
+func (h *SimpleHandler) handleShadowDesired(thingId string, notice shadow.StateUpdatedNotice) {
+	previous, current := notice.Previous.State.Desired, notice.Current.State.Desired
+	if reflect.DeepEqual(previous, current) {
+		return
+	}
 	c, ok := h.resolveCodec(h.ctx, thingId)
 	if !ok {
 		return
 	}
-
-	h.publish(c, TopicDown(thingId, TypeShadowDelta), ShadowDelta{
-		Version: notice.Version,
-		State:   notice.State,
-	})
+	for name, value := range current {
+		if old, exists := previous[name]; exists && reflect.DeepEqual(old, value) {
+			continue
+		}
+		h.publish(c, TopicDown(thingId, TypeShadowDesired), ShadowDesired{
+			Version: notice.Current.Version, Name: name, Value: value,
+		})
+	}
+	for name := range previous {
+		if _, exists := current[name]; !exists {
+			h.publish(c, TopicDown(thingId, TypeShadowDesired), ShadowDesired{
+				Version: notice.Current.Version, Name: name, Value: nil,
+			})
+		}
+	}
 }
 
 func (h *SimpleHandler) Invoke(ctx context.Context, thingId string, method string, params any, timeout time.Duration) (SimpleInvokeResult, error) {

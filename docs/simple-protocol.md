@@ -80,7 +80,7 @@ Payload 编码统一使用部署的 `protocol.defaultEncoding`，不随 Thing �
 | `shadow_get_reply` | 下行 | Shadow 获取结果 |
 | `shadow_update` | 上行 | 更新 reported |
 | `shadow_update_reply` | 下行 | reported 更新结果 |
-| `shadow_delta` | 下行 | 主动下发 delta |
+| `shadow_desired` | 下行 | 单个顶层 desired 属性通知 |
 | `method_req` | 下行 | 调用设备方法 |
 | `method_resp` | 上行 | 方法执行结果 |
 | `ntp_req` | 上行 | 时间同步请求 |
@@ -156,24 +156,25 @@ Topic：`tio/{thingId}/up/shadow_update`
 
 desired 和 reported 实际变化均递增 version，no-op 不递增。设备同一时间最多只能存在一个未完成的 Shadow 请求。
 
-Shadow 请求通过对应的回复 Topic 关联。收到 `409` 后，设备应执行 `shadow_get` 获取最新状态，再决定是否重试；条件更新成功但回复丢失时，QoS 1 重复请求也可能返回 `409`。`shadow_get` 不改变 version，主动通知 `shadow_delta` 不受请求串行限制。
+Shadow 请求通过对应的回复 Topic 关联。收到 `409` 后，设备应执行 `shadow_get` 获取最新状态，再决定是否重试；条件更新成功但回复丢失时，QoS 1 重复请求也可能返回 `409`。`shadow_get` 不改变 version，主动通知 `shadow_desired` 不受请求串行限制。
 
-### 下发 Delta
+### 下发 Desired 属性
 
-Topic：`tio/{thingId}/down/shadow_delta`
+Topic：`tio/{thingId}/down/shadow_desired`
 
 ```json
 {
   "version": 15,
-  "state": {
-    "light": true
-  }
+  "name": "network",
+  "value": {"ssid": "new", "retry": 3}
 }
 ```
 
-`state` 是 desired 与 reported 的 delta。默认只包含变化的叶子字段；配置 `shadow.fullFieldDelta: true` 时，第一级字段下任意变化都会携带该字段的完整值。
+管理端修改 desired 后，每个实际变化的顶层属性分别发送一条通知，`value` 为合并后的完整属性值。嵌套对象和数组由设备整体替换，无需递归合并 Patch；删除顶层属性时发送 `value: null`。通知只由 desired 实际变化触发，与 reported 是否匹配无关；reported 更新和 desired no-op 不触发通知。
 
-本次更新前后 delta 内容相同则不发送；reported 更新使 delta 变化时仍会发送；delta 变空（desired 与 reported 一致）时不发送。设备上线、重连或需要全量状态时通过 `shadow_get` 获取完整 desired 和 reported。
+同次更新的多个属性共享 Shadow 文档 `version`，消息顺序不作保证。设备应容忍 QoS 1 重复投递，并按属性处理版本；不能按全局“版本小于等于已处理版本”过滤其他同版本属性。
+
+通知使用 QoS 1、Retain=false。设备上线或重连后通过 `shadow_get` 获取完整 desired 和 reported。设备上报继续使用 `shadow_update` 的增量合并规则；删除嵌套 reported 字段需显式传 `null`。
 
 ## Method
 

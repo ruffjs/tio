@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func newTestShadowSvcWithConfig(cfg shadow.Config) shadow.Service {
 
 func TestTopicBuilders(t *testing.T) {
 	assert.Equal(t, "tio/device1/up/shadow_get", TopicUp("device1", TypeShadowGet))
-	assert.Equal(t, "tio/device1/down/shadow_delta", TopicDown("device1", TypeShadowDelta))
+	assert.Equal(t, "tio/device1/down/shadow_desired", TopicDown("device1", TypeShadowDesired))
 	assert.Equal(t, "tio/device1/event", TopicEvent("device1"))
 	assert.Equal(t, "tio/device1/data", TopicData("device1"))
 	assert.Equal(t, "tio/+/up/#", TopicAllUp())
@@ -49,7 +50,7 @@ func TestParseTopic(t *testing.T) {
 		wantErr     bool
 	}{
 		{"valid up", "tio/device1/up/shadow_get", "device1", LevelUp, TypeShadowGet, false},
-		{"valid down", "tio/device1/down/shadow_delta", "device1", LevelDown, TypeShadowDelta, false},
+		{"valid down", "tio/device1/down/shadow_desired", "device1", LevelDown, TypeShadowDesired, false},
 		{"valid method req", "tio/device1/down/method_req", "device1", LevelDown, TypeMethodReq, false},
 		{"valid method resp", "tio/device1/up/method_resp", "device1", LevelUp, TypeMethodResp, false},
 		{"valid ntp req", "tio/device1/up/ntp_req", "device1", LevelUp, TypeNtpReq, false},
@@ -88,7 +89,7 @@ func TestParseTopicDir(t *testing.T) {
 		wantErr     bool
 	}{
 		{"up with type", "tio/device1/up/shadow_get", "device1", "up", false},
-		{"down with type", "tio/device1/down/shadow_delta", "device1", "down", false},
+		{"down with type", "tio/device1/down/shadow_desired", "device1", "down", false},
 		{"event", "tio/device1/event", "device1", "event", false},
 		{"data", "tio/device1/data", "device1", "data", false},
 		{"custom single", "tio/device1/custom", "device1", "custom", false},
@@ -182,72 +183,68 @@ func TestSimpleHandler_ShadowGet(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
-func TestSimpleHandler_ShadowDelta(t *testing.T) {
-	cases := []struct {
-		name      string
-		fullField bool
-		want      map[string]any
-	}{
-		{
-			name:      "leaf delta when fullFieldDelta disabled",
-			fullField: false,
-			want:      map[string]any{"config": map[string]any{"b": float64(2)}},
-		},
-		{
-			name:      "whole top field when fullFieldDelta enabled",
-			fullField: true,
-			want:      map[string]any{"config": map[string]any{"a": float64(1), "b": float64(2)}},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+func TestSimpleHandler_ShadowDesired(t *testing.T) {
+	for _, encoding := range []string{"json", "cbor"} {
+		t.Run(encoding, func(t *testing.T) {
 			ctx := t.Context()
-
-			mockConn := connmock.NewMockConnector()
-			mockConn.Start(ctx)
-			c, _ := codec.New("json")
-			shadowSvc := newTestShadowSvcWithConfig(shadow.Config{FullFieldDelta: tc.fullField})
-
-			handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
+			conn := connmock.NewMockConnector()
+			require.NoError(t, conn.Start(ctx))
+			c, err := codec.New(encoding)
 			require.NoError(t, err)
-			defer handler.Stop()
-
-			err = handler.Start(ctx)
+			svc := newTestShadowSvc()
+			h, err := NewSimpleHandler(conn, c, svc, nil)
 			require.NoError(t, err)
-
-			thingId := "test-device-shadow-delta"
-			_, err = shadowSvc.Create(ctx, thingId)
+			defer h.Stop()
+			require.NoError(t, h.Start(ctx))
+			id := "desired-" + encoding
+			_, err = svc.Create(ctx, id)
 			require.NoError(t, err)
 
-			_, err = shadowSvc.SetReported(ctx, thingId, shadow.StateReq{
-				State: shadow.StateDR{
-					Reported: map[string]any{"config": map[string]any{"a": 1, "b": 0}},
-				},
-			})
-			require.NoError(t, err)
-
-			_, err = shadowSvc.SetDesired(ctx, thingId, shadow.StateReq{
-				State: shadow.StateDR{
-					Desired: map[string]any{"config": map[string]any{"a": 1, "b": 2}},
-				},
-			})
-			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				for _, pub := range mockConn.PublishedMessages() {
-					if pub.Topic != TopicDown(thingId, TypeShadowDelta) {
-						continue
-					}
-					var delta ShadowDelta
-					if c.Unmarshal(pub.Payload, &delta) == nil {
-						require.Equal(t, int64(3), delta.Version)
-						require.Equal(t, tc.want, delta.State)
-						return true
-					}
+			update := func(desired bool, patch, want map[string]any) {
+				t.Helper()
+				before := len(conn.PublishedMessages())
+				var updated shadow.Shadow
+				var err error
+				if desired {
+					updated, err = svc.SetDesired(ctx, id, shadow.StateReq{State: shadow.StateDR{Desired: patch}})
+				} else {
+					updated, err = svc.SetReported(ctx, id, shadow.StateReq{State: shadow.StateDR{Reported: patch}})
 				}
-				return false
-			}, time.Second, 10*time.Millisecond)
+				require.NoError(t, err)
+				messages := conn.PublishedMessages()[before:]
+				require.Len(t, messages, len(want))
+				seen := map[string]bool{}
+				for _, msg := range messages {
+					require.Equal(t, TopicDown(id, TypeShadowDesired), msg.Topic)
+					require.Equal(t, "PublishReliable", msg.Method)
+					var got ShadowDesired
+					require.NoError(t, c.Unmarshal(msg.Payload, &got))
+					require.Equal(t, updated.Version, got.Version)
+					expected, exists := want[got.Name]
+					require.True(t, exists)
+					require.False(t, seen[got.Name])
+					seen[got.Name] = true
+					actualJSON, err := json.Marshal(got.Value)
+					require.NoError(t, err)
+					expectedJSON, err := json.Marshal(expected)
+					require.NoError(t, err)
+					require.JSONEq(t, string(expectedJSON), string(actualJSON))
+					var fields map[string]any
+					require.NoError(t, c.Unmarshal(msg.Payload, &fields))
+					require.Len(t, fields, 3)
+					require.Contains(t, fields, "value")
+				}
+			}
+			baseline := map[string]any{"config": map[string]any{"a": 1, "b": 0}, "enabled": true, "levels": []any{1, 2}}
+			update(false, baseline, nil)
+			update(true, baseline, baseline) // desired changes notify even when reported matches.
+			update(true, baseline, nil)
+			update(false, map[string]any{"enabled": false}, nil)
+			update(true, map[string]any{"config": map[string]any{"b": 2}}, map[string]any{"config": map[string]any{"a": 1, "b": 2}})
+			update(true, map[string]any{"config": map[string]any{"a": nil}}, map[string]any{"config": map[string]any{"b": 2}})
+			update(true, map[string]any{"config": nil, "enabled": false, "levels": []any{3}}, map[string]any{"config": nil, "enabled": false, "levels": []any{3}})
+			update(false, map[string]any{"config": nil}, nil)
+			update(true, map[string]any{"config": nil}, nil)
 		})
 	}
 }

@@ -143,7 +143,7 @@ func handleShadowGetReq(ctx context.Context, svc Service, h StateHandler, req Ge
 		}
 		return
 	}
-	delta, _ := DeltaState(ss.State.Desired, ss.State.Reported, nil, cfg.FullFieldDelta)
+	delta, _ := DeltaState(ss.State.Desired, ss.State.Reported, nil)
 	resp := StateAcceptedResp{
 		Timestamp:   time.Now().UnixMilli(),
 		ClientToken: req.Req.ClientToken,

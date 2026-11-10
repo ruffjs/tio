@@ -50,18 +50,10 @@ func TestDevicePassword(t *testing.T) {
 	require.Equal(t, "override-secret", password)
 }
 
-func TestNestedDeltaShape(t *testing.T) {
+func TestNestedDesiredProperty(t *testing.T) {
 	baseline := nestedState("reported", "marker")
 	patch := map[string]any{"control": map[string]any{"target": map[string]any{"value": "desired"}}}
 	merged, changed := shadow.MergePatch(baseline, patch)
 	require.True(t, changed)
 	require.Equal(t, nestedState("desired", "marker"), merged)
-	for _, full := range []bool{false, true} {
-		delta, _ := shadow.DeltaState(map[string]any{"probe": merged}, map[string]any{"probe": baseline}, nil, full)
-		wanted := patch
-		if full {
-			wanted = nestedState("desired", "marker")
-		}
-		require.Equal(t, wanted, delta["probe"])
-	}
 }

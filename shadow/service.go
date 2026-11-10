@@ -101,9 +101,6 @@ type Repo interface {
 
 type Config struct {
 	IgnoreMetadataFor []string `json:"ignoreMetadataFor"`
-	// FullFieldDelta makes delta contain the whole top-level desired field
-	// when any nested value under it differs.
-	FullFieldDelta bool `json:"fullFieldDelta"`
 }
 
 var _ Service = (*shadowSvc)(nil)
@@ -508,12 +505,12 @@ func (s *shadowSvc) notifyStateUpdate(thingId, clientToken string, pre *Shadow, 
 }
 
 func (s *shadowSvc) notifyDeltaState(thingId, clientToken string, pre, rs *Shadow) {
-	delta, deltaMeta := DeltaState(rs.State.Desired, rs.State.Reported, rs.Metadata.Desired, s.cfg.FullFieldDelta)
+	delta, deltaMeta := DeltaState(rs.State.Desired, rs.State.Reported, rs.Metadata.Desired)
 	if IsStateValueEmpty(delta) {
 		// ignore empty delta
 		return
 	}
-	prevDelta, _ := DeltaState(pre.State.Desired, pre.State.Reported, pre.Metadata.Desired, s.cfg.FullFieldDelta)
+	prevDelta, _ := DeltaState(pre.State.Desired, pre.State.Reported, pre.Metadata.Desired)
 	if reflect.DeepEqual(delta, prevDelta) {
 		// delta unchanged by this update, do not repeat the notification
 		return

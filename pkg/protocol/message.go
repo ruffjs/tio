@@ -27,10 +27,11 @@ type ShadowUpdateReply struct {
 	Message string `json:"message,omitempty"`
 }
 
-// ShadowDelta is the payload for tio/{thingId}/down/shadow_delta.
-type ShadowDelta struct {
-	Version int64          `json:"version"`
-	State   map[string]any `json:"state"`
+// ShadowDesired is the payload for tio/{thingId}/down/shadow_desired.
+type ShadowDesired struct {
+	Version int64  `json:"version"`
+	Name    string `json:"name"`
+	Value   any    `json:"value"`
 }
 
 // MethodReq is the payload for tio/{thingId}/down/method_req.

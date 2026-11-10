@@ -56,9 +56,6 @@ shadow:
   # Example: To exclude metadata from delta messages (for bandwidth optimization):
   #   ignoreMetadataFor: ["/update/delta"]
   ignoreMetadataFor: []
-  # When true, a change anywhere under a top-level desired field
-  # makes delta carry that whole field.
-  fullFieldDelta: false
 
 # Profiling configuration (for performance debugging)
 pprof:

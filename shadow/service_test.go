@@ -403,15 +403,15 @@ func TestShadowSvc_SubscribeDelta(t *testing.T) {
 	}
 }
 
-func newDeltaSvc(t *testing.T, fullField bool) shadow.Service {
+func newDeltaSvc(t *testing.T) shadow.Service {
 	t.Helper()
 	d := mock.NewSqliteConnTest()
 	require.NoError(t, d.AutoMigrate(&shadow.Entity{}, &shadow.ConnStatusEntity{}))
-	return shadow.NewTestSvc(shadow.NewShadowRepo(d), shadowMock.NewConnectivity(), shadow.Config{FullFieldDelta: fullField})
+	return shadow.NewTestSvc(shadow.NewShadowRepo(d), shadowMock.NewConnectivity(), shadow.Config{})
 }
 
 func TestShadowSvc_DeltaDedup(t *testing.T) {
-	svc := newDeltaSvc(t, false)
+	svc := newDeltaSvc(t)
 	id := "delta-dedup"
 	_, err := svc.Create(ctx, id)
 	require.NoError(t, err)
@@ -444,7 +444,7 @@ func TestShadowSvc_DeltaDedup(t *testing.T) {
 }
 
 func TestShadowSvc_DeltaLeafPartialConvergence(t *testing.T) {
-	svc := newDeltaSvc(t, false)
+	svc := newDeltaSvc(t)
 	id := "delta-leaf-partial"
 	_, err := svc.Create(ctx, id)
 	require.NoError(t, err)
@@ -468,37 +468,6 @@ func TestShadowSvc_DeltaLeafPartialConvergence(t *testing.T) {
 
 	setReported(shadow.StateValue{"config": map[string]any{"a": 1, "b": 2}})
 	require.Equal(t, 2, len(notices), "converged delta must not notify")
-}
-
-func TestShadowSvc_DeltaFullField(t *testing.T) {
-	svc := newDeltaSvc(t, true)
-	id := "delta-full-field"
-	_, err := svc.Create(ctx, id)
-	require.NoError(t, err)
-
-	var notices []shadow.DeltaStateNotice
-	svc.SubscribeDelta(func(_ string, n shadow.DeltaStateNotice) { notices = append(notices, n) })
-	setReported := func(v shadow.StateValue) {
-		_, err := svc.SetReported(ctx, id, shadow.StateReq{State: shadow.StateDR{Reported: v}})
-		require.NoError(t, err)
-	}
-
-	setReported(shadow.StateValue{"config": map[string]any{"a": 0, "b": 0}})
-	_, err = svc.SetDesired(ctx, id, shadow.StateReq{State: shadow.StateDR{Desired: shadow.StateValue{"config": map[string]any{"a": 1, "b": 2}}}})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(notices), "whole top-level field must be notified")
-	require.Equal(t, map[string]any{"config": map[string]any{"a": float64(1), "b": float64(2)}}, map[string]any(notices[0].State))
-
-	cfgMeta, ok := notices[0].Metadata["config"].(map[string]any)
-	require.True(t, ok, "delta metadata must contain the whole field subtree")
-	require.Contains(t, cfgMeta, "a")
-	require.Contains(t, cfgMeta, "b")
-
-	setReported(shadow.StateValue{"config": map[string]any{"a": 1, "b": 0}})
-	require.Equal(t, 1, len(notices), "aggregated delta unchanged must not notify")
-
-	setReported(shadow.StateValue{"config": map[string]any{"a": 1, "b": 2}})
-	require.Equal(t, 1, len(notices), "converged delta must not notify")
 }
 
 func TestSvcImpl_SetTags(t *testing.T) {

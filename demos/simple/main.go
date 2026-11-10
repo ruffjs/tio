@@ -225,7 +225,6 @@ func run() (err error) {
 		http: &http.Client{Timeout: 8 * time.Second}, inbox: make(chan packet, 128)}
 	var settings struct {
 		Protocol config.Protocol
-		Shadow   shadow.Config
 	}
 	if err := p.api(http.MethodGet, "/private/api/config", nil, &settings); err != nil {
 		return err
@@ -248,7 +247,7 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Testing thing=%s mode=%s encoding=%s fullFieldDelta=%t\n", id, settings.Protocol.Mode, encoding, settings.Shadow.FullFieldDelta)
+	fmt.Printf("Testing thing=%s mode=%s encoding=%s\n", id, settings.Protocol.Mode, encoding)
 	runID := fmt.Sprintf("%x", time.Now().UnixNano())
 	key := "__tio_probe_" + runID
 	backendInbox := make(chan packet, 128)
@@ -368,26 +367,25 @@ func run() (err error) {
 	if err := p.desired(key, baseline); err != nil {
 		return err
 	}
+	var initialDesired protocol.ShadowDesired
+	if err := p.reply(ctx, "shadow_desired", &initialDesired); err != nil {
+		return err
+	}
+	if initialDesired.Name != key || !reflect.DeepEqual(initialDesired.Value, baseline) {
+		return fmt.Errorf("initial desired property differs from baseline")
+	}
 	leafPatch := map[string]any{"control": map[string]any{"target": map[string]any{"value": "desired"}}}
 	if err := p.desired(key, leafPatch); err != nil {
 		return err
 	}
-	var delta protocol.ShadowDelta
-	if err := p.reply(ctx, "shadow_delta", &delta); err != nil {
+	var desired protocol.ShadowDesired
+	if err := p.reply(ctx, "shadow_desired", &desired); err != nil {
 		return err
 	}
-	wanted := leafPatch
-	if settings.Shadow.FullFieldDelta {
-		wanted = nestedState("desired", runID)
+	if desired.Name != key || !reflect.DeepEqual(desired.Value, nestedState("desired", runID)) || desired.Version <= initialDesired.Version {
+		return fmt.Errorf("nested desired update must contain the complete top-level property")
 	}
-	if !reflect.DeepEqual(delta.State[key], wanted) || delta.Version <= version {
-		return fmt.Errorf("nested desired update produced an incorrect delta (fullFieldDelta=%t); unchanged siblings must match the configured delta shape", settings.Shadow.FullFieldDelta)
-	}
-	if settings.Shadow.FullFieldDelta {
-		pass("HTTP patches %s.control.target.value -> delta contains complete %s (unit, enabled, label preserved)", key, key)
-	} else {
-		pass("nested leaf delta (fullFieldDelta=false; enable it to verify complete top-level fields)")
-	}
+	pass("HTTP patches %s.control.target.value -> shadow_desired contains complete %s (unit, enabled, label preserved)", key, key)
 	convergedState := nestedState("desired", runID)
 	if _, err := p.reported(ctx, map[string]any{key: convergedState}, 0, 200); err != nil {
 		return err

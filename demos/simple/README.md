@@ -27,7 +27,7 @@
 - `ntp_req` → `ntp_resp`，核对时间戳。
 - `shadow_get` → `shadow_get_reply`。
 - `shadow_update` → `shadow_update_reply`，并通过 HTTP 核对持久化状态；检查旧版本 `409` 和无效状态 `400`。
-- 服务端 HTTP 设置多层 desired 基线，再只修改最深的 `control.target.value` → `shadow_delta` → 设备上报并核对 desired/reported 收敛。
+- 服务端 HTTP 设置多层 desired 基线，再只修改最深的 `control.target.value` → `shadow_desired` → 设备上报并核对 desired/reported 收敛。
 - 服务端 HTTP `/invoke` → `method_req` → 设备 `method_resp` → HTTP 返回结果，核对请求 ID 和数据。
 - Data/Event 原始二进制透传，以及自定义 Topic 双向收发。
 
@@ -42,7 +42,7 @@
 }
 ```
 
-`shadow.fullFieldDelta: true` 时，只将最深的 `value` 改为 `desired`，严格断言 delta 携带整个一级字段，并保留 `unit`、`enabled` 和 `label`。关闭时验证变化叶子；输出会明确标注此时验证的是叶子模式。脚本读取运行中服务的配置；修改该开关后需重启 tio。
+先设置完整 desired 基线并接收属性通知，再只修改最深的 `control.target.value`，断言 `shadow_desired` 的 `name` 为测试字段名、`value` 为完整一级属性值，并保留 `unit`、`enabled` 和 `label`。每条消息携带本次 Shadow 版本；设备按属性处理通知。
 
 每项成功输出 `PASS`，并等待 100ms 后继续下一项；失败返回非零退出码。脚本使用独立 Client ID 和唯一的 `__tio_probe_*` Shadow 字段，结束时删除该字段并验证清理结果。测试会增加 Shadow 版本并产生连接、事件和日志记录；它不会恢复版本号。使用专用测试设备，并暂停该设备的其他测试程序，以免并发请求或真实设备处理测试命令。
 

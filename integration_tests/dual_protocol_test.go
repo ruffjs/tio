@@ -42,10 +42,33 @@ func TestDeviceProtocolCreateAndReconnect(t *testing.T) {
 				require.NoError(t, err)
 				// Reconnect and start business messages using the persisted profile.
 				client.Disconnect()
+				if mode == "simple" {
+					_, err = shadowSvc.SetDesired(t.Context(), id, shadow.StateReq{State: shadow.StateDR{Desired: shadow.StateValue{"enabled": true}}})
+					require.NoError(t, err)
+				}
 				client = newThingMqttClient(t.Context(), id, th.AuthValue)
 				require.NoError(t, client.Connect(t.Context()))
 				defer client.Disconnect()
 				waitConnected(t, id)
+				if mode == "simple" {
+					snapshots := make(chan []byte, 1)
+					require.NoError(t, client.Subscribe(protocol.TopicDown(id, protocol.TypeShadowGetReply), 1, func(_ mqtt.Client, m mqtt.Message) {
+						snapshots <- append([]byte(nil), m.Payload()...)
+					}))
+					payload, err := c.Marshal(map[string]any{})
+					require.NoError(t, err)
+					require.NoError(t, client.Publish(protocol.TopicUp(id, protocol.TypeShadowGet), 1, false, payload))
+					select {
+					case payload := <-snapshots:
+						var reply protocol.ShadowGetReply
+						require.NoError(t, c.Unmarshal(payload, &reply))
+						require.Equal(t, 200, reply.Code)
+						require.NotNil(t, reply.State)
+						require.Equal(t, true, reply.State.Desired["enabled"])
+					case <-time.After(5 * time.Second):
+						t.Fatal("shadow snapshot timeout after reconnect")
+					}
+				}
 				up, down := shadow.TopicUpdateOf(id), shadow.TopicUpdateAcceptedOf(id)
 				update := any(shadow.StateReq{State: shadow.StateDR{Reported: shadow.StateValue{"enabled": true}}, ClientToken: "dual-update"})
 				if mode == "simple" {
@@ -163,7 +186,7 @@ func TestDualSameConnectionProfileChange(t *testing.T) {
 	defer client.Disconnect()
 	simpleDown := make(chan []byte, 8)
 	legacyDown := make(chan []byte, 8)
-	require.NoError(t, client.Subscribe(protocol.TopicDown(id, protocol.TypeShadowDelta), 1, func(_ mqtt.Client, m mqtt.Message) { simpleDown <- append([]byte(nil), m.Payload()...) }))
+	require.NoError(t, client.Subscribe(protocol.TopicDown(id, protocol.TypeShadowDesired), 1, func(_ mqtt.Client, m mqtt.Message) { simpleDown <- append([]byte(nil), m.Payload()...) }))
 	require.NoError(t, client.Subscribe(shadow.TopicDeltaStateOf(id), 1, func(_ mqtt.Client, m mqtt.Message) { legacyDown <- append([]byte(nil), m.Payload()...) }))
 	for _, p := range []connector.DeviceProfile{{MessageProtocol: "simple", PayloadEncoding: "cbor"}, {MessageProtocol: "legacy", PayloadEncoding: "json"}} {
 		require.NoError(t, thingSvc.Update(t.Context(), id, thing.ThingPatch{
