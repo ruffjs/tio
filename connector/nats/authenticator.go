@@ -162,7 +162,7 @@ func (a *NatsAuthenticator) registerDynamicThing(c server.ClientAuthentication, 
 	thingId := result.Principal
 	slog.Info("NATS dynamic thing authenticated", "thingId", thingId, "method", result.AuthMethod)
 
-	perms := a.thingPermissions(thingId)
+	perms := a.thingPermissions(thingId, result.AuthMethod == "superuser-password")
 	user := &server.User{
 		Username:    thingId,
 		Password:    password,
@@ -185,28 +185,15 @@ func (a *NatsAuthenticator) extractCertCN(c server.ClientAuthentication) string 
 	return cert.Subject.CommonName
 }
 
-func (a *NatsAuthenticator) thingPermissions(thingId string) *server.Permissions {
+func (a *NatsAuthenticator) thingPermissions(thingId string, isSuperUser bool) *server.Permissions {
 	for _, su := range a.superUsers {
-		if su.Name == thingId {
-			var pub, sub []string
-			switch a.protocolMode {
-			case "simple":
-				pub = []string{"tio.>"}
-				// Presence is published to backends in every mode.
-				sub = []string{"tio.>", "$iothub.things.*.presence", "$iothub.events.things.*.presence"}
-			case "dual":
-				pub = []string{"tio.>", "$iothub.>"}
-				sub = []string{"tio.>", "$iothub.>"}
-			default:
-				pub = []string{"$iothub.>"}
-				sub = []string{"$iothub.>"}
-			}
+		if isSuperUser && su.Name == thingId {
 			return &server.Permissions{
 				Publish: &server.SubjectPermission{
-					Allow: append(pub, "$JS.API.>", "$JS.ACK.>"),
+					Allow: []string{">"},
 				},
 				Subscribe: &server.SubjectPermission{
-					Allow: append(sub, "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"),
+					Allow: []string{">"},
 				},
 			}
 		}

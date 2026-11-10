@@ -927,7 +927,7 @@ func TestSimpleProtocol_ConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := config.Protocol{Mode: tt.mode, Encoding: "json"}
+			p := config.Protocol{Mode: tt.mode, DefaultEncoding: "json"}
 			err := p.Validate()
 			if tt.valid {
 				require.NoError(t, err)

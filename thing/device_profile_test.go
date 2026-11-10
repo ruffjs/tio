@@ -61,3 +61,39 @@ func TestDeviceProfilesFromThingFields(t *testing.T) {
 	require.ErrorAs(t, err, &he)
 	require.Equal(t, 503, he.HttpCode)
 }
+
+func TestDeviceProfileEncodingInEveryMode(t *testing.T) {
+	db := dbmock.NewSqliteConnTest()
+	require.NoError(t, db.AutoMigrate(&thing.Entity{}, &shadow.Entity{}, &shadow.ConnStatusEntity{}))
+	ss := shadow.NewTestSvc(shadow.NewShadowRepo(db), nil, shadow.Config{})
+	ts := thing.NewSvc(thing.NewThingRepo(db), uuid.New(), ss, nil)
+	id := "profile-all-modes"
+	_, err := ts.Create(t.Context(), thing.Thing{Id: id, Enabled: true, MessageProtocol: "simple", PayloadEncoding: "cbor"}, nil, false)
+	require.NoError(t, err)
+	for _, mode := range []string{"legacy", "simple", "dual"} {
+		p := thing.DeviceProfiles{Service: ts, DefaultCodec: "json", Mode: mode}
+		got, err := p.GetDeviceProfile(t.Context(), id)
+		require.NoError(t, err)
+		wantProtocol := mode
+		if mode == "dual" {
+			wantProtocol = "simple"
+		}
+		require.Equal(t, tioconn.DeviceProfile{MessageProtocol: wantProtocol, PayloadEncoding: "cbor"}, got)
+	}
+
+	empty := ""
+	require.NoError(t, ts.Update(t.Context(), id, thing.ThingPatch{MessageProtocol: &empty, PayloadEncoding: &empty}))
+	for _, mode := range []string{"legacy", "simple", "dual"} {
+		for _, encoding := range []string{"json", "cbor"} {
+			p := thing.DeviceProfiles{Service: ts, DefaultCodec: encoding, Mode: mode}
+			got, err := p.GetDeviceProfile(t.Context(), id)
+			require.NoError(t, err)
+			wantProtocol := mode
+			if mode == "dual" {
+				wantProtocol = "legacy"
+			}
+			require.Equal(t, tioconn.DeviceProfile{MessageProtocol: wantProtocol, PayloadEncoding: encoding}, got,
+				"cached fields must use this deployment's defaults")
+		}
+	}
+}

@@ -39,8 +39,8 @@ db:
     showSql: true
 
 protocol:
-  # Global encoding for all Tio-owned device MQTT application messages: "json" or "cbor"
-  encoding: json
+  # Default device control-message encoding: "json" or "cbor"; Thing.payloadEncoding overrides it in every mode
+  defaultEncoding: json
   # Device protocol mode: "legacy", "simple", or "dual" (both, selected per Thing)
   mode: legacy
 

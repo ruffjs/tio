@@ -55,6 +55,7 @@ func TestLoadConfigErrors(t *testing.T) {
 	}{
 		{"inline settings", "connector:\n  nats:\n    server:\n      mqttPort: 1884\n", "", "connector.natsConfigFile"},
 		{"empty inline settings", "connector:\n  nats: {}\n", "", "connector.natsConfigFile"},
+		{"old encoding key", "protocol:\n  encoding: cbor\n", "", "protocol.defaultEncoding"},
 		{"invalid main", "api: [\n", "", "read main config"},
 		{"missing NATS file", "connector:\n  natsConfigFile: missing.yaml\n", "", "read NATS config"},
 		{"NATS path is a directory", "connector:\n  natsConfigFile: .\n", "", "read NATS config"},
@@ -328,16 +329,16 @@ func TestProtocolValidate(t *testing.T) {
 		p       Protocol
 		wantErr bool
 	}{
-		{"json_legacy", Protocol{Encoding: "json", Mode: "legacy"}, false},
-		{"json_simple", Protocol{Encoding: "json", Mode: "simple"}, false},
-		{"cbor_legacy", Protocol{Encoding: "cbor", Mode: "legacy"}, false},
-		{"cbor_simple", Protocol{Encoding: "cbor", Mode: "simple"}, false},
-		{"json_dual", Protocol{Encoding: "json", Mode: "dual"}, false},
-		{"cbor_dual", Protocol{Encoding: "cbor", Mode: "dual"}, false},
-		{"unknown_encoding", Protocol{Encoding: "xml", Mode: "legacy"}, true},
-		{"empty_encoding", Protocol{Encoding: "", Mode: "legacy"}, true},
-		{"unknown_mode", Protocol{Encoding: "json", Mode: "fast"}, true},
-		{"empty_mode", Protocol{Encoding: "json", Mode: ""}, true},
+		{"json_legacy", Protocol{DefaultEncoding: "json", Mode: "legacy"}, false},
+		{"json_simple", Protocol{DefaultEncoding: "json", Mode: "simple"}, false},
+		{"cbor_legacy", Protocol{DefaultEncoding: "cbor", Mode: "legacy"}, false},
+		{"cbor_simple", Protocol{DefaultEncoding: "cbor", Mode: "simple"}, false},
+		{"json_dual", Protocol{DefaultEncoding: "json", Mode: "dual"}, false},
+		{"cbor_dual", Protocol{DefaultEncoding: "cbor", Mode: "dual"}, false},
+		{"unknown_encoding", Protocol{DefaultEncoding: "xml", Mode: "legacy"}, true},
+		{"empty_encoding", Protocol{DefaultEncoding: "", Mode: "legacy"}, true},
+		{"unknown_mode", Protocol{DefaultEncoding: "json", Mode: "fast"}, true},
+		{"empty_mode", Protocol{DefaultEncoding: "json", Mode: ""}, true},
 		{"both_empty", Protocol{}, true},
 	}
 	for _, tt := range tests {

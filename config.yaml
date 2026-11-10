@@ -45,6 +45,12 @@ connector:
   # The path is relative to this config file. See config-nats.default.yaml.
   # natsConfigFile: ./nats.yaml
 
+protocol:
+  # Default device control-message encoding: "json" or "cbor"; Thing.payloadEncoding overrides it in every mode
+  # defaultEncoding: cbor
+  # Device protocol mode: "legacy", "simple", or "dual" (both, selected per Thing)
+  mode: dual
+
 # Shadow (device state) configuration
 shadow:
   # List of shadow topics that should NOT include metadata in responses
@@ -55,7 +61,7 @@ shadow:
   ignoreMetadataFor: []
   # When true, a change anywhere under a top-level desired field
   # makes delta carry that whole field.
-  fullFieldDelta: false
+  fullFieldDelta: true
 
 # Profiling configuration (for performance debugging)
 pprof:

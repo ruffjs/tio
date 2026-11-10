@@ -117,6 +117,22 @@ connector:
 
 已有内联 `connector.nats` 配置需移到独立文件，去掉外层 `connector.nats`，再填写上述引用路径。
 
+### 设备协议与编码
+
+```yaml
+protocol:
+  mode: legacy              # legacy、simple 或 dual
+  defaultEncoding: json     # 设备未设置 payloadEncoding 时使用 json 或 cbor
+```
+
+所有模式下，Shadow、Method、NTP 控制消息优先使用 Thing 的 `payloadEncoding`。单协议模式由 `mode` 决定协议；`dual` 按 Thing 的 `messageProtocol` 选择，空值使用 Legacy。Presence 通知统一使用部署默认编码，Data/Event 原字节透传。
+
+已有 `protocol.encoding` 配置需改为 `protocol.defaultEncoding`；单协议部署中已有的 Thing 编码字段也会生效，升级前应与设备实际编码核对。
+
+### 设备交互测试
+
+运行 `./demos/simple/test-device.sh test`，脚本按 thingId 从本地 `tio.sqlite` 只读获取密码，测试服务端 Method、Shadow 设置、NTP 和多 Topic 收发。环境变量、测试范围及清理说明见 [脚本说明](demos/simple/README.md)。
+
 ## 构建
 
 ```bash

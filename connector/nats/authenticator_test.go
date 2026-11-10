@@ -232,7 +232,7 @@ func TestNatsAuthenticator_ThingCannotAccessSysSubjects(t *testing.T) {
 
 func TestNatsAuthenticator_ThingPermissions(t *testing.T) {
 	authn := &NatsAuthenticator{protocolMode: "legacy"}
-	perms := authn.thingPermissions("test-thing")
+	perms := authn.thingPermissions("test-thing", false)
 
 	require.NotNil(t, perms)
 	require.NotNil(t, perms.Publish)
@@ -306,7 +306,7 @@ func TestNatsAuthenticator_MqttThingWildcardSubscriptions(t *testing.T) {
 
 func TestNatsAuthenticator_SimpleThingPermissionsExcludeLegacy(t *testing.T) {
 	authn := &NatsAuthenticator{protocolMode: "simple"}
-	perms := authn.thingPermissions("test-thing")
+	perms := authn.thingPermissions("test-thing", false)
 
 	require.Equal(t, []string{
 		"tio.test-thing.>",
@@ -325,28 +325,100 @@ func TestNatsAuthenticator_SimpleThingPermissionsExcludeLegacy(t *testing.T) {
 	}, perms.Subscribe.Deny)
 }
 
-func TestNatsAuthenticator_SimpleSuperUserPermissionsExcludeLegacy(t *testing.T) {
-	authn := &NatsAuthenticator{
-		protocolMode: "simple",
-		superUsers:   []config.UserPassword{{Name: "admin"}},
+func TestNatsAuthenticator_SuperUserPermissions(t *testing.T) {
+	for _, mode := range []string{"legacy", "simple", "dual"} {
+		t.Run(mode, func(t *testing.T) {
+			authn := &NatsAuthenticator{protocolMode: mode, superUsers: []config.UserPassword{{Name: "admin"}}}
+			perms := authn.thingPermissions("admin", true)
+			require.Equal(t, []string{">"}, perms.Publish.Allow)
+			require.Equal(t, []string{">"}, perms.Subscribe.Allow)
+			require.Empty(t, perms.Publish.Deny)
+			require.Empty(t, perms.Subscribe.Deny)
+			ordinary := authn.thingPermissions("admin", false)
+			require.NotContains(t, ordinary.Publish.Allow, ">", "a matching name must not grant superuser access")
+			require.NotContains(t, ordinary.Subscribe.Allow, ">")
+		})
 	}
-	perms := authn.thingPermissions("admin")
+}
 
-	require.Equal(t, []string{"tio.>", "$JS.API.>", "$JS.ACK.>"}, perms.Publish.Allow)
-	// Presence is published to backends in every mode, so super users can subscribe to it.
-	require.Equal(t, []string{
-		"tio.>",
-		"$iothub.things.*.presence",
-		"$iothub.events.things.*.presence",
-		"$JS.API.>",
-		"$MQTT.sub.>",
-		"_INBOX.>",
-	}, perms.Subscribe.Allow)
+func TestNatsAuthenticator_SuperUserAllTopics(t *testing.T) {
+	for _, mode := range []string{"legacy", "simple", "dual"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg := testConnectorConfig(t)
+			cfg.SuperUsers = []config.UserPassword{{Name: "admin", Password: "secret"}}
+			authz := func(c connector.AuthContext) (connector.AuthResult, bool) {
+				if c.Username == "admin" && c.Password == "secret" {
+					return connector.AuthResult{Principal: "admin", AuthMethod: "superuser-password"}, true
+				}
+				return connector.AuthResult{Principal: "admin", AuthMethod: "password"}, c.Username == "admin" && c.Password == "device-secret"
+			}
+			authn := NewNatsAuthenticator(authz, nil, cfg.SuperUsers, cfg.AppClient, cfg.SystemClient, cfg.MqttPublisher, mode)
+			s, err := StartNatsServer(cfg.Server, authn)
+			require.NoError(t, err)
+			defer s.Shutdown()
+			app, err := s.Server().LookupAccount(AppAccountName)
+			require.NoError(t, err)
+			sys, err := s.Server().LookupAccount(SysAccountName)
+			require.NoError(t, err)
+			authn.SetAccounts(app, sys)
+
+			nc, err := nats.Connect(s.ClientURL(), nats.UserInfo("admin", "secret"))
+			require.NoError(t, err)
+			defer nc.Close()
+			sub, err := nc.SubscribeSync(">")
+			require.NoError(t, err)
+			require.NoError(t, nc.FlushTimeout(time.Second))
+			for _, subject := range []string{"business.custom", "tio.other.down.test", "$iothub.things.other.test"} {
+				require.NoError(t, nc.Publish(subject, []byte("nats")))
+				msg, err := sub.NextMsg(time.Second)
+				require.NoError(t, err)
+				require.Equal(t, subject, msg.Subject)
+				require.Equal(t, []byte("nats"), msg.Data)
+			}
+			require.NoError(t, sub.Unsubscribe())
+
+			denied := make(chan error, 1)
+			ordinary, err := nats.Connect(s.ClientURL(), nats.UserInfo("admin", "device-secret"),
+				nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) { denied <- err }))
+			require.NoError(t, err)
+			defer ordinary.Close()
+			_, err = ordinary.SubscribeSync(">")
+			require.NoError(t, err)
+			require.NoError(t, ordinary.FlushTimeout(time.Second))
+			select {
+			case err := <-denied:
+				require.ErrorContains(t, err, "Permissions Violation")
+			case <-time.After(time.Second):
+				t.Fatal("ordinary authentication with a superuser name must not allow all subjects")
+			}
+
+			client := testMqttSubscriber(t, getMqttPort(t, s), "admin", "secret")
+			defer client.Disconnect(100)
+			received := make(chan string, 1)
+			token := client.Subscribe("#", 0, func(_ mqtt.Client, msg mqtt.Message) {
+				if msg.Topic() == "business/custom" {
+					received <- string(msg.Payload())
+				}
+			})
+			require.True(t, token.WaitTimeout(time.Second))
+			require.NoError(t, token.Error())
+			require.Equal(t, byte(0), token.(*mqtt.SubscribeToken).Result()["#"])
+			token = client.Publish("business/custom", 0, false, []byte("mqtt"))
+			require.True(t, token.WaitTimeout(time.Second))
+			require.NoError(t, token.Error())
+			select {
+			case payload := <-received:
+				require.Equal(t, "mqtt", payload)
+			case <-time.After(time.Second):
+				t.Fatal("superuser did not receive custom MQTT topic")
+			}
+		})
+	}
 }
 
 func TestNatsAuthenticator_DualThingPermissions(t *testing.T) {
 	authn := &NatsAuthenticator{protocolMode: "dual"}
-	perms := authn.thingPermissions("test-thing")
+	perms := authn.thingPermissions("test-thing", false)
 
 	require.Equal(t, []string{
 		"tio.test-thing.>",
@@ -364,17 +436,6 @@ func TestNatsAuthenticator_DualThingPermissions(t *testing.T) {
 		"$iothub.events.things.>",
 	}, perms.Subscribe.Allow)
 	require.Equal(t, []string{"tio.test-thing.up", "tio.test-thing.up.>"}, perms.Subscribe.Deny)
-}
-
-func TestNatsAuthenticator_DualSuperUserPermissions(t *testing.T) {
-	authn := &NatsAuthenticator{
-		protocolMode: "dual",
-		superUsers:   []config.UserPassword{{Name: "admin"}},
-	}
-	perms := authn.thingPermissions("admin")
-
-	require.Equal(t, []string{"tio.>", "$iothub.>", "$JS.API.>", "$JS.ACK.>"}, perms.Publish.Allow)
-	require.Equal(t, []string{"tio.>", "$iothub.>", "$JS.API.>", "$MQTT.sub.>", "_INBOX.>"}, perms.Subscribe.Allow)
 }
 
 type stubBindingGetter struct {
@@ -397,7 +458,7 @@ func TestThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 	bg := &stubBindingGetter{boundThings: []string{"device-a", "device-b"}}
 	authn := NewNatsAuthenticator(nil, bg, nil, appClient, sysClient, mqttPub, "legacy")
 
-	perms := authn.thingPermissions("gateway-1")
+	perms := authn.thingPermissions("gateway-1", false)
 
 	expectedPublish := []string{
 		"$iothub.things.gateway-1.>",
@@ -435,7 +496,7 @@ func TestDualThingPermissionsForGatewayIncludesBoundThings(t *testing.T) {
 		config.NatsClientConfig{User: "sys", Password: "sys"},
 		config.NatsClientConfig{User: "mqtt", Password: "mqtt"}, "dual")
 
-	perms := authn.thingPermissions("gateway-1")
+	perms := authn.thingPermissions("gateway-1", false)
 
 	require.Equal(t, []string{
 		"tio.gateway-1.>",

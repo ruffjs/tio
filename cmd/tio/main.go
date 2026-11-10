@@ -102,7 +102,7 @@ func main() {
 	if err := cfg.Protocol.Validate(); err != nil {
 		log.Fatalf("Invalid protocol config: %v", err)
 	}
-	deviceCodec, err := codec.New(cfg.Protocol.Encoding)
+	deviceCodec, err := codec.New(cfg.Protocol.DefaultEncoding)
 	if err != nil {
 		log.Fatalf("Create codec error: %v", err)
 	}
@@ -150,10 +150,7 @@ func main() {
 
 	var methodHandler shadow.MethodHandler
 	var simpleInvoker shadowApi.SimpleInvoker
-	var profiles connector.DeviceProfileGetter
-	if cfg.Protocol.Mode == "dual" {
-		profiles = thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
-	}
+	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding, Mode: cfg.Protocol.Mode}
 	legacyMethodHandler := shadow.NewMethodHandler(conn, deviceCodec, profiles)
 	shadowStateHandler := shadow.NewShadowHandler(conn, deviceCodec, profiles)
 	ntpHandler := ntp.NewNtpHandler(conn, deviceCodec, profiles)

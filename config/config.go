@@ -81,15 +81,15 @@ type InnerMqttBroker struct {
 }
 
 type Protocol struct {
-	Encoding string `json:"encoding" mapstructure:"encoding"`
-	Mode     string `json:"mode" mapstructure:"mode"`
+	DefaultEncoding string `json:"defaultEncoding" mapstructure:"defaultEncoding"`
+	Mode            string `json:"mode" mapstructure:"mode"`
 }
 
 func (p Protocol) Validate() error {
-	switch p.Encoding {
+	switch p.DefaultEncoding {
 	case "json", "cbor":
 	default:
-		return fmt.Errorf("protocol.encoding must be 'json' or 'cbor', got %q", p.Encoding)
+		return fmt.Errorf("protocol.defaultEncoding must be 'json' or 'cbor', got %q", p.DefaultEncoding)
 	}
 	switch p.Mode {
 	case "legacy", "simple", "dual":
@@ -156,6 +156,9 @@ func loadConfig(main *viper.Viper) (Config, error) {
 	}
 	if main.InConfig("connector.nats") {
 		return Config{}, fmt.Errorf("move connector.nats to a separate YAML file and reference it with connector.natsConfigFile")
+	}
+	if main.InConfig("protocol.encoding") {
+		return Config{}, fmt.Errorf("rename protocol.encoding to protocol.defaultEncoding; Thing.payloadEncoding takes precedence in every mode")
 	}
 
 	v := viper.New()

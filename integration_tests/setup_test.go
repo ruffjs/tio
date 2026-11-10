@@ -64,10 +64,10 @@ func TestMain(m *testing.M) {
 	}
 
 	if envEncoding := os.Getenv("TIO_TEST_ENCODING"); envEncoding != "" {
-		cfg.Protocol.Encoding = envEncoding
+		cfg.Protocol.DefaultEncoding = envEncoding
 	}
-	if cfg.Protocol.Encoding == "" {
-		cfg.Protocol.Encoding = "json"
+	if cfg.Protocol.DefaultEncoding == "" {
+		cfg.Protocol.DefaultEncoding = "json"
 	}
 
 	if envMode := os.Getenv("TIO_TEST_PROTOCOL"); envMode != "" {
@@ -89,7 +89,7 @@ func TestMain(m *testing.M) {
 
 	testCtx, testCancel = context.WithCancel(context.Background())
 
-	deviceCodec, err := codec.New(cfg.Protocol.Encoding)
+	deviceCodec, err := codec.New(cfg.Protocol.DefaultEncoding)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,10 +120,7 @@ func TestMain(m *testing.M) {
 	var methodHandler shadow.MethodHandler
 	var simpleInvoker shadowApi.SimpleInvoker
 	var simpleHandler *protocol.SimpleHandler
-	var profiles connector.DeviceProfileGetter
-	if cfg.Protocol.Mode == "dual" {
-		profiles = thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
-	}
+	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding, Mode: cfg.Protocol.Mode}
 	legacyMethodHandler := shadow.NewMethodHandler(natsConnector, deviceCodec, profiles)
 	shadowStateHandler := shadow.NewShadowHandler(natsConnector, deviceCodec, profiles)
 	ntpHandler := ntp.NewNtpHandler(natsConnector, deviceCodec, profiles)
@@ -136,7 +133,7 @@ func TestMain(m *testing.M) {
 		if err := simpleHandler.Start(testCtx); err != nil {
 			log.Fatalf("Start simple handler error: %v", err)
 		}
-		log.Printf("Simple protocol handler started (encoding=%s)", cfg.Protocol.Encoding)
+		log.Printf("Simple protocol handler started (defaultEncoding=%s)", cfg.Protocol.DefaultEncoding)
 	}
 	if cfg.Protocol.Mode != "simple" {
 		if err := legacyMethodHandler.InitMethodHandler(testCtx); err != nil {
@@ -148,7 +145,7 @@ func TestMain(m *testing.M) {
 		if err := shadow.Link(testCtx, shadowStateHandler, shadowSvc, shadow.Config{}); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("Legacy protocol handlers started (encoding=%s)", cfg.Protocol.Encoding)
+		log.Printf("Legacy protocol handlers started (defaultEncoding=%s)", cfg.Protocol.DefaultEncoding)
 	}
 	switch cfg.Protocol.Mode {
 	case "legacy":

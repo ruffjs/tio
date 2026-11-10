@@ -19,11 +19,11 @@ import (
 	"ruff.io/tio/thing"
 )
 
-func TestDualProtocolCreateAndReconnect(t *testing.T) {
-	if cfg.Protocol.Mode != "dual" {
-		t.Skip("requires Dual mode")
-	}
+func TestDeviceProtocolCreateAndReconnect(t *testing.T) {
 	for _, mode := range []string{"legacy", "simple"} {
+		if cfg.Protocol.Mode != "dual" && cfg.Protocol.Mode != mode {
+			continue
+		}
 		for _, encoding := range []string{"json", "cbor"} {
 			t.Run(mode+"_"+encoding, func(t *testing.T) {
 				id := ID()
@@ -91,7 +91,13 @@ func TestDualProtocolCreateAndReconnect(t *testing.T) {
 						_ = client.Publish(topic, 1, false, payload)
 					}
 				}))
-				for _, endpoint := range []string{"methods/echo", "invoke"} {
+				endpoints := []string{"methods/echo", "invoke"}
+				if cfg.Protocol.Mode == "legacy" {
+					endpoints = endpoints[:1]
+				} else if cfg.Protocol.Mode == "simple" {
+					endpoints = endpoints[1:]
+				}
+				for _, endpoint := range endpoints {
 					body := `{"data":{},"respTimeout":3}`
 					if endpoint == "invoke" {
 						body = `{"method":"echo","params":{},"timeout":3}`
@@ -123,11 +129,11 @@ func TestDualDefaultProfile(t *testing.T) {
 	}
 	id := ID()
 	th := crateThing(id)
-	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
+	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding}
 	p, err := profiles.GetDeviceProfile(t.Context(), id)
 	require.NoError(t, err)
 	require.Equal(t, "legacy", p.MessageProtocol)
-	require.Equal(t, cfg.Protocol.Encoding, p.PayloadEncoding)
+	require.Equal(t, cfg.Protocol.DefaultEncoding, p.PayloadEncoding)
 	client := newThingMqttClient(t.Context(), id, th.AuthValue)
 	require.NoError(t, client.Connect(t.Context()))
 	defer client.Disconnect()
@@ -244,11 +250,11 @@ func TestDualThingCommunicationFieldsAPI(t *testing.T) {
 	require.True(t, current.Enabled)
 	require.Equal(t, "simple", current.MessageProtocol)
 	patch(`{"messageProtocol":"","payloadEncoding":""}`, 200)
-	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.Encoding}
+	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding}
 	p, err := profiles.GetDeviceProfile(t.Context(), id)
 	require.NoError(t, err)
 	require.Equal(t, "legacy", p.MessageProtocol)
-	require.Equal(t, cfg.Protocol.Encoding, p.PayloadEncoding)
+	require.Equal(t, cfg.Protocol.DefaultEncoding, p.PayloadEncoding)
 	shadowState, err := shadowSvc.Get(t.Context(), id)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), shadowState.Version)

@@ -36,23 +36,22 @@ func TestMethodInvoke(t *testing.T) {
 	methodName := "hello"
 
 	thingClient := newThingClient(ctx, thingId, t)
-	go func() {
-		_ = thingClient.Subscribe(shadow.TopicMethodRequest(thingId, methodName), 0, func(c mqtt.Client, m mqtt.Message) {
-			var req shadow.MethodReq
-			err := testCodec.Unmarshal(m.Payload(), &req)
-			require.NoError(t, err, "device unable to unmarshal method request")
-			slog.Debug("device receive method request", "request", req)
-			resp := shadow.MethodResp{
-				ClientToken: req.ClientToken,
-				Data:        req.Data,
-				Message:     "OK from device",
-				Code:        200,
-			}
-			b, _ := testCodec.Marshal(resp)
-			pubErr := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
-			require.NoError(t, pubErr, "device unable to publish method response")
-		})
-	}()
+	waitConnected(t, thingId)
+	require.NoError(t, thingClient.Subscribe(shadow.TopicMethodRequest(thingId, methodName), 0, func(c mqtt.Client, m mqtt.Message) {
+		var req shadow.MethodReq
+		err := testCodec.Unmarshal(m.Payload(), &req)
+		require.NoError(t, err, "device unable to unmarshal method request")
+		slog.Debug("device receive method request", "request", req)
+		resp := shadow.MethodResp{
+			ClientToken: req.ClientToken,
+			Data:        req.Data,
+			Message:     "OK from device",
+			Code:        200,
+		}
+		b, _ := testCodec.Marshal(resp)
+		pubErr := thingClient.Publish(shadow.TopicMethodResponse(thingId, methodName), 0, false, b)
+		require.NoError(t, pubErr, "device unable to publish method response")
+	}))
 
 	methodBody := strings.NewReader(`{
 		"respTimeout": 1,

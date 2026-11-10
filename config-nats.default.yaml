@@ -80,7 +80,7 @@ systemClient:
 mqttPublisher:
   user: $tio-mqtt-publisher
   password: public
-# Super users have unrestricted access to all topics and operations
+# Super users can publish/subscribe to all TIO_APP topics in every protocol mode
 # Typically used by business applications
 superUsers:
   - name: $biz
