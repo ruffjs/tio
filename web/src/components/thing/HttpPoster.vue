@@ -289,7 +289,7 @@ watch(
   z-index: 2100;
   width: max(32vw, 570px);
   height: 100vh;
-  inset: unset !important;
+  inset: 0 0 auto auto !important;
   right: 0 !important;
   .http-poster {
     .el-drawer__header {
