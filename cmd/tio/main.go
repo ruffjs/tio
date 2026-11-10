@@ -128,6 +128,11 @@ func main() {
 	if err := natsConnector.Start(ctx); err != nil {
 		log.Fatalf("NATS connector start error: %v", err)
 	}
+	if cfg.Connector.NatsConfigFile != "" {
+		slog.Info("NATS configuration", "file", cfg.Connector.NatsConfigFile)
+	} else {
+		slog.Info("NATS configuration", "source", "embedded defaults")
+	}
 	defer func() {
 		if err := natsConnector.Shutdown(); err != nil {
 			slog.Error("NATS connector shutdown error", "error", err)

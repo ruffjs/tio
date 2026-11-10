@@ -90,10 +90,32 @@ Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 S
 
 ## 运行
 
-- 检查 `config.yaml` 文件中的配置是否符合你的需求
+- 单机直接使用内嵌默认配置：MQTT `1883`、WebSocket `8083`、API `9000`；应用设置可通过 `config.yaml` 修改。
 - 运行 `cd web && yarn && yarn build && cd - && go run cmd/tio/main.go`
 - 访问 [http://127.0.0.1:9000](http://127.0.0.1:9000) 打开调试管理后台
 - 访问 [http://127.0.0.1:9000/docs](http://127.0.0.1:9000/docs) 查看 API 文档
+
+### NATS 配置
+
+单机部署直接使用默认 NATS 配置；需要修改端口、存储、TLS 或集群设置时，再创建独立配置文件。完整默认值及选项注释见 [config-nats.default.yaml](config-nats.default.yaml)，该文件在构建时嵌入程序。实际端口、TLS、数据目录和集群状态可查看 Info 日志 `NATS ready`。
+
+需要定制时，复制默认文件：
+
+```bash
+cp config-nats.default.yaml nats.yaml
+```
+
+在 `config.yaml` 中引用：
+
+```yaml
+connector:
+  type: nats
+  natsConfigFile: ./nats.yaml
+```
+
+`nats.yaml` 只需保留要覆盖的字段，列表整体替换。文件引用路径相对于主配置；存储和证书路径相对于进程工作目录。修改源码中的默认文件需重新构建；日常定制使用 `nats.yaml` 后重启即可。
+
+已有内联 `connector.nats` 配置需移到独立文件，去掉外层 `connector.nats`，再填写上述引用路径。
 
 ## 构建
 

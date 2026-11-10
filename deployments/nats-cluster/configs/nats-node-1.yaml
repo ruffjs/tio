@@ -1,0 +1,29 @@
+server:
+  serverName: tio-node-1
+  clusterName: tio
+  port: 4222
+  clusterPort: 6222
+  routes:
+    - nats://tio-node-2:6222
+    - nats://tio-node-3:6222
+  mqttPort: 1883
+  wsPort: 8083
+  storeDir: ./data/nats/tio-node-1
+  jetStreamMaxMemory: 268435456
+  jetStreamMaxStore: 1073741824
+  mqttStreamReplicas: 3
+  presenceReplicas: 3
+  clusterUser: $tio-route
+  clusterPassword: public
+appClient:
+  user: $tio-app
+  password: public
+systemClient:
+  user: $tio-sys
+  password: public
+mqttPublisher:
+  user: $tio-mqtt-publisher
+  password: public
+superUsers:
+  - name: $biz
+    password: public

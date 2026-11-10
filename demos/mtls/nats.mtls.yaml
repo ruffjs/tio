@@ -1,0 +1,28 @@
+server:
+  serverName: tio-node-1
+  clusterName: tio
+  port: 4222
+  mqttPort: 8883              # MQTT over TLS 端口
+  wsPort: 0                   # 禁用 WebSocket（mTLS demo 不需要）
+  monitorPort: 8222
+  storeDir: ./data/nats/tio-node-1
+  mqttStreamReplicas: 1
+  presenceReplicas: 1
+  # MQTT TLS 配置（双向认证）
+  mqttTls:
+    certFile: "./demos/mtls/certs/server-cert.pem"
+    keyFile: "./demos/mtls/certs/server-key.pem"
+    caFile: "./demos/mtls/certs/ca.pem"
+    requireClientCert: true
+appClient:
+  user: $tio-app
+  password: public
+systemClient:
+  user: $tio-sys
+  password: public
+mqttPublisher:
+  user: $tio-mqtt-publisher
+  password: public
+superUsers:
+  - name: $biz
+    password: public

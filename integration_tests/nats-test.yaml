@@ -1,0 +1,24 @@
+server:
+  serverName: test-node
+  clusterName: test
+  port: -1
+  clusterPort: 0
+  mqttPort: -1
+  wsPort: 0
+  monitorPort: 0
+  jetStreamMaxMemory: 0
+  jetStreamMaxStore: 0
+  mqttStreamReplicas: 1
+  presenceReplicas: 1
+appClient:
+  user: $tio-app
+  password: test
+systemClient:
+  user: $tio-sys
+  password: test
+mqttPublisher:
+  user: $tio-mqtt-pub
+  password: test
+superUsers:
+  - name: $biz
+    password: test

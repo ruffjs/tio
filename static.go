@@ -13,6 +13,9 @@ var (
 	//go:embed "config.default.yaml"
 	DefaultConfigYaml []byte
 
+	//go:embed "config-nats.default.yaml"
+	DefaultNatsConfigYaml []byte
+
 	//go:embed "api/swagger_ui/*"
 	swagFS embed.FS
 

@@ -223,7 +223,7 @@ data 和 event 消息不被 Tio 处理，直接透传到 NATS subject。业务�
 
 ### 连接
 
-使用 super-user 凭证通过 **NATS 协议**连接（非 MQTT），端口为 `config.nats.server.port`：
+使用 super-user 凭证通过 **NATS 协议**连接（非 MQTT），默认端口为 `4222`，可在主配置引用的 NATS YAML 中设置 `server.port`：
 
 ```go
 nc, _ := nats.Connect("nats://host:port", nats.UserInfo("$biz", "password"))

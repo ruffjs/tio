@@ -2,6 +2,7 @@
 
 Three-node tio cluster with embedded NATS clustering and a shared MySQL database.
 All nodes use JetStream replicas (R=3) for MQTT streams and presence KV.
+Each `configs/node-N.yaml` references `configs/nats-node-N.yaml`; Compose mounts both files. Application settings belong in the former, and all NATS settings belong in the latter.
 
 ## Architecture
 
@@ -56,16 +57,14 @@ docker compose logs tio-node-3 | grep -i "route"
 
 ## TLS (Optional)
 
-To enable TLS for client connections, add cert paths to each node config:
+To enable TLS for client connections, add cert paths to each `nats-node-N.yaml`:
 
 ```yaml
-connector:
-  nats:
-    server:
-      clientTls:
-        certFile: /app/certs/server-cert.pem
-        keyFile: /app/certs/server-key.pem
-        caFile: /app/certs/ca.pem
+server:
+  clientTls:
+    certFile: /app/certs/server-cert.pem
+    keyFile: /app/certs/server-key.pem
+    caFile: /app/certs/ca.pem
 ```
 
 Mount the certs directory in docker-compose.yml:

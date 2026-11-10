@@ -1,14 +1,72 @@
 package nats
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
+	"ruff.io/tio/config"
 )
+
+func TestStartupLog(t *testing.T) {
+	for _, tlsEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("tls=%t", tlsEnabled), func(t *testing.T) {
+			cfg := testServerConfig(t)
+			cfg.MonitorPort = -1
+			cfg.ClusterPassword = "route-secret-not-for-logs"
+			if tlsEnabled {
+				cfg.WsPort = -1
+				cfg.MqttTLS = config.NatsTLSConfig{
+					CertFile: "../../demos/mtls/certs/server-cert.pem",
+					KeyFile:  "../../demos/mtls/certs/server-key.pem",
+				}
+				cfg.ClientTLS = cfg.MqttTLS
+				cfg.WebsocketTLS = cfg.MqttTLS
+			}
+			s, err := StartNatsServer(cfg, &allowAllAuth{})
+			require.NoError(t, err)
+			defer s.Shutdown()
+			v, err := s.Server().Varz(nil)
+			require.NoError(t, err)
+			require.Positive(t, v.MQTT.Port)
+
+			var buf bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+			defer slog.SetDefault(previous)
+			s.logStartup()
+			var record map[string]any
+			require.NoError(t, json.Unmarshal(buf.Bytes(), &record))
+			require.Equal(t, "INFO", record["level"])
+			require.Equal(t, "NATS ready", record["msg"])
+			require.Equal(t, net.JoinHostPort(v.MQTT.Host, strconv.Itoa(v.MQTT.Port)), record["mqtt"])
+			require.Equal(t, tlsEnabled, record["mqttTLS"])
+			require.Equal(t, net.JoinHostPort(v.Host, strconv.Itoa(v.Port)), record["nats"])
+			require.Equal(t, tlsEnabled, record["natsTLS"])
+			require.Equal(t, tlsEnabled, record["websocketTLS"])
+			require.NotNil(t, s.Server().MonitorAddr())
+			require.Equal(t, s.Server().MonitorAddr().String(), record["monitor"])
+			require.Equal(t, s.Server().StoreDir(), record["storeDir"])
+			require.Equal(t, false, record["clusterEnabled"])
+			require.Equal(t, "disabled", record["cluster"])
+			if tlsEnabled {
+				require.Equal(t, net.JoinHostPort(v.Websocket.Host, strconv.Itoa(v.Websocket.Port)), record["websocket"])
+			} else {
+				require.Equal(t, "disabled", record["websocket"])
+			}
+			require.False(t, strings.Contains(buf.String(), cfg.ClusterPassword))
+		})
+	}
+}
 
 func TestServerStartsAndIsRunning(t *testing.T) {
 	cfg := testServerConfig(t)

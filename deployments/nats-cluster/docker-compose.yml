@@ -6,6 +6,7 @@ services:
     container_name: tio-node-1
     volumes:
       - ./configs/node-1.yaml:/app/config.yaml:ro
+      - ./configs/nats-node-1.yaml:/app/nats-node-1.yaml:ro
       - node1-data:/app/data/nats
     ports:
       - "4222:4222"
@@ -23,6 +24,7 @@ services:
     container_name: tio-node-2
     volumes:
       - ./configs/node-2.yaml:/app/config.yaml:ro
+      - ./configs/nats-node-2.yaml:/app/nats-node-2.yaml:ro
       - node2-data:/app/data/nats
     ports:
       - "4223:4222"
@@ -40,6 +42,7 @@ services:
     container_name: tio-node-3
     volumes:
       - ./configs/node-3.yaml:/app/config.yaml:ro
+      - ./configs/nats-node-3.yaml:/app/nats-node-3.yaml:ro
       - node3-data:/app/data/nats
     ports:
       - "4224:4222"

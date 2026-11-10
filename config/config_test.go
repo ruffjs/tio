@@ -2,9 +2,107 @@ package config
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
 )
+
+func TestLoadConfigDefaults(t *testing.T) {
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(t.TempDir())
+	cfg, err := loadConfig(v)
+	require.NoError(t, err)
+	require.Equal(t, 1883, cfg.Connector.Nats.Server.MqttPort)
+	require.Equal(t, 8083, cfg.Connector.Nats.Server.WsPort)
+	require.Equal(t, "./data/nats/tio-node-1", cfg.Connector.Nats.Server.StoreDir)
+	require.Equal(t, []UserPassword{{Name: "$biz", Password: "public"}, {Name: "$tio", Password: "public"}}, cfg.Connector.Nats.SuperUsers)
+	require.NoError(t, ValidateNatsConfig(cfg.Connector.Nats, cfg.DB.Typ))
+}
+
+func TestLoadConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	main := filepath.Join(dir, "config.yaml")
+	nats := filepath.Join(dir, "nats.yaml")
+	require.NoError(t, os.WriteFile(main, []byte("api:\n  port: 9100\nconnector:\n  natsConfigFile: ./nats.yaml\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("server:\n  mqttPort: 1884\n  wsPort: 0\nsuperUsers:\n  - name: custom\n    password: secret\n"), 0600))
+	cfg, err := LoadConfigFile(main)
+	require.NoError(t, err)
+	require.Equal(t, 9100, cfg.API.Port)
+	require.Equal(t, nats, cfg.Connector.NatsConfigFile)
+	require.Equal(t, 1884, cfg.Connector.Nats.Server.MqttPort)
+	require.Zero(t, cfg.Connector.Nats.Server.WsPort)
+	require.Equal(t, 4222, cfg.Connector.Nats.Server.Port)
+	require.Equal(t, "$tio-app", cfg.Connector.Nats.AppClient.User)
+	require.Equal(t, []UserPassword{{Name: "custom", Password: "secret"}}, cfg.Connector.Nats.SuperUsers)
+
+	// Lists can also be cleared, and absolute file references are accepted.
+	require.NoError(t, os.WriteFile(main, []byte("connector:\n  natsConfigFile: "+nats+"\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("superUsers: []\n"), 0600))
+	cfg, err = LoadConfigFile(main)
+	require.NoError(t, err)
+	require.Empty(t, cfg.Connector.Nats.SuperUsers)
+}
+
+func TestLoadConfigErrors(t *testing.T) {
+	cases := []struct {
+		name, main, nats, want string
+	}{
+		{"inline settings", "connector:\n  nats:\n    server:\n      mqttPort: 1884\n", "", "connector.natsConfigFile"},
+		{"empty inline settings", "connector:\n  nats: {}\n", "", "connector.natsConfigFile"},
+		{"invalid main", "api: [\n", "", "read main config"},
+		{"missing NATS file", "connector:\n  natsConfigFile: missing.yaml\n", "", "read NATS config"},
+		{"NATS path is a directory", "connector:\n  natsConfigFile: .\n", "", "read NATS config"},
+		{"invalid NATS YAML", "connector:\n  natsConfigFile: nats.yaml\n", "server: [\n", "read NATS config"},
+		{"unknown NATS option", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttPrt: 1884\n", "decode NATS config"},
+		{"invalid single-node replicas", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttStreamReplicas: 3\n", "single-node mqttStreamReplicas"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			filename := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(filename, []byte(tc.main), 0600))
+			if tc.nats != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "nats.yaml"), []byte(tc.nats), 0600))
+			}
+			_, err := LoadConfigFile(filename)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
+func TestShippedConfigs(t *testing.T) {
+	for _, filename := range []string{
+		"../config.yaml",
+		"../integration_tests/config-test.yaml",
+		"../demos/mtls/config.mtls.yaml",
+		"../deployments/nats-cluster/configs/node-1.yaml",
+		"../deployments/nats-cluster/configs/node-2.yaml",
+		"../deployments/nats-cluster/configs/node-3.yaml",
+	} {
+		t.Run(filename, func(t *testing.T) {
+			_, err := LoadConfigFile(filename)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestLoadNatsDefaultsFile(t *testing.T) {
+	defaultsFile, err := filepath.Abs("../config-nats.default.yaml")
+	require.NoError(t, err)
+	filename := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(filename, []byte("connector:\n  natsConfigFile: "+defaultsFile+"\n"), 0600))
+	cfg, err := LoadConfigFile(filename)
+	require.NoError(t, err)
+	defaults, err := LoadConfigFile("../config.yaml")
+	require.NoError(t, err)
+	require.Equal(t, defaults.Connector.Nats, cfg.Connector.Nats)
+}
 
 func TestConfigMarshalOmitsSecrets(t *testing.T) {
 	cfg := Config{

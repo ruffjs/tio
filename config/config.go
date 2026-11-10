@@ -3,8 +3,11 @@ package config
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	"ruff.io/tio"
 
@@ -124,35 +127,85 @@ type Config struct {
 }
 
 func ReadConfig() Config {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("/etc/tio/")
-	viper.AddConfigPath("$HOME/.tio")
-	viper.AddConfigPath(".")
-
-	err := viper.ReadConfig(bytes.NewReader(defaultConfigYaml))
-	if err != nil {
-		log.Fatalf("Error read default config file: %v", err)
-	}
-
-	err = viper.MergeInConfig()
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath("/etc/tio/")
+	v.AddConfigPath("$HOME/.tio")
+	v.AddConfigPath(".")
+	cfg, err := loadConfig(v)
 	if err != nil {
 		log.Fatalf("Error read config file: %v", err)
-	}
-	var cfg Config
-	err = viper.Unmarshal(&cfg)
-	if err != nil {
-		log.Fatalf("Error read config file content: %v", err)
 	}
 	return cfg
 }
 
+// LoadConfigFile loads a main config and its optional NATS file.
+func LoadConfigFile(filename string) (Config, error) {
+	v := viper.New()
+	v.SetConfigFile(filename)
+	return loadConfig(v)
+}
+
+func loadConfig(main *viper.Viper) (Config, error) {
+	if err := main.ReadInConfig(); err != nil {
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFound) {
+			return Config{}, fmt.Errorf("read main config: %w", err)
+		}
+	}
+	if main.InConfig("connector.nats") {
+		return Config{}, fmt.Errorf("move connector.nats to a separate YAML file and reference it with connector.natsConfigFile")
+	}
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	if err := v.ReadConfig(bytes.NewReader(defaultConfigYaml)); err != nil {
+		return Config{}, fmt.Errorf("read defaults: %w", err)
+	}
+	nats := viper.New()
+	nats.SetConfigType("yaml")
+	if err := nats.ReadConfig(bytes.NewReader(tio.DefaultNatsConfigYaml)); err != nil {
+		return Config{}, fmt.Errorf("read NATS defaults: %w", err)
+	}
+	if err := v.MergeConfigMap(main.AllSettings()); err != nil {
+		return Config{}, fmt.Errorf("merge main config: %w", err)
+	}
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return Config{}, fmt.Errorf("decode main config: %w", err)
+	}
+	if filename := cfg.Connector.NatsConfigFile; filename != "" {
+		if !filepath.IsAbs(filename) {
+			filename = filepath.Join(filepath.Dir(main.ConfigFileUsed()), filename)
+		}
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			return Config{}, fmt.Errorf("read NATS config %q: %w", filename, err)
+		}
+		if err := nats.MergeConfig(bytes.NewReader(data)); err != nil {
+			return Config{}, fmt.Errorf("read NATS config %q: %w", filename, err)
+		}
+		cfg.Connector.NatsConfigFile = filename
+	}
+	if err := nats.UnmarshalExact(&cfg.Connector.Nats); err != nil {
+		return Config{}, fmt.Errorf("decode NATS config: %w", err)
+	}
+	if cfg.Connector.Typ == ConnectorNats {
+		if err := ValidateNatsConfig(cfg.Connector.Nats, cfg.DB.Typ); err != nil {
+			return Config{}, err
+		}
+	}
+	return cfg, nil
+}
+
 type Connector struct {
-	Typ        string            `json:"type" mapstructure:"type"`
-	MqttClient MqttClientConfig  `json:"mqttClient"`
-	MqttBroker InnerMqttBroker   `json:"mqttBroker"`
-	Emqx       EmqxAdapterConfig `json:"emqx"`
-	Nats       NatsConfig        `json:"nats"`
+	Typ            string            `json:"type" mapstructure:"type"`
+	MqttClient     MqttClientConfig  `json:"mqttClient"`
+	MqttBroker     InnerMqttBroker   `json:"mqttBroker"`
+	Emqx           EmqxAdapterConfig `json:"emqx"`
+	NatsConfigFile string            `json:"natsConfigFile"`
+	Nats           NatsConfig        `json:"nats" mapstructure:"-"`
 }
 
 type MqttClientConfig struct {

@@ -113,6 +113,7 @@ func (c *Connector) Start(ctx context.Context) error {
 	}
 
 	c.started = true
+	c.natsSvr.logStartup()
 	return nil
 }
 
@@ -169,6 +170,7 @@ func (c *Connector) StartClients(ctx context.Context) error {
 	}
 
 	c.started = true
+	c.natsSvr.logStartup()
 	return nil
 }
 

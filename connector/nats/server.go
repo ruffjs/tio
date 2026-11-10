@@ -4,8 +4,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"ruff.io/tio/config"
@@ -88,6 +91,36 @@ func (s *NatsServer) WsPort() int {
 
 func (s *NatsServer) Server() *server.Server {
 	return s.server
+}
+
+func (s *NatsServer) logStartup() {
+	v, err := s.server.Varz(nil)
+	if err != nil {
+		slog.Error("Read NATS startup information", "error", err)
+		return
+	}
+	addr := func(host string, port int) string {
+		if port <= 0 {
+			return "disabled"
+		}
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	monitor := "disabled"
+	if a := s.server.MonitorAddr(); a != nil {
+		monitor = a.String()
+	}
+	cluster := "disabled"
+	if a := s.server.ClusterAddr(); a != nil {
+		cluster = a.String()
+	}
+	slog.Info("NATS ready",
+		"node", v.Name,
+		"mqtt", addr(v.MQTT.Host, v.MQTT.Port), "mqttTLS", !tlsConfigEmpty(s.opts.MqttTLS),
+		"websocket", addr(v.Websocket.Host, v.Websocket.Port), "websocketTLS", !v.Websocket.NoTLS && v.Websocket.Port > 0,
+		"nats", addr(v.Host, v.Port), "natsTLS", v.TLSRequired,
+		"monitor", monitor,
+		"storeDir", s.server.StoreDir(),
+		"clusterEnabled", s.server.ClusterAddr() != nil, "cluster", cluster)
 }
 
 func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication) (*server.Options, error) {
