@@ -25,6 +25,7 @@ type TimeSpan struct {
 	To   time.Time
 }
 
+//go:fix inline
 func Ref[T any](v T) *T {
-	return &v
+	return new(v)
 }

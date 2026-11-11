@@ -1,7 +1,7 @@
 package codec
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"reflect"
 	"sync"
@@ -43,7 +43,7 @@ func sharedCBOR() (Codec, error) {
 type jsonCodec struct{}
 
 func (jsonCodec) Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
+	return json.Marshal(v, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 }
 
 func (jsonCodec) Unmarshal(data []byte, v any) error {

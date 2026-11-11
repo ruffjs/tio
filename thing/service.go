@@ -253,7 +253,7 @@ func (t *thingSvc) UnbindFromGateway(ctx context.Context, thingIds []string, gat
 	// If gatewayThingId is empty, unbind all things
 	if len(thingIds) == 0 {
 		l, err := t.repo.Query(ctx, PageQuery{GatewayThingId: &gatewayThingId,
-			PageQuery: model.PageQuery{PageIndex: 1, PageSize: MaxBindThings}})
+			PageIndex: 1, PageSize: MaxBindThings})
 		if err != nil {
 			return errors.WithMessage(err, "query gateway bound things")
 		}
@@ -348,7 +348,7 @@ func (t *thingSvc) delBoundCache(thingId string) {
 func (t *thingSvc) GetBoundThingIds(ctx context.Context, gatewayThingId string) ([]string, error) {
 	l, err := t.repo.Query(ctx, PageQuery{
 		GatewayThingId: &gatewayThingId,
-		PageQuery:      model.PageQuery{PageIndex: 1, PageSize: MaxBindThings},
+		PageIndex:      1, PageSize: MaxBindThings,
 	})
 	if err != nil {
 		return nil, errors.WithMessage(err, "query gateway bound things")

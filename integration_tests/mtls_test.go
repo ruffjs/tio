@@ -4,7 +4,7 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"path/filepath"
 	"testing"
 	"time"
@@ -261,7 +261,7 @@ func TestCertificateConnectionUsesAuthenticatedThingIDForPresenceAndACL(t *testi
 	payload, err := json.Marshal(shadow.DeltaStateNotice{
 		Version: 1,
 		State:   shadow.StateValue{"on": true},
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)
 
 	require.NoError(t, mtlsConnector.Publish(shadow.TopicDeltaStateOf(certThingID), 0, false, payload))

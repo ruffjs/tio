@@ -2,7 +2,7 @@ package thing
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -52,7 +52,7 @@ func (t thingRepo) Create(ctx context.Context, th Thing, tags shadow.TagsValue) 
 		defaultObj := []byte("{}")
 		tagsJson := []byte("{}")
 		if tags != nil {
-			j, err := json.Marshal(tags)
+			j, err := json.Marshal(tags, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			if err != nil {
 				return err
 			}

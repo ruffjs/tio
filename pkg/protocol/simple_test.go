@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 	"time"
 
@@ -224,9 +224,9 @@ func TestSimpleHandler_ShadowDesired(t *testing.T) {
 					require.True(t, exists)
 					require.False(t, seen[got.Name])
 					seen[got.Name] = true
-					actualJSON, err := json.Marshal(got.Value)
+					actualJSON, err := json.Marshal(got.Value, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 					require.NoError(t, err)
-					expectedJSON, err := json.Marshal(expected)
+					expectedJSON, err := json.Marshal(expected, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 					require.NoError(t, err)
 					require.JSONEq(t, string(expectedJSON), string(actualJSON))
 					var fields map[string]any
@@ -586,5 +586,22 @@ func TestSimpleHandler_MethodRespBypassesWorkerPool(t *testing.T) {
 		assert.Equal(t, true, data["ok"])
 	case <-time.After(time.Second):
 		t.Fatal("method resp was blocked by the worker pool")
+	}
+}
+
+func TestJSONFieldOmission(t *testing.T) {
+	c, err := codec.New("json")
+	require.NoError(t, err)
+
+	data, err := c.Marshal(ShadowGetReply{Code: 200})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"code":200}`, string(data))
+
+	for _, value := range []any{false, 0, map[string]any{}, []any{}} {
+		data, err := c.Marshal(MethodReq{ID: "1", Method: "test", Data: value})
+		require.NoError(t, err)
+		var got map[string]any
+		require.NoError(t, c.Unmarshal(data, &got))
+		assert.Contains(t, got, "data")
 	}
 }

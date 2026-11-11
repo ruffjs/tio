@@ -2,7 +2,7 @@ package ntp_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"math"
 	"math/rand"
 	"testing"
@@ -55,7 +55,7 @@ func TestNtpHandler(t *testing.T) {
 		respTopic := ntp.TopicResp(c.thingId)
 
 		req := ntp.Req{ClientSendTime: clientNow()}
-		reqJson, _ := json.Marshal(req)
+		reqJson, _ := json.Marshal(req, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 
 		mc.SimulateMessage(reqTopic, reqJson)
 

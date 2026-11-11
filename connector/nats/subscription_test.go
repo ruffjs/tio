@@ -182,12 +182,12 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 
 	const subs = 5
 	const msgs = 30
-	var totalReceived int32
+	var totalReceived atomic.Int32
 	var wg sync.WaitGroup
 
 	ctx := context.Background()
 	for range subs {
-		if err := c.Subscribe(ctx, "$iothub/things/dev1/stress/#", func(msg connector.Message) { atomic.AddInt32(&totalReceived, 1) }); err != nil {
+		if err := c.Subscribe(ctx, "$iothub/things/dev1/stress/#", func(msg connector.Message) { totalReceived.Add(1) }); err != nil {
 			t.Fatalf("Subscribe: %v", err)
 		}
 	}
@@ -201,7 +201,7 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 	wg.Wait()
 
 	time.Sleep(1 * time.Second)
-	got := atomic.LoadInt32(&totalReceived)
+	got := totalReceived.Load()
 	want := int32(subs * msgs)
 	if got != want {
 		t.Fatalf("total received = %d, want %d", got, want)

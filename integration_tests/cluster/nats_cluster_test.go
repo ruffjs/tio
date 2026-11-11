@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	natsConn "ruff.io/tio/connector/nats"
 	"ruff.io/tio/config"
+	natsConn "ruff.io/tio/connector/nats"
 
 	server "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -18,9 +18,9 @@ import (
 )
 
 type clusterSetup struct {
-	servers   []*natsConn.NatsServer
-	clients   []*nats.Conn
-	storeDirs []string
+	servers      []*natsConn.NatsServer
+	clients      []*nats.Conn
+	storeDirs    []string
 	clusterPorts []int
 }
 
@@ -155,7 +155,7 @@ func TestClusterQueueSubscribe(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	const total = 10
-	for i := 0; i < total; i++ {
+	for i := range total {
 		err = cs.clients[0].Publish("test.queue", []byte(fmt.Sprintf("msg-%d", i)))
 		require.NoError(t, err)
 	}
@@ -186,7 +186,7 @@ func TestClusterBroadcastSubscribe(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	const total = 10
-	for i := 0; i < total; i++ {
+	for i := range total {
 		err = cs.clients[0].Publish("test.broadcast", []byte(fmt.Sprintf("msg-%d", i)))
 		require.NoError(t, err)
 	}
@@ -281,7 +281,7 @@ func TestClusterNodeLoss(t *testing.T) {
 	cs.clients[2].Flush()
 	time.Sleep(200 * time.Millisecond)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		err = cs.clients[0].Publish("test.nodeloss", []byte(fmt.Sprintf("before-%d", i)))
 		require.NoError(t, err)
 	}
@@ -295,7 +295,7 @@ func TestClusterNodeLoss(t *testing.T) {
 	cs.servers[1].Shutdown()
 	time.Sleep(2 * time.Second)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		err = cs.clients[0].Publish("test.nodeloss", []byte(fmt.Sprintf("after-%d", i)))
 		require.NoError(t, err)
 	}

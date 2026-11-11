@@ -2,7 +2,7 @@ package shadow_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"reflect"
 	"testing"
@@ -136,8 +136,8 @@ func TestSvcImpl_Set(t *testing.T) {
 		req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{Desired: stateVal}}
 		s, err = svc.SetDesired(ctx, thingId, req)
 		require.NoError(t, err)
-		o, _ := json.Marshal(stateVal)
-		n, _ := json.Marshal(s.State.Desired)
+		o, _ := json.Marshal(stateVal, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
+		n, _ := json.Marshal(s.State.Desired, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		require.Equal(t, string(o), string(n))
 
 		// TODO check shadow metadata
@@ -150,8 +150,8 @@ func TestSvcImpl_Set(t *testing.T) {
 		req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{Reported: stateVal}}
 		s, err = svc.SetReported(ctx, thingId, req)
 		require.NoError(t, err)
-		o, _ := json.Marshal(stateVal)
-		n, _ := json.Marshal(s.State.Reported)
+		o, _ := json.Marshal(stateVal, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
+		n, _ := json.Marshal(s.State.Reported, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		require.Equal(t, string(o), string(n))
 	})
 
@@ -171,8 +171,8 @@ func TestSvcImpl_Set(t *testing.T) {
 		req.Version = 2
 		s, err = svc.SetDesired(ctx, thingId, req)
 		require.NoError(t, err)
-		o, _ := json.Marshal(stateVal)
-		n, _ := json.Marshal(s.State.Desired)
+		o, _ := json.Marshal(stateVal, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
+		n, _ := json.Marshal(s.State.Desired, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		require.Equal(t, string(o), string(n))
 	})
 

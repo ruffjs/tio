@@ -2,7 +2,7 @@ package sqlparser
 
 import (
 	"fmt"
-	"io/ioutil"
+
 	"log"
 	"os"
 	"testing"
@@ -465,7 +465,7 @@ func TestSQL(t *testing.T) {
 }
 
 func createReadme(out output) {
-	content, err := ioutil.ReadFile("README.template")
+	content, err := os.ReadFile("README.template")
 	if err != nil {
 		log.Fatal(err)
 	}

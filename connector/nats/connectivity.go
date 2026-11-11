@@ -1,7 +1,7 @@
 package nats
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"time"
@@ -19,7 +19,7 @@ type controlDisconnectRequest struct {
 
 type controlDisconnectResponse struct {
 	Disconnected bool   `json:"disconnected"`
-	Error        string `json:"error,omitempty"`
+	Error        string `json:"error,omitzero"`
 }
 
 func (c *Connector) IsConnected(thingId string) (bool, error) {
@@ -139,7 +139,7 @@ func (c *Connector) Close(thingId string) error {
 		return fmt.Errorf("no connection found for %q", thingId)
 	}
 
-	payload, err := json.Marshal(controlDisconnectRequest{ThingId: thingId, ServerId: rec.ServerId})
+	payload, err := json.Marshal(controlDisconnectRequest{ThingId: thingId, ServerId: rec.ServerId}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return fmt.Errorf("marshal control disconnect: %w", err)
 	}

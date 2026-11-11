@@ -2,11 +2,15 @@ package main
 
 import (
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"ruff.io/tio/config"
+	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
 )
 
@@ -56,4 +60,20 @@ func TestNestedDesiredProperty(t *testing.T) {
 	merged, changed := shadow.MergePatch(baseline, patch)
 	require.True(t, changed)
 	require.Equal(t, nestedState("desired", "marker"), merged)
+}
+
+func TestAPIConfigResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/private/api/config", r.URL.Path)
+		var cfg config.Config
+		cfg.Protocol.Mode = "simple"
+		cfg.Protocol.DefaultEncoding = "json"
+		rest.SendRespOK(w, cfg)
+	}))
+	defer server.Close()
+	p := &probe{apiURL: server.URL, http: server.Client()}
+	var cfg config.Config
+	require.NoError(t, p.api(http.MethodGet, "/private/api/config", nil, &cfg))
+	require.Equal(t, "simple", cfg.Protocol.Mode)
+	require.Equal(t, "json", cfg.Protocol.DefaultEncoding)
 }

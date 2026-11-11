@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
-	"io/ioutil"
+
 	"log"
 	"log/slog"
 	"math/rand"
@@ -104,7 +104,7 @@ func receiveThingsProperties() {
 
 func createExampleThing() {
 	createThReq := api.CreateReq{ThingId: "example", Password: "example"}
-	b, _ := json.Marshal(createThReq)
+	b, _ := json.Marshal(createThReq, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 
 	slog.Info("create thing", "method", http.MethodPost, "url", fmt.Sprintf("%s/api/v1/things", httpUrl), "body", string(b))
 
@@ -159,7 +159,7 @@ func setBrightnessByShadow() {
 	if err != nil {
 		slog.Error("Modify Brightness error", "error", err)
 	}
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	slog.Info(string(body))
 }
 

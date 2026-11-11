@@ -24,10 +24,10 @@ type Thing struct {
 	Id        string `json:"thingId"`
 	Enabled   bool   `json:"enabled"`
 	AuthType  string `json:"authType"`
-	AuthValue string `json:"authValue,omitempty" optional:"true"`
+	AuthValue string `json:"authValue,omitzero" optional:"true"`
 
 	IsGateway      bool   `json:"isGateway"`
-	GatewayThingId string `json:"gatewayThingId,omitempty" optional:"true"`
+	GatewayThingId string `json:"gatewayThingId,omitzero" optional:"true"`
 
 	MessageProtocol string `json:"messageProtocol"`
 	PayloadEncoding string `json:"payloadEncoding"`
@@ -39,9 +39,9 @@ type Thing struct {
 // ThingWithConnStatus is used for JOIN query results with connection status
 type ThingWithConnStatus struct {
 	Thing
-	Connected      *bool      `json:"connected,omitempty"`
-	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
-	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
+	Connected      *bool      `json:"connected,omitzero"`
+	ConnectedAt    *time.Time `json:"connectedAt,omitzero"`
+	DisconnectedAt *time.Time `json:"disconnectedAt,omitzero"`
 }
 
 type ThingPatch struct {

@@ -2,7 +2,7 @@ package job
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -163,14 +163,14 @@ func (s *mgrSvcImpl) UpdateJob(ctx context.Context, jobId string, r UpdateReq) e
 		toUpdate["description"] = *r.Description
 	}
 	if r.TimeoutConfig != nil {
-		if buf, err := json.Marshal(*r.TimeoutConfig); err == nil {
+		if buf, err := json.Marshal(*r.TimeoutConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err == nil {
 			toUpdate["timeout_config"] = buf
 		} else {
 			return errors.WithMessage(model.ErrInvalidParams, "timeoutConfig: "+err.Error())
 		}
 	}
 	if r.RetryConfig != nil {
-		if buf, err := json.Marshal(*r.RetryConfig); err == nil {
+		if buf, err := json.Marshal(*r.RetryConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err == nil {
 			toUpdate["retry_config"] = buf
 		} else {
 			return errors.WithMessage(model.ErrInvalidParams, "retryConfig: "+err.Error())
@@ -305,7 +305,7 @@ func (s *mgrSvcImpl) QueryJob(ctx context.Context, q PageQuery) (Page, error) {
 func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r CancelTaskReq, force bool) error {
 	var t TaskEntity
 	err := s.repo.ExecWithTx(func(txRepo Repo) error {
-		l, err := txRepo.QueryTask(ctx, thingId, jobId, TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+		l, err := txRepo.QueryTask(ctx, thingId, jobId, TaskPageQuery{PageIndex: 1, PageSize: 1})
 		if err != nil {
 			return err
 		}
@@ -329,7 +329,7 @@ func (s *mgrSvcImpl) CancelTask(ctx context.Context, thingId, jobId string, r Ca
 				fmt.Sprintf("current version %d, expect version %d", t.Version, r.Version))
 		}
 		if r.StatusDetails != nil {
-			if sdBuf, err := json.Marshal(*r.StatusDetails); err == nil {
+			if sdBuf, err := json.Marshal(*r.StatusDetails, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err == nil {
 				toUpdate["status_details"] = sdBuf
 			} else {
 				return errors.WithMessage(model.ErrInvalidParams, "statusDetails: "+err.Error())

@@ -3,7 +3,7 @@ package api_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -85,7 +85,7 @@ func id() string {
 }
 
 func toBuf(t any) *bytes.Buffer {
-	b, _ := json.Marshal(t)
+	b, _ := json.Marshal(t, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	return bytes.NewBuffer(b)
 }
 
@@ -105,7 +105,7 @@ func TestCreateHandler(t *testing.T) {
 	decodeRes := func(resp *http.Response) (thing.Thing, error) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		var resD rest.Resp[thing.Thing]
-		err := json.NewDecoder(resp.Body).Decode(&resD)
+		err := json.UnmarshalRead(resp.Body, &resD)
 		var rTh = resD.Data
 		return rTh, err
 	}
@@ -216,7 +216,7 @@ func TestCreateBatchHandler(t *testing.T) {
 	decodeRes := func(resp *http.Response) (api.CreateBatchResp, error) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		var resD rest.Resp[api.CreateBatchResp]
-		err := json.NewDecoder(resp.Body).Decode(&resD)
+		err := json.UnmarshalRead(resp.Body, &resD)
 		var rTh = resD.Data
 		return rTh, err
 	}
@@ -312,7 +312,7 @@ func TestQueryHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[model.PageData[thing.Thing]]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.Equal(t, resD.Data.Total, int64(gwCount+normalCount))
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -323,7 +323,7 @@ func TestQueryHandler(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		resp, err = client.Do(req)
 		require.NoError(t, err)
-		err = json.NewDecoder(resp.Body).Decode(&resD2)
+		err = json.UnmarshalRead(resp.Body, &resD2)
 		require.Equal(t, int64(gwCount), resD2.Data.Total)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -365,7 +365,7 @@ func TestQueryHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[thing.Page]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -389,7 +389,7 @@ func TestQueryHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD2 rest.Resp[thing.Page]
-		err = json.NewDecoder(resp.Body).Decode(&resD2)
+		err = json.UnmarshalRead(resp.Body, &resD2)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -428,7 +428,7 @@ func TestGetHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[thing.Thing]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.Equal(t, resD.Data.Id, th.ThingId)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -459,7 +459,7 @@ func TestDeleteHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[any]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD.Code)
@@ -471,7 +471,7 @@ func TestDeleteHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD2 rest.Resp[any]
-		err = json.NewDecoder(resp.Body).Decode(&resD2)
+		err = json.UnmarshalRead(resp.Body, &resD2)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD2.Code)
@@ -514,7 +514,7 @@ func TestBindHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[any]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD.Code)
@@ -527,7 +527,7 @@ func TestBindHandler(t *testing.T) {
 		resp, err = client.Do(req)
 		require.NoError(t, err)
 		var resD rest.Resp[any]
-		err = json.NewDecoder(resp.Body).Decode(&resD)
+		err = json.UnmarshalRead(resp.Body, &resD)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, http.StatusOK, resD.Code)

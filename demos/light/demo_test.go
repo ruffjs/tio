@@ -5,7 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -130,7 +130,7 @@ var (
 
 func createThing(t *testing.T, thingId, password string) {
 	createThReq := api.CreateReq{ThingId: thingId, Password: password}
-	b, _ := json.Marshal(createThReq)
+	b, _ := json.Marshal(createThReq, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", testHTTPUrl), bytes.NewBuffer(b))
 	req.SetBasicAuth(testHTTPUser, testHTTPPassword)
@@ -184,7 +184,7 @@ func waitThingOnline(t *testing.T) {
 		}
 		defer resp.Body.Close()
 		var body rest.Resp[shadow.ShadowWithStatus]
-		if json.NewDecoder(resp.Body).Decode(&body) != nil || body.Data.Connected == nil {
+		if json.UnmarshalRead(resp.Body, &body) != nil || body.Data.Connected == nil {
 			return false
 		}
 		return *body.Data.Connected
@@ -236,7 +236,7 @@ func subscribeDeviceTopics(t *testing.T, client *mqtttest.DeviceClient) {
 						Message:     "OK from test device",
 						Code:        200,
 					}
-					b, _ := json.Marshal(resp)
+					b, _ := json.Marshal(resp, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 					client.Publish(methodRespTopic, 0, false, b)
 				}
 			}
@@ -259,7 +259,7 @@ func reportShadow(t *testing.T, client *mqtttest.DeviceClient) {
 		ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixMicro()),
 		State:       shadow.StateDR{Reported: lightState},
 	}
-	reqJson, _ := json.Marshal(r)
+	reqJson, _ := json.Marshal(r, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update", testThingId)
 	err := client.Publish(topic, 1, false, reqJson)
 	require.NoError(t, err)
@@ -339,7 +339,7 @@ func verifyMethodReceived(t *testing.T) {
 }
 
 func reportProperty(t *testing.T, client *mqtttest.DeviceClient) {
-	data, _ := json.Marshal(map[string]any{"power": "on", "voltage": 225})
+	data, _ := json.Marshal(map[string]any{"power": "on", "voltage": 225}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	topic := fmt.Sprintf("$iothub/things/%s/messages/property", testThingId)
 	err := client.Publish(topic, 1, false, data)
 	require.NoError(t, err)

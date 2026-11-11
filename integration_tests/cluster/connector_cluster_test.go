@@ -4,7 +4,7 @@ package cluster_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"testing"
@@ -274,7 +274,7 @@ func TestClusterReconciliation_FakeRecord(t *testing.T) {
 		ServerId:  "non-existent-node",
 		Timestamp: time.Now().UnixMilli(),
 	}
-	data, err := json.Marshal(fakeRec)
+	data, err := json.Marshal(fakeRec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)
 	_, err = kv.Put("presence."+fakeThingId, data)
 	require.NoError(t, err)

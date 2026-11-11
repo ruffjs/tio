@@ -4,7 +4,7 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -474,7 +474,7 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var respBody rest.Resp[rest.H]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.UnmarshalRead(resp.Body, &respBody)
 	require.NoError(t, err)
 	require.Equal(t, 200, respBody.Code)
 	respData := respBody.Data["data"].(map[string]any)
@@ -522,7 +522,7 @@ func TestSimpleProtocol_MethodCallTimeout(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var respBody rest.Resp[any]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.UnmarshalRead(resp.Body, &respBody)
 	require.NoError(t, err)
 	require.Equal(t, 504, respBody.Code, "should return timeout error code")
 	resp.Body.Close()

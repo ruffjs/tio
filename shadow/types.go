@@ -24,10 +24,10 @@ type ShadowWithEnable struct {
 
 type ShadowWithStatus struct {
 	Enabled        bool       `json:"enabled"`
-	Connected      *bool      `json:"connected,omitempty"`
-	ConnectedAt    *time.Time `json:"connectedAt,omitempty"`
-	DisconnectedAt *time.Time `json:"disconnectedAt,omitempty"`
-	RemoteAddr     string     `json:"remoteAddr,omitempty"`
+	Connected      *bool      `json:"connected,omitzero"`
+	ConnectedAt    *time.Time `json:"connectedAt,omitzero"`
+	DisconnectedAt *time.Time `json:"disconnectedAt,omitzero"`
+	RemoteAddr     string     `json:"remoteAddr,omitzero"`
 	Shadow
 }
 
@@ -68,8 +68,8 @@ type TagsReq struct {
 
 // GetReq Publish a request to get device's shadow
 type GetReq struct {
-	ClientToken string // optional
-	NoMetadata  bool   // optional
+	ClientToken string `json:"clientToken"` // optional
+	NoMetadata  bool   `json:"noMetadata"`  // optional
 }
 
 // StateAcceptedResp  tio publishes a response shadow document to this topic when returning the device's shadow:

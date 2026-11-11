@@ -21,11 +21,11 @@ import (
 type CreateReq struct {
 	ThingId   string `json:"thingId"`
 	Password  string `json:"password"`
-	AuthType  string `json:"authType,omitempty"`
+	AuthType  string `json:"authType,omitzero"`
 	IsGateway bool   `json:"isGateway"`
 
-	MessageProtocol string `json:"messageProtocol,omitempty"`
-	PayloadEncoding string `json:"payloadEncoding,omitempty"`
+	MessageProtocol string `json:"messageProtocol,omitzero"`
+	PayloadEncoding string `json:"payloadEncoding,omitzero"`
 
 	Tags map[string]any `json:"tags"`
 }

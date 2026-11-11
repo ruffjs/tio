@@ -1,7 +1,7 @@
 package job
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -90,7 +90,7 @@ func (TaskStatus) GormDBDataType(db *gorm.DB, field *schema.Field) string {
 }
 
 func toEntity(r CreateReq) (Entity, error) {
-	targetConf, err := json.Marshal(r.TargetConfig)
+	targetConf, err := json.Marshal(r.TargetConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field targetConfig: "+err.Error())
 	}
@@ -99,31 +99,31 @@ func toEntity(r CreateReq) (Entity, error) {
 	var retryConf []byte = nil
 	var timeoutConf []byte = nil
 	if r.SchedulingConfig != nil {
-		schConfig, err = json.Marshal(*r.SchedulingConfig)
+		schConfig, err = json.Marshal(*r.SchedulingConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field schedulingConfig: "+err.Error())
 		}
 	}
 	if r.RolloutConfig != nil {
-		roConfig, err = json.Marshal(*r.RolloutConfig)
+		roConfig, err = json.Marshal(*r.RolloutConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "filed rolloutConfig: "+err.Error())
 		}
 	}
 	if r.RetryConfig != nil {
-		if retryConf, err = json.Marshal(*r.RetryConfig); err != nil {
+		if retryConf, err = json.Marshal(*r.RetryConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field retryConfig: "+err.Error())
 		}
 	}
 	if r.TimeoutConfig != nil {
-		if timeoutConf, err = json.Marshal(*r.TimeoutConfig); err != nil {
+		if timeoutConf, err = json.Marshal(*r.TimeoutConfig, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field timeoutConfig: "+err.Error())
 		}
 	}
 
 	var jd []byte
 	if r.JobDoc != nil {
-		if jd, err = json.Marshal(r.JobDoc); err != nil {
+		if jd, err = json.Marshal(r.JobDoc, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err != nil {
 			return Entity{}, errors.WithMessage(model.ErrInvalidParams, "field jobDoc: "+err.Error())
 		}
 	}

@@ -206,7 +206,7 @@ func TestThingSvc_Update(t *testing.T) {
 	t.Run("Disable thing", func(t *testing.T) {
 		connDelCall := connector.On("Close", th.Id).Return(nil).Times(1)
 		defer connDelCall.Unset()
-		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: model.Ref(false)})
+		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: new(false)})
 		connDelCall.Parent.AssertExpectations(t)
 		en, err := svc.Get(ctxTest, th.Id)
 		require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestThingSvc_Update(t *testing.T) {
 	t.Run("Enable thing", func(t *testing.T) {
 		connDelCall := connector.On("Close", th.Id).Return(nil).Times(0)
 		defer connDelCall.Unset()
-		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: model.Ref(true)})
+		svc.Update(ctxTest, th.Id, thing.ThingPatch{Enabled: new(true)})
 		connDelCall.Parent.AssertExpectations(t)
 		en, err := svc.Get(ctxTest, th.Id)
 		require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestThingSvc_Get(t *testing.T) {
 
 	pq := thing.PageQuery{
 		WithAuthValue: true,
-		PageQuery:     model.PageQuery{PageIndex: 0, PageSize: 10},
+		PageIndex:     0, PageSize: 10,
 	}
 	page, err := svc.Query(ctxTest, pq)
 	require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestThingSvc_QueryWithStatus(t *testing.T) {
 		pq := thing.PageQuery{
 			WithStatus:    true,
 			WithAuthValue: false,
-			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+			PageIndex:     1, PageSize: 10,
 		}
 		page, err := svc.Query(ctxTest, pq)
 		require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestThingSvc_QueryWithStatus(t *testing.T) {
 		pq := thing.PageQuery{
 			WithStatus:    false,
 			WithAuthValue: false,
-			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+			PageIndex:     1, PageSize: 10,
 		}
 		page, err := svc.Query(ctxTest, pq)
 		require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestThingSvc_QueryWithStatus(t *testing.T) {
 		pq := thing.PageQuery{
 			WithStatus:    true,
 			WithAuthValue: false,
-			PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+			PageIndex:     1, PageSize: 10,
 		}
 		page, err := svc.Query(ctxTest, pq)
 		require.NoError(t, err)
@@ -381,9 +381,9 @@ func TestThingSvc_QueryWithEnabledFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	pq := thing.PageQuery{
-		Enabled:       model.Ref(false),
+		Enabled:       new(false),
 		WithAuthValue: true,
-		PageQuery:     model.PageQuery{PageIndex: 1, PageSize: 10},
+		PageIndex:     1, PageSize: 10,
 	}
 	page, err := svc.Query(ctxTest, pq)
 	require.NoError(t, err)
@@ -474,7 +474,7 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 
 			// checke bound
 			l, err := svc.Query(ctxTest, thing.PageQuery{
-				GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+				GatewayThingId: &gw.Id, PageIndex: 1, PageSize: 10})
 			require.NoError(t, err)
 			require.Equal(t, len(cas.thIds), len(l.Content))
 			for _, th := range l.Content {
@@ -486,7 +486,7 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 				require.NoError(t, err)
 				// check
 				l, err := svc.Query(ctxTest, thing.PageQuery{
-					GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+					GatewayThingId: &gw.Id, PageIndex: 1, PageSize: 10})
 				require.NoError(t, err)
 				require.Equal(t, 0, len(l.Content))
 			} else if len(cas.unbindIds) > 0 {
@@ -494,7 +494,7 @@ func TestThingSvc_GatewayBind(t *testing.T) {
 				// check
 				require.NoError(t, err, "unbind things %v from gateway %s", cas.unbindIds, gw.Id)
 				l, err := svc.Query(ctxTest, thing.PageQuery{
-					GatewayThingId: &gw.Id, PageQuery: model.PageQuery{PageIndex: 1, PageSize: 10}})
+					GatewayThingId: &gw.Id, PageIndex: 1, PageSize: 10})
 				require.NoError(t, err)
 				require.Equal(t, len(cas.remainIds), len(l.Content))
 				for _, thId := range l.Content {

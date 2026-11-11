@@ -2,7 +2,7 @@ package shadow
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -298,7 +298,7 @@ func (s *shadowSvc) Query(ctx context.Context, pq model.PageQuery, query string)
 // Convert ShadowWithStatus to map
 // Use json Marshal and Unmarshal to simplify it, although there is some loss of performance
 func entityToMap(list []ShadowWithStatus) ([]map[string]any, error) {
-	j, err := json.Marshal(list)
+	j, err := json.Marshal(list, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,7 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"strings"
@@ -93,7 +93,7 @@ func TestCrossThingAccessDenied(t *testing.T) {
 	payload, _ := json.Marshal(shadow.DeltaStateNotice{
 		Version: 1,
 		State:   shadow.StateValue{"on": true},
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, natsConnector.PublishReliable(topic, payload))
 
 	time.Sleep(500 * time.Millisecond)
@@ -265,7 +265,7 @@ func TestQueueSubscribe(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		payload := []byte(fmt.Sprintf(`{"msg":%d}`, i))
 		require.NoError(t, natsConnector.PublishReliable(topic, payload))
 	}
@@ -319,7 +319,7 @@ func TestShadowSetDesiredAcceptance(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var respBody rest.Resp[any]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.UnmarshalRead(resp.Body, &respBody)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, respBody.Code)
 

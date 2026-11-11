@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"log/slog"
@@ -138,7 +139,7 @@ func updateShadowReported(payload map[string]any) {
 		ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixMicro()),
 		State:       shadow.StateDR{Reported: payload},
 	}
-	reqJson, _ := json.Marshal(r)
+	reqJson, _ := json.Marshal(r, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	slog.Info("[Set Shadow Reported]", "request", toJsonStr(r))
 	topic := fmt.Sprintf("$iothub/things/%s/shadows/name/default/update", thingId)
 	mqttClient.Publish(topic, 1, false, reqJson)
@@ -218,7 +219,7 @@ func receiveDirectMethodInvoke() {
 				}
 			}
 
-			b, _ := json.Marshal(resp)
+			b, _ := json.Marshal(resp, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			mqttClient.Publish(topicResp, 0, false, b)
 		}()
 	})
@@ -238,7 +239,7 @@ func regularlyReportState() {
 			lightState["voltage"] = rand.Intn(30-6) + 5
 
 			// report
-			data, _ := json.Marshal(map[string]any{"power": lightState["power"], "voltage": lightState["voltage"]})
+			data, _ := json.Marshal(map[string]any{"power": lightState["power"], "voltage": lightState["voltage"]}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			err := mqttClient.Publish(topic, 1, false, data)
 			if err != nil {
 				slog.Error("[Report Property] error", "error", err)
@@ -322,7 +323,7 @@ func flashLight(times int) {
 }
 
 func toJsonStr(v any) string {
-	s, err := json.MarshalIndent(v, "", "  ")
+	s, err := json.Marshal(v, jsontext.WithIndent("  "), json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		log.Fatalf("Marshal value %v error %v", v, err)
 	}

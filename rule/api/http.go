@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -104,7 +104,7 @@ func SaveConfigHandler(ruleMgr *rule.RuleMgr) restful.RouteFunction {
 		// 	return
 		// }
 
-		if err := json.NewDecoder(r.Request.Body).Decode(&cfg); err != nil {
+		if err := json.UnmarshalRead(r.Request.Body, &cfg); err != nil {
 			rest.SendResp(w, 400, rest.Resp[string]{Code: 400, Message: err.Error()})
 			return
 		}
@@ -165,7 +165,7 @@ func TestHandler(ctx context.Context) restful.RouteFunction {
 
 		in, err := rule.MsgToProcessInput(
 			source.Msg{ThingId: req.ThingId, Topic: req.Topic, Payload: req.Payload},
-			shadow.ShadowWithStatus{Shadow: shadow.Shadow{ThingId: req.ThingId}},
+			shadow.ShadowWithStatus{ThingId: req.ThingId},
 		)
 		if err != nil {
 			rest.SendRespOK(w, TestRuleResp{Success: false, Message: "message invalid:" + err.Error()})

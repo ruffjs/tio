@@ -2,7 +2,7 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,15 +36,15 @@ type PresenceRecord struct {
 }
 
 type sysClientInfo struct {
-	User       string `json:"user,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Host       string `json:"host,omitempty"`
-	ID         uint64 `json:"id,omitempty"`
-	Account    string `json:"acc,omitempty"`
-	Server     string `json:"server,omitempty"`
-	MQTTClient string `json:"client_id,omitempty"`
-	Kind       string `json:"kind,omitempty"`
-	ClientType string `json:"client_type,omitempty"`
+	User       string `json:"user,omitzero"`
+	Name       string `json:"name,omitzero"`
+	Host       string `json:"host,omitzero"`
+	ID         uint64 `json:"id,omitzero"`
+	Account    string `json:"acc,omitzero"`
+	Server     string `json:"server,omitzero"`
+	MQTTClient string `json:"client_id,omitzero"`
+	Kind       string `json:"kind,omitzero"`
+	ClientType string `json:"client_type,omitzero"`
 }
 
 type sysServerInfo struct {
@@ -104,7 +104,7 @@ func (c *Connector) initControl() error {
 		if !resp.Disconnected {
 			resp.Error = fmt.Sprintf("no connection found for %q on server %q", req.ThingId, req.ServerId)
 		}
-		data, err := json.Marshal(resp)
+		data, err := json.Marshal(resp, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			return
 		}
@@ -159,7 +159,7 @@ func (c *Connector) handleDisconnectEvent(msg *nats.Msg) {
 
 // Call with presenceMu held; each retry reads both the latest owner and connections.
 func (c *Connector) syncLocalPresence(thingId, reason string) {
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		if c.ctx.Err() != nil {
 			return
 		}
@@ -215,7 +215,7 @@ func (c *Connector) trySyncLocalPresence(thingId, reason string) error {
 	now := time.Now()
 	rec.ThingId, rec.ServerId = thingId, c.cfg.Server.ServerName
 	rec.Connected, rec.Timestamp = connected, now.UnixMilli()
-	data, _ := json.Marshal(rec)
+	data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if revision == 0 {
 		_, err = c.kv.Create(key, data)
 	} else {
@@ -276,8 +276,8 @@ func (c *Connector) compensatePresence() {
 		users[ci.AuthorizedUser] = true
 	}
 	for _, key := range keys {
-		if strings.HasPrefix(key, presenceKeyPrefix) {
-			users[strings.TrimPrefix(key, presenceKeyPrefix)] = true
+		if after, ok := strings.CutPrefix(key, presenceKeyPrefix); ok {
+			users[after] = true
 		}
 	}
 	for user := range users {
@@ -401,7 +401,7 @@ func (c *Connector) reconcile() {
 			now := time.Now()
 			rec.Connected = false
 			rec.Timestamp = now.UnixMilli()
-			data, _ := json.Marshal(rec)
+			data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			if _, err := c.kv.Put(key, data); err != nil {
 				slog.Error("reconcile: put stale presence", "key", key, "error", err)
 				continue
@@ -475,7 +475,11 @@ func (c *Connector) requestAliveServers(subject string, timeout time.Duration) m
 			return result
 		}
 
-		var stats server.ServerStatsMsg
+		var stats struct {
+			Server struct {
+				Name string `json:"name"`
+			} `json:"server"`
+		}
 		if json.Unmarshal(msg.Data, &stats) == nil && stats.Server.Name != "" {
 			result[stats.Server.Name] = true
 		}

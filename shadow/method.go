@@ -28,13 +28,13 @@ type MethodReqMsg struct {
 }
 
 type MethodReq struct {
-	ClientToken string `json:"clientToken,omitempty"`
-	Data        any    `json:"data,omitempty"`
+	ClientToken string `json:"clientToken,omitzero"`
+	Data        any    `json:"data,omitzero"`
 }
 
 type MethodResp struct {
-	ClientToken string `json:"clientToken,omitempty"`
-	Data        any    `json:"data,omitempty"`
+	ClientToken string `json:"clientToken,omitzero"`
+	Data        any    `json:"data,omitzero"`
 	Code        int    `json:"code"`
 	Message     string `json:"message"`
 }

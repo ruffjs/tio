@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,7 +24,9 @@ import (
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/codec"
 	"ruff.io/tio/pkg/protocol"
+	rest "ruff.io/tio/pkg/restapi"
 	"ruff.io/tio/shadow"
+	"ruff.io/tio/thing"
 )
 
 type packet struct {
@@ -84,7 +87,7 @@ func devicePassword(id string) (string, error) {
 }
 
 func (p *probe) api(method, path string, body, out any) error {
-	data, err := json.Marshal(body)
+	data, err := json.Marshal(body, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return err
 	}
@@ -99,11 +102,8 @@ func (p *probe) api(method, path string, body, out any) error {
 		return fmt.Errorf("HTTP %s %s failed", method, path)
 	}
 	defer resp.Body.Close()
-	var envelope struct {
-		Code int
-		Data json.RawMessage
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+	var envelope rest.Resp[jsontext.Value]
+	if err := json.UnmarshalRead(resp.Body, &envelope); err != nil {
 		return fmt.Errorf("HTTP %s %s: invalid response (status %d)", method, path, resp.StatusCode)
 	}
 	if resp.StatusCode != 200 || envelope.Code != 200 {
@@ -223,16 +223,11 @@ func run() (err error) {
 	p := &probe{ctx: ctx, apiURL: strings.TrimRight(env("TIO_API_URL", "http://127.0.0.1:9000"), "/"),
 		thingPath: "/api/v1/things/" + url.PathEscape(id), prefix: "tio/" + id,
 		http: &http.Client{Timeout: 8 * time.Second}, inbox: make(chan packet, 128)}
-	var settings struct {
-		Protocol config.Protocol
-	}
+	var settings config.Config
 	if err := p.api(http.MethodGet, "/private/api/config", nil, &settings); err != nil {
 		return err
 	}
-	var thing struct {
-		Enabled                          bool
-		MessageProtocol, PayloadEncoding string
-	}
+	var thing thing.Thing
 	if err := p.api(http.MethodGet, p.thingPath, nil, &thing); err != nil {
 		return err
 	}
@@ -404,10 +399,7 @@ func run() (err error) {
 	method := "probe_" + runID
 	methodDone := make(chan error, 1)
 	go func() {
-		var result struct {
-			Code int
-			Data string
-		}
+		var result rest.Resp[string]
 		callErr := p.api(http.MethodPost, p.thingPath+"/invoke", map[string]any{"method": method, "params": runID, "timeout": 4}, &result)
 		if callErr == nil && (result.Code != 200 || result.Data != runID) {
 			callErr = fmt.Errorf("HTTP method result differs from the device response")

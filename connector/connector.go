@@ -78,7 +78,7 @@ type PresenceEvent struct {
 	ThingId          string `json:"thingId"`
 	ClientId         string `json:"clientId"`
 	RemoteAddr       string `json:"remoteAddr"`
-	DisconnectReason string `json:"disconnectReason,omitempty"`
+	DisconnectReason string `json:"disconnectReason,omitzero"`
 }
 
 func TopicPresence(thingId string) string {

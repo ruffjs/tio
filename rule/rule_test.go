@@ -77,7 +77,7 @@ func Test_RuleBasic(t *testing.T) {
 			}
 
 			shadowGetCall := shadowGetter.On("GetFromCache", mock.Anything).
-				Return(shadow.ShadowWithStatus{Shadow: shadow.Shadow{Tags: shadow.TagsValue{"deviceId": 789}}}, true).Once()
+				Return(shadow.ShadowWithStatus{Tags: shadow.TagsValue{"deviceId": 789}}, true).Once()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			r := rule.NewRule(

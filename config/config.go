@@ -101,7 +101,7 @@ func (p Protocol) Validate() error {
 
 type Config struct {
 	Log struct {
-		Level string `json:"level,omitempty"`
+		Level string `json:"level,omitzero"`
 	} `json:"log"`
 	API struct {
 		Port      int          `json:"port"`
@@ -148,8 +148,7 @@ func LoadConfigFile(filename string) (Config, error) {
 
 func loadConfig(main *viper.Viper) (Config, error) {
 	if err := main.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
 			return Config{}, fmt.Errorf("read main config: %w", err)
 		}
 	}
@@ -219,7 +218,7 @@ type MqttClientConfig struct {
 	WillTopic    string     `json:"WillTopic"`
 	WillPayload  string     `json:"willPayload"`
 	CleanSession *bool      `json:"cleanSession"`
-	TLS          *TLSConfig `json:"tls,omitempty"`
+	TLS          *TLSConfig `json:"tls,omitzero"`
 }
 
 type TLSConfig struct {

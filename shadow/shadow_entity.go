@@ -1,7 +1,7 @@
 package shadow
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"time"
 
 	"github.com/pkg/errors"
@@ -28,19 +28,19 @@ func (t Entity) TableName() string {
 }
 
 func toEntity(s Shadow) (Entity, error) {
-	r, err := json.Marshal(s.State.Reported)
+	r, err := json.Marshal(s.State.Reported, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return Entity{}, model.ErrShadowFormat
 	}
-	d, err := json.Marshal(s.State.Desired)
+	d, err := json.Marshal(s.State.Desired, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return Entity{}, model.ErrShadowFormat
 	}
-	m, err := json.Marshal(s.Metadata)
+	m, err := json.Marshal(s.Metadata, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return Entity{}, model.ErrShadowFormat
 	}
-	t, err := json.Marshal(s.Tags)
+	t, err := json.Marshal(s.Tags, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return Entity{}, model.ErrShadowFormat
 	}

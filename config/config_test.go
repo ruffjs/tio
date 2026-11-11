@@ -1,7 +1,7 @@
 package config
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,7 +117,7 @@ func TestConfigMarshalOmitsSecrets(t *testing.T) {
 	cfg.Connector.Emqx.ApiPassword = "emqx-pass"
 	cfg.Connector.MqttBroker.SuperUsers = []UserPassword{{Name: "root", Password: "root-pass"}}
 
-	b, err := json.Marshal(cfg)
+	b, err := json.Marshal(cfg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		t.Fatalf("marshal config: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestNatsConfigMarshalOmitsSecrets(t *testing.T) {
 		MqttPublisher: NatsClientConfig{User: "pub", Password: "pub-secret"},
 	}
 
-	b, err := json.Marshal(cfg)
+	b, err := json.Marshal(cfg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		t.Fatalf("marshal nats config: %v", err)
 	}

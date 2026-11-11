@@ -1,11 +1,10 @@
 package nats
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 	"time"
 
-	server "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 )
 
@@ -105,7 +104,7 @@ func TestControlDisconnectConfirmsOwnerAction(t *testing.T) {
 	payload, _ := json.Marshal(controlDisconnectRequest{
 		ThingId:  "control-close-dev",
 		ServerId: c.cfg.Server.ServerName,
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	reply, err := c.natsConn.Request(controlDisconnectSubj, payload, time.Second)
 	if err != nil {
 		t.Fatalf("request control disconnect: %v", err)
@@ -136,7 +135,7 @@ func TestCloseWaitsForRemoteConfirmation(t *testing.T) {
 		ThingId:   thingId,
 		Connected: true,
 		ServerId:  remoteServer,
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if _, err := c.kv.Put(presenceKeyPrefix+thingId, rec); err != nil {
 		t.Fatalf("put remote presence: %v", err)
 	}
@@ -144,7 +143,7 @@ func TestCloseWaitsForRemoteConfirmation(t *testing.T) {
 	_, err := c.natsConn.Subscribe(controlDisconnectSubj, func(msg *nats.Msg) {
 		var req controlDisconnectRequest
 		if json.Unmarshal(msg.Data, &req) == nil && req.ServerId == remoteServer && req.ThingId == thingId {
-			data, _ := json.Marshal(controlDisconnectResponse{Disconnected: true})
+			data, _ := json.Marshal(controlDisconnectResponse{Disconnected: true}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			_ = msg.Respond(data)
 		}
 	})
@@ -224,7 +223,7 @@ func TestReconcileFixesStaleEntries(t *testing.T) {
 	var rec PresenceRecord
 	json.Unmarshal(entry.Value(), &rec)
 	rec.Connected = true
-	data, _ := json.Marshal(rec)
+	data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	c.kv.Put(presenceKeyPrefix+"recon-dev", data)
 
 	time.Sleep(50 * time.Millisecond)
@@ -245,9 +244,7 @@ func TestRequestAliveServersCollectsAllResponses(t *testing.T) {
 
 	for _, name := range []string{"node-a", "node-b"} {
 		_, err := c.sysConn.Subscribe(subject, func(msg *nats.Msg) {
-			data, _ := json.Marshal(server.ServerStatsMsg{
-				Server: server.ServerInfo{Name: name},
-			})
+			data := []byte(`{"server":{"name":"` + name + `"},"statsz":{"jetstream":{"config":{"sync_interval":120000000000}}}}`)
 			_ = msg.Respond(data)
 		})
 		if err != nil {

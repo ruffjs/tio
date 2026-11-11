@@ -18,8 +18,8 @@ type SimpleInvoker interface {
 
 type SimpleInvokeReq struct {
 	Method  string `json:"method" description:"method name"`
-	Params  any    `json:"params,omitempty" description:"opaque method parameters"`
-	Timeout int    `json:"timeout,omitempty" description:"timeout in seconds, default 30"`
+	Params  any    `json:"params,omitzero" description:"opaque method parameters"`
+	Timeout int    `json:"timeout,omitzero" description:"timeout in seconds, default 30"`
 }
 
 func SimpleMethodService(

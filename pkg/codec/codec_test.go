@@ -179,3 +179,19 @@ func normalize(v any) any {
 		return v
 	}
 }
+
+func TestJSONCompatibility(t *testing.T) {
+	c, err := New("json")
+	require.NoError(t, err)
+	data, err := c.Marshal(map[string]any{"z": []string(nil), "a": map[string]any(nil)})
+	require.NoError(t, err)
+	assert.Equal(t, `{"a":null,"z":null}`, string(data))
+
+	for _, input := range [][]byte{
+		[]byte(`{"a":1,"a":2}`),
+		{'"', 0xff, '"'},
+	} {
+		var value any
+		require.Error(t, c.Unmarshal(input, &value))
+	}
+}

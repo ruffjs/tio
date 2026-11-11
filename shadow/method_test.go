@@ -1,7 +1,7 @@
 package shadow_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 	"time"
 
@@ -108,7 +108,7 @@ func TestDirectMethodHandler_Invoke(t *testing.T) {
 		require.NoError(t, err)
 
 		go func() {
-			respJson, _ := json.Marshal(c.resp)
+			respJson, _ := json.Marshal(c.resp, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			cCopy := c
 			time.Sleep(time.Millisecond * time.Duration(cCopy.timeoutMs))
 			respTopic := shadow.TopicMethodResponse(cCopy.req.ThingId, cCopy.req.Method)

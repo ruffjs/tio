@@ -4,7 +4,7 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -66,11 +66,11 @@ func TestMethodInvoke(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "method invoke response status error")
 	var respBody rest.Resp[shadowApi.MethodInvokeResp]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.UnmarshalRead(resp.Body, &respBody)
 	require.NoError(t, err, "can not decode method response body")
 	slog.Info("method response body", "response", respBody)
 	require.Equal(t, http.StatusOK, respBody.Code, "method invoke response status error")
-	respData := respBody.Data.Data.(map[string]interface{})
+	respData := respBody.Data.Data.(map[string]any)
 	require.Equal(t, "world", respData["hello"])
 
 	thingClient.Disconnect()

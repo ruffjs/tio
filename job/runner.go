@@ -2,7 +2,7 @@ package job
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"time"
@@ -183,7 +183,7 @@ func (r *runnerImpl) watchTaskChangeLoop() {
 }
 
 func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
-	sdBuf, err := json.Marshal(msg.StatusDetails)
+	sdBuf, err := json.Marshal(msg.StatusDetails, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		slog.Error("JobRunner update task status, unexpected marshal statusDetails",
 			"statusDetails", msg.StatusDetails, "jobId", msg.Task.JobId, "taskId", msg.Task.TaskId, "error", err)
@@ -357,7 +357,7 @@ func (r *runnerImpl) submitDirectMethodTaskToPool(jc *JobContext, t *Task) error
 			slog.Error("JobRunner unexpected job doc is nil for invoke direct method", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
-		jBuf, err := json.Marshal(jc.JobDoc)
+		jBuf, err := json.Marshal(jc.JobDoc, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			slog.Error("JobRunner unexpected job doc is nil for invoke direct method", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
@@ -382,7 +382,7 @@ func (r *runnerImpl) submitUpdateShadowTaskToPool(jc *JobContext, t *Task) error
 			slog.Error("JobRunner unexpected job doc is nil for update shadow", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}
 
-		jBuf, err := json.Marshal(jc.JobDoc)
+		jBuf, err := json.Marshal(jc.JobDoc, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			slog.Error("JobRunner unexpected job doc is nil for update shadow", "jobId", jc.JobId, "jobDoc", jc.JobDoc)
 		}

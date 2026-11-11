@@ -2,7 +2,7 @@ package job_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 	"time"
@@ -129,8 +129,8 @@ func Test_mgrSvcImpl_CreateJob(t *testing.T) {
 				require.Equal(t, c, len(mockJc.Calls))
 				c := mockJc.Calls[len(mockJc.Calls)-1]
 				require.Equal(t, "ReceiveMgrMsg", c.Method)
-				msgJ, _ := json.Marshal(msg)
-				argJ, _ := json.Marshal(c.Arguments[0])
+				msgJ, _ := json.Marshal(msg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
+				argJ, _ := json.Marshal(c.Arguments[0], json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 				require.Equal(t, msgJ, argJ)
 			}
 
@@ -548,7 +548,7 @@ func Test_mgrSvcImpl_DeleteJob(t *testing.T) {
 				j, err := svc.GetJob(ctx, st.jobId)
 				require.NoError(t, err)
 				require.True(t, j == nil)
-				l, err := svc.QueryTaskForJob(ctx, st.jobId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+				l, err := svc.QueryTaskForJob(ctx, st.jobId, job.TaskPageQuery{PageIndex: 1, PageSize: 1})
 				require.NoError(t, err)
 				require.Equal(t, int64(0), l.Total, "tasks under job should be deleted")
 
@@ -621,7 +621,7 @@ func Test_mgrSvcImpl_CancelTask(t *testing.T) {
 			if err != nil {
 				return
 			}
-			l, err := repo.QueryTask(ctx, st.thingId, st.jobId, job.TaskPageQuery{PageQuery: model.PageQuery{PageIndex: 1, PageSize: 1}})
+			l, err := repo.QueryTask(ctx, st.thingId, st.jobId, job.TaskPageQuery{PageIndex: 1, PageSize: 1})
 			require.NoError(t, err)
 			require.Equal(t, 1, len(l.Content))
 			tk := l.Content[0]

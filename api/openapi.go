@@ -32,23 +32,19 @@ func enrichSwaggerObject(swo *spec.Swagger) {
 		"basic": spec.BasicAuth(),
 	}
 	swo.Info = &spec.Info{
-		InfoProps: spec.InfoProps{
-			Title: "tio",
-			Description: "A tiny iothub core\n\n" +
-				fmt.Sprintf("Build Info:\n- Version: %s\n- GitCommit: %s\n", config.Version, config.GitCommit),
-			Version: config.Version,
-		},
+		Title: "tio",
+		Description: "A tiny iothub core\n\n" +
+			fmt.Sprintf("Build Info:\n- Version: %s\n- GitCommit: %s\n", config.Version, config.GitCommit),
+		Version: config.Version,
 	}
 	swo.Tags = []spec.Tag{
 		{
-			TagProps: spec.TagProps{
-				Name:        "things",
-				Description: ""},
+			Name:        "things",
+			Description: "",
 		},
 		{
-			TagProps: spec.TagProps{
-				Name:        "shadows",
-				Description: ""},
+			Name:        "shadows",
+			Description: "",
 		},
 	}
 }

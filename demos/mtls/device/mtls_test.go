@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
+	"encoding/json/v2"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -70,7 +70,7 @@ func TestMtlsDemo(t *testing.T) {
 			ThingId:  thingId,
 			AuthType: "certificate",
 		}
-		b, _ := json.Marshal(createThReq)
+		b, _ := json.Marshal(createThReq, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 
 		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v1/things", testHTTPUrl), bytes.NewBuffer(b))
 		req.SetBasicAuth(testHTTPUser, testHTTPPassword)

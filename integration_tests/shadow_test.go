@@ -4,7 +4,7 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -64,7 +64,7 @@ func TestShadowSetDesired(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "set shadow desired response status error")
 	var respBody rest.Resp[any]
-	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.UnmarshalRead(resp.Body, &respBody)
 	require.NoError(t, err, "can not decode shadow desired response body")
 	slog.Info("shadow desired body", "body", respBody)
 	require.Equal(t, respBody.Code, http.StatusOK, "set shadow desired response code error")

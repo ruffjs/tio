@@ -4,7 +4,7 @@ APP := tio
 VERSION ?= dev
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 
-.PHONY: help run build test test-race fmt fix mod-tidy mod-check vet lint check
+.PHONY: help run build test test-race fmt fix fix-diff mod-tidy mod-check vet lint check
 .PHONY: test-integration test-protocols test-mtls
 .PHONY: preflight-demo-light test-demo-light preflight-demo-mtls test-demo-mtls
 .PHONY: web-install web-build web-dev docker-build
@@ -16,7 +16,8 @@ help:
 	@echo "  make build             Build Tio into dist/"
 	@echo "  make test              Run normal tests"
 	@echo "  make test-race         Run normal tests with the race detector"
-	@echo "  make fix               Apply standard Go source fixes"
+	@echo "  make fix               Modernize Go source with go fix"
+	@echo "  make fix-diff          Preview Go modernization changes"
 	@echo "  make lint              Run non-mutating Go checks"
 	@echo "  make check             Run lint and normal tests"
 	@echo "  make test-integration  Run legacy/JSON integration tests"
@@ -50,6 +51,9 @@ fmt:
 
 fix:
 	go fix ./...
+
+fix-diff:
+	go fix -diff ./...
 
 mod-tidy:
 	go mod tidy

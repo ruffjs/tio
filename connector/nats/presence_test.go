@@ -2,7 +2,7 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -266,7 +266,7 @@ func TestPresenceCompensatesSystemReconnect(t *testing.T) {
 	c.OnLocalPresence(func(ci connector.ClientInfo) { changes <- ci })
 
 	remote := PresenceRecord{ThingId: "remote-device", ServerId: "other-node", Connected: true}
-	data, err := json.Marshal(remote)
+	data, err := json.Marshal(remote, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)
 	_, err = c.kv.Put(presenceKeyPrefix+remote.ThingId, data)
 	require.NoError(t, err)
@@ -284,7 +284,7 @@ func TestPresenceCompensatesSystemReconnect(t *testing.T) {
 
 	waitForPresence(t, c, "new-device", true)
 	waitForPresence(t, c, "old-device", false)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case ci := <-changes:
 			require.Equal(t, ci.Username == "new-device", ci.Connected)
@@ -312,7 +312,7 @@ func TestPresenceQueuedDisconnectAfterReconnect(t *testing.T) {
 	data, err := json.Marshal(sysDisconnectEvent{
 		Server: sysServerInfo{Name: c.cfg.Server.ServerName},
 		Client: sysClientInfo{User: "reconnected-device"},
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)
 	c.handleDisconnectEvent(&nats.Msg{Data: data})
 	after, err := c.kv.Get(presenceKeyPrefix + "reconnected-device")
@@ -323,7 +323,7 @@ func TestPresenceQueuedDisconnectAfterReconnect(t *testing.T) {
 	data, err = json.Marshal(sysConnectEvent{
 		Server: sysServerInfo{Name: c.cfg.Server.ServerName},
 		Client: sysClientInfo{User: "reconnected-device"},
-	})
+	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)
 	c.handleConnectEvent(&nats.Msg{Data: data})
 	connected, err := c.IsConnected("reconnected-device")
@@ -343,7 +343,7 @@ func TestPresenceCompensationAfterShutdown(t *testing.T) {
 
 func TestPresenceScanAllConnections(t *testing.T) {
 	c := newPresenceTestConnector(t)
-	for i := 0; i < server.DefaultConnListSize; i++ {
+	for range server.DefaultConnListSize {
 		nc, err := nats.Connect(c.natsSvr.ClientURL(),
 			nats.UserInfo(c.cfg.AppClient.User, c.cfg.AppClient.Password), nats.NoReconnect())
 		require.NoError(t, err)
@@ -431,7 +431,7 @@ func TestPresenceRetriesRevisionConflicts(t *testing.T) {
 				c.kv = base
 			})
 			remote := PresenceRecord{ThingId: "moving-device", ServerId: "other-node", Connected: false}
-			data, err := json.Marshal(remote)
+			data, err := json.Marshal(remote, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			require.NoError(t, err)
 			if tc.create {
 				require.NoError(t, base.Delete(key))

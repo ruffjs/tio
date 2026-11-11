@@ -51,7 +51,7 @@ const (
 )
 
 func initLogger(cfg struct {
-	Level string `json:"level,omitempty"`
+	Level string `json:"level,omitzero"`
 }) {
 	l, ok := map[string]slog.Level{
 		"DEBUG": slog.LevelDebug,

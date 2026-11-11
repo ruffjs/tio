@@ -2,7 +2,7 @@ package shadow_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -38,13 +38,13 @@ func TestHandler_GetReq(t *testing.T) {
 	ch, err := h.ShadowGetReq(ctx)
 	require.NoError(t, err)
 
-	getReq := shadow.GetReq{ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixNano())}
-	getReqJson, _ := json.Marshal(getReq)
+	getReq := shadow.GetReq{ClientToken: "tk-123", NoMetadata: true}
+	getReqJson := []byte(`{"clientToken":"tk-123","noMetadata":true}`)
 	mc.SimulateMessage(topic, getReqJson)
 
 	select {
 	case msg := <-ch:
-		require.Equal(t, getReq.ClientToken, msg.Req.ClientToken)
+		require.Equal(t, getReq, msg.Req)
 		require.Equal(t, thingId, msg.ThingId)
 	case <-time.After(time.Millisecond * 100):
 		t.Errorf("should have response for get request")
@@ -95,7 +95,7 @@ func TestHandler_GetReqIgnoresOtherProtocol(t *testing.T) {
 	ch, err := h.ShadowGetReq(ctx)
 	require.NoError(t, err)
 
-	payload, _ := json.Marshal(shadow.GetReq{ClientToken: "tk-simple"})
+	payload, _ := json.Marshal(shadow.GetReq{ClientToken: "tk-simple"}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	mc.SimulateMessage(topic, payload)
 
 	select {
@@ -121,7 +121,7 @@ func TestHandler_StateReq(t *testing.T) {
 		ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixNano()),
 		State:       shadow.StateDR{Desired: shadow.StateValue{"color": "red"}},
 	}
-	reqJson, _ := json.Marshal(r)
+	reqJson, _ := json.Marshal(r, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	mc.SimulateMessage(reqUpdateTopic, reqJson)
 
 	select {
@@ -204,7 +204,7 @@ func Benchmark_GetReq(b *testing.B) {
 		topic := strings.Replace(shadow.TopicAllGet(), "+", thingId, -1)
 
 		getReq := shadow.GetReq{ClientToken: fmt.Sprintf("tk-%d", time.Now().UnixNano())}
-		getReqJson, _ := json.Marshal(getReq)
+		getReqJson, _ := json.Marshal(getReq, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 
 		mc.SimulateMessage(topic, getReqJson)
 		<-ch

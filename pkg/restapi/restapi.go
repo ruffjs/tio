@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 )
@@ -19,7 +19,7 @@ func RespOK[T any](data T) Resp[T] {
 }
 
 func SendResp[T any](w http.ResponseWriter, httpStatus int, res Resp[T]) {
-	body, err := json.Marshal(res)
+	body, err := json.Marshal(res, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		w.WriteHeader(500)
 		_, _ = fmt.Fprint(w, "internal error: "+err.Error())

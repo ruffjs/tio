@@ -165,6 +165,15 @@ bash build/deb/build.sh
 
 ## 开发
 
+使用 Go 1.27.4。日常开发命令：
+
+```bash
+make fix-diff # 预览 go fix 建议
+make fix      # 应用建议，更新源码
+make fmt      # 格式化
+make check    # 静态检查和测试
+```
+
 ### 启用 Git 钩子
 
 ```bash

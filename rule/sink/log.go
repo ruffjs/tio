@@ -2,7 +2,7 @@ package sink
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -67,7 +67,7 @@ func (s *logImpl) Publish(msg Msg) {
 func (s *logImpl) publishLoop() {
 	for {
 		msg := <-s.ch
-		b, err := json.Marshal(msg)
+		b, err := json.Marshal(msg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if err != nil {
 			slog.Error("Rule Log sink marshal msg", "error", err)
 			return

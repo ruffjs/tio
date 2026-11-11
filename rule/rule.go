@@ -10,7 +10,7 @@ package rule
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
 	"runtime"
@@ -275,7 +275,7 @@ func marshal(input any) (output *string, err error) {
 			if s, ok := i.(string); ok {
 				res += s + "\n"
 			} else {
-				if b, err := json.Marshal(i); err == nil {
+				if b, err := json.Marshal(i, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true)); err == nil {
 					res += string(b) + "\n"
 				} else {
 					return nil, fmt.Errorf("marshal %v", i)
@@ -285,7 +285,7 @@ func marshal(input any) (output *string, err error) {
 		res = strings.TrimSuffix(res, "\n")
 		output = &res
 	} else {
-		b, er := json.Marshal(input)
+		b, er := json.Marshal(input, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 		if er != nil {
 			err = er
 			return
@@ -303,7 +303,7 @@ func MsgToProcessInput(msg source.Msg, sd shadow.ShadowWithStatus) (any, error) 
 		return nil, err
 	}
 
-	b, err := json.Marshal(sd)
+	b, err := json.Marshal(sd, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return nil, err
 	}
