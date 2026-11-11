@@ -2,12 +2,13 @@ package protocol
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
 	"reflect"
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
@@ -121,7 +122,7 @@ func (h *SimpleHandler) Start(ctx context.Context) error {
 func (h *SimpleHandler) handlePoolRequest(ctx context.Context, thingId, typ string, payload []byte) {
 	switch typ {
 	case TypeShadowGet:
-		h.handleShadowGet(ctx, thingId)
+		h.handleShadowGet(ctx, thingId, payload)
 	case TypeShadowUpdate:
 		h.handleShadowUpdate(ctx, thingId, payload)
 	default:
@@ -143,9 +144,26 @@ func (h *SimpleHandler) resolveCodec(ctx context.Context, thingId string) (codec
 	return c, true
 }
 
-func (h *SimpleHandler) handleShadowGet(ctx context.Context, thingId string) {
+func (h *SimpleHandler) handleShadowGet(ctx context.Context, thingId string, payload []byte) {
 	c, ok := h.resolveCodec(ctx, thingId)
 	if !ok {
+		return
+	}
+	var req ShadowGetReq
+	if len(payload) > 0 {
+		if err := c.Unmarshal(payload, &req); err != nil {
+			h.publish(c, TopicDown(thingId, TypeShadowGetReply), ShadowGetReply{
+				Code: 400, Message: "Invalid shadow get",
+			})
+			return
+		}
+	}
+	switch req.Type {
+	case "", "all", "desired", "reported":
+	default:
+		h.publish(c, TopicDown(thingId, TypeShadowGetReply), ShadowGetReply{
+			Code: 400, Message: "type must be desired, reported or all",
+		})
 		return
 	}
 	ss, err := h.shadowSvc.Get(ctx, thingId)
@@ -164,6 +182,12 @@ func (h *SimpleHandler) handleShadowGet(ctx context.Context, thingId string) {
 	reported := ss.State.Reported
 	if reported == nil {
 		reported = map[string]any{}
+	}
+
+	if req.Type == "desired" {
+		reported = nil
+	} else if req.Type == "reported" {
+		desired = nil
 	}
 
 	h.publish(c, TopicDown(thingId, TypeShadowGetReply), ShadowGetReply{
@@ -331,26 +355,24 @@ func (h *SimpleHandler) Invoke(ctx context.Context, thingId string, method strin
 		return SimpleInvokeResult{}, model.ErrDirectMethodThingOffline
 	}
 
-	callID, err := uuid.NewV4()
-	if err != nil {
-		return SimpleInvokeResult{}, errors.Wrap(err, "generate call ID")
-	}
-	callIDStr := callID.String()
-
-	req := MethodReq{
-		ID:     callIDStr,
-		Method: method,
-		Data:   params,
-	}
-
 	c, err := codec.ForDevice(ctx, h.codec, h.profiles, thingId, "simple")
 	if err != nil {
 		return SimpleInvokeResult{}, err
 	}
 
 	replyCh := make(chan MethodResp, 1)
-	h.addPendingCall(thingId, callIDStr, c, replyCh)
+	var callIDStr string
+	for {
+		var id [12]byte
+		rand.Read(id[:])
+		callIDStr = base64.RawURLEncoding.EncodeToString(id[:])
+		if h.addPendingCall(thingId, callIDStr, c, replyCh) {
+			break
+		}
+	}
 	defer h.removePendingCall(thingId, callIDStr)
+
+	req := MethodReq{ID: callIDStr, Method: method, Data: params}
 
 	if err := h.publishReq(c, TopicDown(thingId, TypeMethodReq), req); err != nil {
 		return SimpleInvokeResult{}, errors.Wrap(err, "publish method request")
@@ -392,14 +414,18 @@ func (h *SimpleHandler) publishReq(c codec.Codec, topic string, msg any) error {
 	return nil
 }
 
-func (h *SimpleHandler) addPendingCall(thingId, callID string, c codec.Codec, ch chan MethodResp) {
+func (h *SimpleHandler) addPendingCall(thingId, callID string, c codec.Codec, ch chan MethodResp) bool {
 	h.pendingMu.Lock()
 	defer h.pendingMu.Unlock()
 
 	if h.pendingCalls[thingId] == nil {
 		h.pendingCalls[thingId] = make(map[string]pendingCall)
 	}
+	if _, exists := h.pendingCalls[thingId][callID]; exists {
+		return false
+	}
 	h.pendingCalls[thingId][callID] = pendingCall{codec: c, ch: ch}
+	return true
 }
 
 func (h *SimpleHandler) removePendingCall(thingId, callID string) {

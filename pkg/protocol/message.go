@@ -1,9 +1,14 @@
 package protocol
 
+// ShadowGetReq selects the state returned by shadow_get; an empty type means all.
+type ShadowGetReq struct {
+	Type string `json:"type,omitzero"`
+}
+
 // ShadowState wraps desired and reported for shadow_get_reply.
 type ShadowState struct {
-	Desired  map[string]any `json:"desired"`
-	Reported map[string]any `json:"reported"`
+	Desired  map[string]any `json:"desired,omitzero"`
+	Reported map[string]any `json:"reported,omitzero"`
 }
 
 // ShadowGetReply is the payload for tio/{thingId}/down/shadow_get_reply.

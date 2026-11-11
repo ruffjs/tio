@@ -106,7 +106,13 @@ desired 和 reported 共用一个由 Tio 生成的文档级 `version`，使用�
 
 Topic：`tio/{thingId}/up/shadow_get`
 
-Payload：`{}`
+Payload 可为空（零字节），也可发送 `{}`；JSON `null` 同样默认获取全部。指定 `type` 可选择状态：
+
+- `{"type":"desired"}`：只获取 desired。
+- `{"type":"reported"}`：只获取 reported。
+- `{"type":"all"}`：获取 desired 和 reported，与省略 `type` 相同。
+
+响应的 `state` 只包含选中的字段，空状态返回 `{}`。`version` 始终为文档版本；非法 `type` 或格式错误的 payload 返回 400。
 
 成功响应（`tio/{thingId}/down/shadow_get_reply`）：
 
@@ -184,7 +190,7 @@ Topic：`tio/{thingId}/down/method_req`
 
 ```json
 {
-  "id": "1001",
+  "id": "aB3dE5fG7hJ9kL2m",
   "method": "unlock",
   "data": {"door": 1}
 }
@@ -197,16 +203,16 @@ Topic：`tio/{thingId}/up/method_resp`
 成功：
 
 ```json
-{"id": "1001", "code": 200, "data": {"result": "unlocked"}}
+{"id": "aB3dE5fG7hJ9kL2m", "code": 200, "data": {"result": "unlocked"}}
 ```
 
 失败：
 
 ```json
-{"id": "1001", "code": 409, "message": "Door is already unlocked"}
+{"id": "aB3dE5fG7hJ9kL2m", "code": 409, "message": "Door is already unlocked"}
 ```
 
-`id` 由 Tio 生成，设备视为不透明值。Tio 根据 `id` 关联请求和响应。
+`id` 由 Tio 使用安全随机数生成，为 16 字符的 Base64URL 字符串（字母、数字、`-`、`_`），设备视为不透明值。Tio 根据 `id` 关联请求和响应。
 
 响应沿用请求 `id`，业务 `data` 可省略。MQTT QoS 1 和调用重试可能造成重复请求；关键 Method 应在设备侧持久化最近的调用 ID 和响应，重复 ID 直接返回原响应。业务可在 `data` 中约定 `expireAt`，由设备校验有效期。
 

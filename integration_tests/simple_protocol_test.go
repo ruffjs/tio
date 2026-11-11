@@ -277,6 +277,40 @@ func TestSimpleProtocol_ShadowGetReturnsFullState(t *testing.T) {
 	require.EqualValues(t, 80, desired["brightness"])
 	require.Equal(t, "green", reported["color"])
 
+	for _, typ := range []string{"desired", "reported", "all"} {
+		payload, err := testCodec.Marshal(map[string]any{"type": typ})
+		require.NoError(t, err)
+		require.NoError(t, deviceClient.Publish("tio/"+thingId+"/up/shadow_get", 1, false, payload))
+		select {
+		case reply := <-replyCh:
+			require.EqualValues(t, 200, reply["code"])
+			require.EqualValues(t, ss.Version, reply["version"])
+			state := reply["state"].(map[string]any)
+			if typ != "reported" {
+				require.Equal(t, desired, state["desired"])
+			} else {
+				require.NotContains(t, state, "desired")
+			}
+			if typ != "desired" {
+				require.Equal(t, reported, state["reported"])
+			} else {
+				require.NotContains(t, state, "reported")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timeout waiting for %s shadow_get_reply", typ)
+		}
+	}
+
+	require.NoError(t, deviceClient.Publish("tio/"+thingId+"/up/shadow_get", 1, false, []byte{}))
+	select {
+	case reply := <-replyCh:
+		require.EqualValues(t, 200, reply["code"])
+		require.EqualValues(t, ss.Version, reply["version"])
+		require.Equal(t, state, reply["state"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for empty-payload shadow_get_reply")
+	}
+
 	verAfterGet := ss.Version
 
 	getPayload2, _ := testCodec.Marshal(map[string]any{})
@@ -445,6 +479,9 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 		select {
 		case callMsg := <-callCh:
 			callID := callMsg["id"].(string)
+			if len(callID) != 16 {
+				t.Errorf("method ID must be 16 characters, got %q", callID)
+			}
 			replyMsg := map[string]any{
 				"id":   callID,
 				"code": 200,

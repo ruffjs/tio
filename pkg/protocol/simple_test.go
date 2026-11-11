@@ -138,49 +138,102 @@ func TestValidateShadowUpdate(t *testing.T) {
 }
 
 func TestSimpleHandler_ShadowGet(t *testing.T) {
-	ctx := t.Context()
+	for _, encoding := range []string{"json", "cbor"} {
+		for _, tt := range []struct {
+			name                     string
+			req                      map[string]any
+			payload                  []byte
+			desired, reported, empty bool
+			code                     int
+		}{
+			{name: "default", req: map[string]any{}, desired: true, reported: true, code: 200},
+			{name: "all", req: map[string]any{"type": "all"}, desired: true, reported: true, code: 200},
+			{name: "desired", req: map[string]any{"type": "desired"}, desired: true, code: 200},
+			{name: "reported", req: map[string]any{"type": "reported"}, reported: true, code: 200},
+			{name: "empty all", req: map[string]any{}, desired: true, reported: true, empty: true, code: 200},
+			{name: "empty desired", req: map[string]any{"type": "desired"}, desired: true, empty: true, code: 200},
+			{name: "empty reported", req: map[string]any{"type": "reported"}, reported: true, empty: true, code: 200},
+			{name: "invalid type", req: map[string]any{"type": "other"}, code: 400},
+			{name: "wrong type", req: map[string]any{"type": 42}, code: 400},
+			{name: "empty payload", payload: []byte{}, desired: true, reported: true, code: 200},
+			{name: "null", desired: true, reported: true, code: 200},
+			{name: "malformed", payload: []byte{0xff}, code: 400},
+		} {
+			t.Run(encoding+"/"+tt.name, func(t *testing.T) {
+				ctx := t.Context()
+				conn := connmock.NewMockConnector()
+				require.NoError(t, conn.Start(ctx))
+				c, err := codec.New(encoding)
+				require.NoError(t, err)
+				svc := newTestShadowSvc()
+				h, err := NewSimpleHandler(conn, c, svc, nil)
+				require.NoError(t, err)
+				defer h.Stop()
+				require.NoError(t, h.Start(ctx))
 
-	mockConn := connmock.NewMockConnector()
-	mockConn.Start(ctx)
-	c, _ := codec.New("json")
-	shadowSvc := newTestShadowSvc()
-
-	handler, err := NewSimpleHandler(mockConn, c, shadowSvc, nil)
-	require.NoError(t, err)
-	defer handler.Stop()
-
-	err = handler.Start(ctx)
-	require.NoError(t, err)
-
-	thingId := "test-device-shadow-get"
-	_, err = shadowSvc.Create(ctx, thingId)
-	require.NoError(t, err)
-
-	_, err = shadowSvc.SetDesired(ctx, thingId, shadow.StateReq{
-		State: shadow.StateDR{
-			Desired: map[string]any{"light": true},
-		},
-		Version: 1,
-	})
-	require.NoError(t, err)
-
-	getPayload, _ := c.Marshal(map[string]any{})
-	mockConn.SimulateMessage(TopicUp(thingId, TypeShadowGet), getPayload)
-
-	require.Eventually(t, func() bool {
-		for _, pub := range mockConn.PublishedMessages() {
-			if pub.Topic == TopicDown(thingId, TypeShadowGetReply) {
-				var reply ShadowGetReply
-				if c.Unmarshal(pub.Payload, &reply) == nil && reply.Code == 200 {
-					assert.Equal(t, int64(2), reply.Version)
-					require.NotNil(t, reply.State)
-					assert.Equal(t, true, reply.State.Desired["light"])
-					return true
+				const id = "test-device-shadow-get"
+				ss, err := svc.Create(ctx, id)
+				require.NoError(t, err)
+				if !tt.empty {
+					_, err = svc.SetDesired(ctx, id, shadow.StateReq{
+						State: shadow.StateDR{Desired: map[string]any{"light": true}},
+					})
+					require.NoError(t, err)
+					ss, err = svc.SetReported(ctx, id, shadow.StateReq{
+						State: shadow.StateDR{Reported: map[string]any{"power": "on"}},
+					})
+					require.NoError(t, err)
 				}
-			}
+				payload := tt.payload
+				if payload == nil {
+					payload, err = c.Marshal(tt.req)
+					require.NoError(t, err)
+				}
+				conn.SimulateMessage(TopicUp(id, TypeShadowGet), payload)
+				var response []byte
+				require.Eventually(t, func() bool {
+					for _, pub := range conn.PublishedMessages() {
+						if pub.Topic == TopicDown(id, TypeShadowGetReply) {
+							response = pub.Payload
+							return true
+						}
+					}
+					return false
+				}, time.Second, 10*time.Millisecond)
+				var reply ShadowGetReply
+				require.NoError(t, c.Unmarshal(response, &reply))
+				require.Equal(t, tt.code, reply.Code)
+				if tt.code != 200 {
+					require.Nil(t, reply.State)
+					require.NotEmpty(t, reply.Message)
+					return
+				}
+				require.Equal(t, ss.Version, reply.Version)
+				var wire struct {
+					State map[string]any `json:"state"`
+				}
+				require.NoError(t, c.Unmarshal(response, &wire))
+				for field, selected := range map[string]bool{"desired": tt.desired, "reported": tt.reported} {
+					if !selected {
+						require.NotContains(t, wire.State, field)
+						continue
+					}
+					value, ok := wire.State[field].(map[string]any)
+					require.True(t, ok, "%s must be an object", field)
+					if tt.empty {
+						require.Empty(t, value)
+					} else if field == "desired" {
+						require.Equal(t, true, value["light"])
+					} else {
+						require.Equal(t, "on", value["power"])
+					}
+				}
+				current, err := svc.Get(ctx, id)
+				require.NoError(t, err)
+				require.Equal(t, ss.Version, current.Version)
+			})
 		}
-		return false
-	}, time.Second, 10*time.Millisecond)
+	}
 }
 
 func TestSimpleHandler_ShadowDesired(t *testing.T) {
@@ -443,6 +496,8 @@ func TestSimpleHandler_Invoke(t *testing.T) {
 		}
 	}
 
+	require.Regexp(t, `^[A-Za-z0-9_-]{16}$`, req.ID)
+
 	respPayload, _ := c.Marshal(MethodResp{
 		ID:   req.ID,
 		Code: 200,
@@ -604,4 +659,77 @@ func TestJSONFieldOmission(t *testing.T) {
 		require.NoError(t, c.Unmarshal(data, &got))
 		assert.Contains(t, got, "data")
 	}
+}
+
+func TestPendingCallPreservesExistingID(t *testing.T) {
+	c, err := codec.New("json")
+	require.NoError(t, err)
+	h := &SimpleHandler{pendingCalls: make(map[string]map[string]pendingCall)}
+	original := make(chan MethodResp, 1)
+	duplicate := make(chan MethodResp, 1)
+	require.True(t, h.addPendingCall("thing-1", "same-id", c, original))
+	require.False(t, h.addPendingCall("thing-1", "same-id", c, duplicate))
+	require.True(t, h.addPendingCall("thing-2", "same-id", c, duplicate))
+	payload, err := c.Marshal(MethodResp{ID: "same-id", Code: 200})
+	require.NoError(t, err)
+	h.handleMethodResp("thing-1", payload)
+	require.Len(t, original, 1)
+	require.Empty(t, duplicate)
+	h.removePendingCall("thing-1", "same-id")
+	require.True(t, h.addPendingCall("thing-1", "same-id", c, duplicate))
+}
+
+func TestSimpleHandler_ConcurrentInvokes(t *testing.T) {
+	ctx := t.Context()
+	conn := connmock.NewMockConnector()
+	require.NoError(t, conn.Start(ctx))
+	c, err := codec.New("json")
+	require.NoError(t, err)
+	h, err := NewSimpleHandler(conn, c, newTestShadowSvc(), nil)
+	require.NoError(t, err)
+	defer h.Stop()
+	require.NoError(t, h.Start(ctx))
+	const id = "concurrent-method-device"
+	conn.SetConnected(id, true)
+	const calls = 8
+	type result struct {
+		index int
+		value SimpleInvokeResult
+		err   error
+	}
+	results := make(chan result, calls)
+	for i := range calls {
+		go func() {
+			value, err := h.Invoke(ctx, id, "echo", i, 5*time.Second)
+			results <- result{i, value, err}
+		}()
+	}
+	require.Eventually(t, func() bool {
+		return len(conn.PublishedMessages()) == calls
+	}, time.Second, 10*time.Millisecond)
+	seen := make(map[string]bool)
+	messages := conn.PublishedMessages()
+	for i := len(messages) - 1; i >= 0; i-- {
+		var req MethodReq
+		require.NoError(t, c.Unmarshal(messages[i].Payload, &req))
+		require.Regexp(t, `^[A-Za-z0-9_-]{16}$`, req.ID)
+		require.False(t, seen[req.ID])
+		seen[req.ID] = true
+		payload, err := c.Marshal(MethodResp{ID: req.ID, Code: 200, Data: req.Data})
+		require.NoError(t, err)
+		conn.SimulateMessage(TopicUp(id, TypeMethodResp), payload)
+	}
+	for range calls {
+		select {
+		case got := <-results:
+			require.NoError(t, got.err)
+			require.Equal(t, 200, got.value.Code)
+			require.EqualValues(t, got.index, got.value.Data)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for concurrent method response")
+		}
+	}
+	h.pendingMu.Lock()
+	defer h.pendingMu.Unlock()
+	require.Empty(t, h.pendingCalls)
 }
