@@ -704,19 +704,19 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
     }
   }
 
-  :deep(.CodeMirror) {
+  :deep(.sql-edit-container .cm-editor) {
     height: 100%;
     line-height: 1.5;
     direction: ltr;
     font-size: 14px;
 
-    .CodeMirror-scroll {
+    .cm-scroller {
       width: 100%;
       height: 100%;
       padding: 8px;
     }
 
-    .CodeMirror-lines {
+    .cm-content {
       padding: 0;
     }
   }

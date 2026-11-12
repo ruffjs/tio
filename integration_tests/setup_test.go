@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/emicklei/go-restful/v3"
-	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -197,8 +197,8 @@ func autoMigrateDB(conn *gorm.DB) {
 }
 
 func ID() string {
-	id, _ := uuid.NewV4()
-	return "test-" + id.String()[:8]
+	id := uuid.NewV7()
+	return "test-" + id.String()
 }
 
 func crateThing(thingId string) *thing.Thing {

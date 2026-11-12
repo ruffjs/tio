@@ -222,8 +222,8 @@ textarea {
 
 .tio-code,
 .tio-code-editor,
-.CodeMirror,
-.CodeMirror-hints {
+.tio-code-editor .cm-scroller,
+.tio-code-editor .cm-tooltip-autocomplete {
   font-family: var(--tio-mono);
 }
 
@@ -513,7 +513,7 @@ textarea {
   --jse-background-color-highlight: var(--tio-surface-soft);
 }
 
-:root[data-theme="light"] .CodeMirror {
+:root[data-theme="light"] .tio-code-editor .cm-editor {
   background: var(--tio-surface);
   color: var(--tio-text);
 }
@@ -606,21 +606,23 @@ a:focus-visible,
   color: var(--tio-text-strong);
 }
 
-.CodeMirror {
+.tio-code-editor .cm-editor {
+  border: 1px solid var(--tio-border);
+  border-radius: var(--tio-radius);
   background: transparent;
   color: var(--tio-text);
 }
 
-.CodeMirror-cursor {
+.tio-code-editor .cm-cursor {
   border-left-color: var(--tio-accent);
 }
 
-.CodeMirror-selected,
-.CodeMirror-focused .CodeMirror-selected {
+.tio-code-editor .cm-selectionBackground,
+.tio-code-editor .cm-focused .cm-selectionBackground {
   background: var(--tio-accent-soft);
 }
 
-.CodeMirror-hints {
+.tio-code-editor .cm-tooltip-autocomplete {
   z-index: 9999;
   border: 1px solid var(--tio-border);
   border-radius: var(--tio-radius);
@@ -629,14 +631,14 @@ a:focus-visible,
   box-shadow: none;
 }
 
-.CodeMirror-hint {
+.tio-code-editor .cm-tooltip-autocomplete > ul > li {
   padding: 8px 12px;
   border-radius: 4px;
   color: var(--tio-text);
 }
 
-.CodeMirror-hint:hover,
-.CodeMirror-hint-active {
+.tio-code-editor .cm-tooltip-autocomplete li:hover,
+.tio-code-editor .cm-tooltip-autocomplete [aria-selected="true"] {
   background: var(--tio-accent-soft);
   color: var(--tio-text-strong);
 }

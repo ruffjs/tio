@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Code editor checks</title>
+<body>
+  <h1>Code editor checks</h1>
+  <p>Run with <code>yarn dev</code>, then open <code>/web/tests/code-editors.html</code>.</p>
+  <pre id="result">Running…</pre>
+  <div id="app"></div>
+  <script type="module">
+    import { createApp, h, nextTick, ref } from "vue";
+    import ElementPlus from "element-plus";
+    import { EditorView } from "@codemirror/view";
+    import { undo } from "@codemirror/commands";
+    import { CompletionContext } from "@codemirror/autocomplete";
+    import JsEditor from "../src/components/rule/JsEditor.vue";
+    import SQLEditor from "../src/components/list/SQLEditor.vue";
+    import { applyTheme } from "../src/reactives/useTheme.js";
+    import "element-plus/dist/index.css";
+    import "../src/style.scss";
+
+    const result = document.querySelector("#result");
+    const originalTheme = localStorage.getItem("$tiopg/theme");
+    const js = ref("const answer = 42;\nanswer;");
+    const query = ref("SELECT * FROM shadow");
+    const readOnly = ref(false);
+    let sqlComponent, focused = false, submits = 0, bubbled = 0, checks = 0;
+    const assert = (condition, message) => {
+      if (!condition) throw new Error(message);
+      checks++;
+    };
+    const app = createApp({
+      setup: () => () => [
+        h(JsEditor, { modelValue: js.value, "onUpdate:modelValue": value => js.value = value }),
+        h(SQLEditor, {
+          ref: value => sqlComponent = value,
+          modelValue: query.value,
+          readOnly: readOnly.value,
+          "onUpdate:modelValue": value => query.value = value,
+          "onUpdate:focused": value => focused = value,
+          onSubmit: () => submits++,
+        }),
+      ],
+    });
+    app.use(ElementPlus);
+    app.mount("#app");
+    const views = [...document.querySelectorAll(".cm-editor")].map(EditorView.findFromDOM);
+    const [jsView, sqlView] = views;
+    const text = view => view.state.doc.toString();
+    const replace = (view, insert) => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert } });
+    const onKeydown = () => bubbled++;
+    document.addEventListener("keydown", onKeydown);
+    try {
+      assert(text(jsView) === js.value && text(sqlView) === query.value, "Initial content");
+      assert(jsView.dom.querySelector(".cm-lineNumbers") && !sqlView.dom.querySelector(".cm-lineNumbers"), "Line numbers");
+      jsView.dispatch({ changes: { from: jsView.state.doc.length, insert: "\n// edited" } });
+      await nextTick();
+      assert(js.value.endsWith("// edited"), "JavaScript live model update");
+      jsView.dispatch({ selection: { anchor: 3 } });
+      applyTheme("dark");
+      await nextTick();
+      assert(views.every(view => view.state.facet(EditorView.darkTheme)), "Dark theme");
+      assert(jsView.state.selection.main.head === 3, "Theme preserves cursor");
+      assert(undo(jsView) && !text(jsView).includes("// edited"), "Undo survives model and theme updates");
+      js.value = "  const replacement = 1;\n";
+      query.value = "SELECT id FROM shadow";
+      await nextTick();
+      assert(text(jsView) === js.value && text(sqlView) === query.value, "External model updates preserve JavaScript whitespace");
+      replace(sqlView, "  SELECT 1  ");
+      assert(query.value === "SELECT id FROM shadow", "SQL sync remains explicit");
+      sqlComponent.syncValueTrim();
+      assert(query.value === "SELECT 1", "SQL trimmed sync");
+      sqlView.focus();
+      assert(focused, "SQL focus event");
+      for (const modifier of ["ctrlKey", "metaKey"]) {
+        sqlView.contentDOM.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "Enter", code: "Enter", bubbles: true, cancelable: true,
+          [modifier]: true,
+        }));
+      }
+      assert(submits === 2 && bubbled === 0, "Ctrl/Meta submit shortcuts each fire once");
+      replace(sqlView, "SEL");
+      const source = sqlView.state.languageDataAt("autocomplete", 3)[0];
+      const completion = await source(new CompletionContext(sqlView.state, 3, true));
+      assert(completion.options.some(option => option.label.toUpperCase() === "SELECT"), "SQL keyword completion");
+      replace(jsView, "const answer = 42;\nans");
+      const position = jsView.state.doc.length;
+      const jsSources = jsView.state.languageDataAt("autocomplete", position);
+      const jsCompletions = await Promise.all(jsSources.map(source => source(new CompletionContext(jsView.state, position, true))));
+      assert(jsCompletions.some(result => result?.options.some(option => option.label === "answer")), "JavaScript local completion");
+      readOnly.value = true;
+      await nextTick();
+      assert(sqlView.state.readOnly, "Read-only update");
+      readOnly.value = "nocursor";
+      await nextTick();
+      assert(!sqlView.contentDOM.isContentEditable, "Read-only nocursor");
+      readOnly.value = false;
+      await nextTick();
+      assert(!sqlView.state.readOnly && sqlView.contentDOM.isContentEditable, "Read-only reset");
+      const checkbox = document.querySelector("input[type=checkbox]");
+      checkbox.click();
+      await nextTick();
+      assert(jsView.dom.parentElement.classList.contains("auto-height"), "Auto height on");
+      checkbox.click();
+      await nextTick();
+      assert(!jsView.dom.parentElement.classList.contains("auto-height"), "Auto height off");
+      js.value = "";
+      query.value = "";
+      applyTheme("light");
+      await nextTick();
+      assert(views.every(view => !view.state.facet(EditorView.darkTheme) && text(view) === ""), "Clear and light theme");
+      app.unmount();
+      assert(views.every(view => view.destroyed), "Editor cleanup");
+      result.textContent = `PASS: ${checks} checks`;
+    } catch (error) {
+      result.textContent = `FAIL: ${error.stack}`;
+      console.error(error);
+      app.unmount();
+    } finally {
+      document.removeEventListener("keydown", onKeydown);
+      applyTheme(originalTheme);
+      if (originalTheme === null) localStorage.removeItem("$tiopg/theme");
+    }
+  </script>
+</body>
+</html>

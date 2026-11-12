@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"ruff.io/tio/rule/model"
 )
 

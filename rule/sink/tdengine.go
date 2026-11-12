@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	"ruff.io/tio"
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/uuid"

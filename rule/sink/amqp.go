@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"ruff.io/tio/connector"
 	ruleconnector "ruff.io/tio/rule/connector"

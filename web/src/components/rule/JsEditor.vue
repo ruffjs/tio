@@ -1,123 +1,50 @@
 <template>
   <div>
-    <div class="edit-container">
-      <textarea ref="editRef" v-model="model"></textarea>
-    </div>
+    <div ref="editRef" class="tio-code-editor edit-container" :class="{ 'auto-height': autoHeight }"></div>
 
     <el-row>
       <el-tooltip content="Auto height for code editor for see all code" placement="top">
-        <el-checkbox link type="primary" @change="onAutoHeightCheck">auto height</el-checkbox>
+        <el-checkbox v-model="autoHeight" link type="primary">auto height</el-checkbox>
       </el-tooltip>
     </el-row>
   </div>
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, shallowRef, watch } from "vue";
-import codemirror from "codemirror/lib/codemirror";
-import "codemirror/theme/ambiance.css";
-import "codemirror/addon/edit/matchbrackets";
-import "codemirror/mode/javascript/javascript";
-import "codemirror/addon/hint/javascript-hint";
-import useTheme from "@/reactives/useTheme";
+import { ref } from "vue";
+import { EditorView, lineNumbers } from "@codemirror/view";
+import { javascript } from "@codemirror/lang-javascript";
+import useCodeEditor from "@/reactives/useCodeEditor";
 
-const model = defineModel()
+const model = defineModel();
+const autoHeight = ref(false);
+const { editRef, editor } = useCodeEditor(model, [
+  javascript(),
+  lineNumbers(),
+  EditorView.updateListener.of((update) => {
+    if (update.docChanged) model.value = update.state.doc.toString();
+  }),
+]);
 
-const editRef = ref();
-const editor = shallowRef();
-const { effectiveTheme } = useTheme();
 const emit = defineEmits(["update:modelValue"]);
-
-const clear = () => {
-  // 清空编辑器内容
-  editor.value?.setValue("");
-};
-
-const resize = () => {
-  editor.value?.refresh();
-};
-
-const createEditor = async () => {
-  const mime = "application/x-javascript";
-  if (!editRef.value) {
-    console.debug("editRef is null", editRef.value)
-    return
-  }
-  editor.value = codemirror.fromTextArea(editRef.value, {
-    value: model,
-    mode: mime,
-    indentWithTabs: true,
-    smartIndent: true,
-    lineNumbers: true,
-    hintOptions: {
-      completeSingle: false,
-    },
-    matchBrackets: true,
-    cursorHeight: 1,
-    lineWrapping: true,
-    extraKeys: { Ctrl: "autocomplete" },
-    theme: effectiveTheme.value === "dark" ? "ambiance" : "default",
-  });
-  
-  editor.value.on("change", () => {
-    emit("update:modelValue", editor.value.getValue() || "");
-  });
-  editor.value.on("blur", () => { });
-  console.debug("editor inited");
-};
-
 defineExpose({
-  syncValue: () => {
-    emit("update:modelValue", editor.value.getValue() || "");
-  },
-  syncValueTrim: () => {
-    emit("update:modelValue", editor.value.getValue().trim() || "");
-  },
+  syncValue: () => emit("update:modelValue", editor.value.state.doc.toString()),
+  syncValueTrim: () => emit("update:modelValue", editor.value.state.doc.toString().trim()),
 });
-
-watch(
-  () => model,
-  (value) => {
-    editor.value?.setValue(value.trim());
-  }
-);
-
-watch(effectiveTheme, (value) => {
-  editor.value?.setOption("theme", value === "dark" ? "ambiance" : "default");
-  editor.value?.refresh();
-});
-
-onMounted(async () => {
-  await nextTick();
-  if (!editor.value) createEditor();
-});
-
-const onAutoHeightCheck = (b) => {
-  if (b) {
-    editor.value.setSize('100%', 'auto')
-  } else {
-    editor.value.setSize('100%', '300px')
-  }
-}
-
 </script>
 
 <style lang="scss" scoped>
 .edit-container {
   width: 100%;
-  height: 100%;
   line-height: 20px;
   font-size: medium;
 
-  textarea {
-    width: 100%;
-    height: 100%;
+  :deep(.cm-editor) {
+    height: 300px;
   }
-}
-</style>
-<style lang="scss">
-.CodeMirror {
-  border: 1px solid var(--tio-border);
-  border-radius: var(--tio-radius);
+
+  &.auto-height :deep(.cm-editor) {
+    height: auto;
+  }
 }
 </style>
