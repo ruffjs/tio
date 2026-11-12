@@ -297,15 +297,16 @@
 </template>
 
 <script setup>
-import { h, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { defineAsyncComponent, h, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { ElMessageBox, ElTag, ElPopover, ElTable, ElTableColumn } from 'element-plus';
 import * as api from '@/apis';
 import { getDependent } from '@/components/rule/rule'
-import EditRule from '@/components/rule/EditRule.vue';
-import EditOpt from '@/components/rule/EditOpt.vue';
 import * as ruleSchema from '@/components/rule/rule-schema'
 import { deepCopy } from '@/utils/common'
 import { ElNotification } from 'element-plus';
+
+const EditRule = defineAsyncComponent(() => import('@/components/rule/EditRule.vue'));
+const EditOpt = defineAsyncComponent(() => import('@/components/rule/EditOpt.vue'));
 
 const emptyRuleConfig = {
   connectors: [],

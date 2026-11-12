@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Lazy tool checks</title>
+<script>window.global = window;</script>
+<body>
+  <h1>Lazy tool checks</h1>
+  <p>Run with <code>yarn dev</code>, then open <code>/web/tests/lazy-tools.html</code>.</p>
+  <pre id="result">Running…</pre>
+  <div id="global-message-panel"></div>
+  <div id="app"></div>
+  <script type="module">
+    import { createApp, h, nextTick } from "vue";
+    import { createRouter, createMemoryHistory } from "vue-router";
+    import ElementPlus from "element-plus";
+    import { Connection, Memo, Compass } from "@element-plus/icons-vue";
+    import process from "process";
+    import { Buffer } from "buffer";
+    import EventEmitter from "events";
+    import ToolArea from "../src/components/layout/ToolArea.vue";
+    import store from "../src/store";
+    import i18n from "../src/i18n";
+    import "element-plus/dist/index.css";
+    import "../src/style.scss";
+
+    Object.assign(window, { process, Buffer, EventEmitter });
+    const result = document.querySelector("#result");
+    let checks = 0;
+    const assert = (condition, message) => {
+      if (!condition) throw new Error(message);
+      checks++;
+    };
+    const waitFor = async selector => {
+      for (let i = 0; i < 100; i++) {
+        const element = document.querySelector(selector);
+        if (element) return element;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error(`Timed out: ${selector}`);
+    };
+    const savedTool = localStorage.getItem("$tiopg/layout/activeToolKey");
+    store.commit("layout/setState", { activeToolKey: "" });
+    store.commit("mqtt/setState", { connectionConfigs: [], currentConnId: null });
+    store.commit("app/setState", { things: [{ thingId: "lazy-test", authValue: "test-password" }] });
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/", component: { render: () => null } }] });
+    const app = createApp({ render: () => h(ToolArea) }).use(store).use(router).use(i18n).use(ElementPlus);
+    for (const [name, icon] of Object.entries({ Connection, Memo, Compass })) app.component(name, icon);
+    await router.isReady();
+    app.mount("#app");
+    try {
+      assert(!document.querySelector(".mqtt-clients-panel, .http-logs-panel"), "Tools stay unmounted initially");
+      document.querySelectorAll(".tool-tab-item")[1].click();
+      const logs = await waitFor(".http-logs-panel");
+      assert(!document.querySelector(".mqtt-clients-panel"), "HTTP logs do not mount MQTT");
+      document.querySelectorAll(".tool-tab-item")[1].click();
+      await nextTick();
+      assert(store.state.layout.activeToolKey === "" && document.querySelector(".http-logs-panel") === logs, "Collapsed logs keep their state");
+      store.commit("layout/setState", { mqttConnForm: {
+        visible: true, connIdToEdit: null, thingIdForCreate: "lazy-test", connectedCallbackToken: "test-token",
+      } });
+      const mqtt = await waitFor(".mqtt-clients-panel");
+      await waitFor(".mqtt-connection-form input");
+      await nextTick();
+      const values = [...document.querySelectorAll(".mqtt-connection-form input")].map(input => input.value);
+      assert(values.includes("lazy-test (default)") && values.includes("test-password"), "First MQTT form initializes device fields");
+      store.commit("layout/setState", { mqttConnForm: { ...store.state.layout.mqttConnForm, visible: false } });
+      document.querySelectorAll(".tool-tab-item")[0].click();
+      await nextTick();
+      assert(document.querySelector(".mqtt-clients-panel") === mqtt, "Opening MQTT reuses the initialized panel");
+      document.querySelectorAll(".tool-tab-item")[1].click();
+      await nextTick();
+      assert(document.querySelector(".http-logs-panel") === logs && document.querySelector(".mqtt-clients-panel") === mqtt, "Switching tabs preserves both panels");
+      result.textContent = `PASS: ${checks} checks`;
+    } catch (error) {
+      result.textContent = `FAIL: ${error.stack}`;
+      console.error(error);
+    } finally {
+      app.unmount();
+      // Keep the user's saved tool selection unchanged after this isolated check.
+      if (savedTool === null) localStorage.removeItem("$tiopg/layout/activeToolKey");
+      else localStorage.setItem("$tiopg/layout/activeToolKey", savedTool);
+    }
+  </script>
+</body>
+</html>

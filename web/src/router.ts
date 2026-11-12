@@ -2,49 +2,48 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import store from "@/store";
 import { REQ_ROUTE_CHG_EVT } from "@/utils/event";
 
-import List from "@/components/views/List.vue";
-import Login from "@/components/views/Login.vue";
-import NotFound from "@/components/views/NotFound.vue";
-import Thing from "@/components/views/Thing.vue";
-import Rule from "@/components/views/Rule.vue";
+const List = () => import("@/components/views/List.vue");
+const Login = () => import("@/components/views/Login.vue");
+const NotFound = () => import("@/components/views/NotFound.vue");
+const Thing = () => import("@/components/views/Thing.vue");
+const Rule = () => import("@/components/views/Rule.vue");
 
 const routes = [
   {
     path: "/login",
-    name: Login.name,
-    meta: Login.customOptions,
+    name: "Login",
+    meta: { title: "Login TIO", zIndex: 1999, actived: false, standalone: true },
     component: Login,
   },
   {
     path: "/rules",
-    name: Rule.name,
-    meta: Rule.customOptions,
+    name: "Rule",
     component: Rule,
   },
   {
     path: "/things/:thingId",
-    name: Thing.name,
-    meta: Thing.customOptions,
+    name: "Thing",
+    meta: { title: (route) => `${route.params.thingId || "(thingId)"} | Thing`, zIndex: 0, actived: true },
     component: Thing,
   },
   {
     path: "/",
-    name: List.name,
-    meta: List.customOptions,
+    name: "List",
+    meta: { title: "TIO Playground", zIndex: 0, actived: true },
     component: List,
     children: [
       {
         path: "/things/:thingId",
-        name: Thing.name,
-        meta: Thing.customOptions,
+        name: "Thing",
+        meta: { title: (route) => `${route.params.thingId || "(thingId)"} | Thing`, zIndex: 0, actived: true },
         component: Thing,
       },
     ],
   },
   {
     path: "/:pathMatch(.*)*",
-    name: NotFound.name,
-    meta: NotFound.customOptions,
+    name: "NotFound",
+    meta: { title: "View Not Found", zIndex: 0, actived: false },
     component: NotFound,
   },
 ];
@@ -58,14 +57,14 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   // console.log(to.name);
   if (store.state.user.auth) {
-    if (to.name === Login.name) {
-      next({ name: List.name });
+    if (to.name === "Login") {
+      next({ name: "List" });
     } else {
       next();
     }
   } else {
-    if (to.name !== Login.name) {
-      next({ name: Login.name });
+    if (to.name !== "Login") {
+      next({ name: "Login" });
     } else {
       next();
     }

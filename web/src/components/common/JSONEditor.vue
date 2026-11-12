@@ -12,10 +12,11 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
-import JsonEditorVue from "json-editor-vue";
 import useTheme from "@/reactives/useTheme";
+
+const JsonEditorVue = defineAsyncComponent(() => import("json-editor-vue"));
 
 const error = ref(null);
 const object = ref({});

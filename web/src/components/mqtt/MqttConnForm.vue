@@ -785,7 +785,7 @@ watch(isConnFormVisible, async () => {
     Object.assign(form, getDefaultForm());
   }
   form.port = getDefaultMqttPort(store.state.app.tioConfig);
-});
+}, { immediate: true });
 
 const resetClientID = () => {
   if (form.username && form.userrole === "server") {

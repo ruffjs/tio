@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     //路径别名配置
     alias: {
-      "@": resolve(__dirname, ".", "src"),
+      "@": resolve(import.meta.dirname, "src"),
     },
   },
   define: {

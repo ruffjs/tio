@@ -18,33 +18,39 @@
         class="tool-container"
         :style="{ top: activeToolKey === 'mqtt' ? '0%' : '200%' }"
       >
-        <MqttClients />
+        <MqttClients v-if="loadedTools.has('mqtt')" />
       </div>
       <div
         class="tool-container"
         :style="{ top: activeToolKey === 'logs' ? '0%' : '200%' }"
       >
-        <HttpLogs />
+        <HttpLogs v-if="loadedTools.has('logs')" />
       </div>
       <div
         class="tool-container"
         :style="{ top: activeToolKey === 'code' ? '0%' : '200%' }"
       >
-        <CodeSnippet />
+        <CodeSnippet v-if="loadedTools.has('code')" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { defineAsyncComponent, ref, watch } from "vue";
 import useLayout from "@/reactives/useLayout";
-import MqttClients from "@/components/tools/MqttClients.vue";
-import HttpLogs from "@/components/tools/HttpLogs.vue";
-import CodeSnippet from "@/components/tools/CodeSnippet.vue";
 import { tools } from "@/configs/tool";
 
-const { activeToolKey, activeToolConf, activeToolHeight, switchActiveTool } = useLayout();
+const MqttClients = defineAsyncComponent(() => import("@/components/tools/MqttClients.vue"));
+const HttpLogs = defineAsyncComponent(() => import("@/components/tools/HttpLogs.vue"));
+const CodeSnippet = defineAsyncComponent(() => import("@/components/tools/CodeSnippet.vue"));
+
+const { activeToolKey, activeToolHeight, switchActiveTool, isConnFormVisible, isSubsFormVisible } = useLayout();
+const loadedTools = ref(new Set());
+watch([activeToolKey, isConnFormVisible, isSubsFormVisible], ([key, connectionForm, subscriptionForm]) => {
+  if (key) loadedTools.value.add(key);
+  if (connectionForm || subscriptionForm) loadedTools.value.add("mqtt");
+}, { immediate: true });
 </script>
 
 <style scoped lang="scss">

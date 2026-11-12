@@ -72,24 +72,19 @@
   </div>
   <HttpPoster v-if="posterCode" :key="posterKey" :code="posterCode" :thing-id="thingId" :payload="posterData" @done="updateCurrentShadow"
     @close="closePoster" />
-  <EditThingForm :visible="editVisible" :model="thing" @close="editVisible = false" @save="handleSaveThing" />
+  <EditThingForm v-if="editVisible" :visible="editVisible" :model="thing" @close="editVisible = false" @save="handleSaveThing" />
 </template>
 
 <script>
 export default {
   name: "Thing",
   inheritAttrs: false,
-  customOptions: {
-    title: (route) => `${route.params.thingId || "(thingId)"} | Thing`,
-    zIndex: 0,
-    actived: true,
-  },
   components: { KeyValueDisplayer, MqttClients },
 };
 </script>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
@@ -99,8 +94,6 @@ import { createMetaFields } from "@/configs/thing";
 import KeyValueDisplayer from "@/components/common/KeyValueDisplayer.vue";
 import ShadowTags from "@/components/thing/ShadowTags.vue";
 import ShadowData from "@/components/thing/ShadowData.vue";
-import HttpPoster from "@/components/thing/HttpPoster.vue";
-import EditThingForm from "@/components/thing/EditThingForm.vue";
 import MqttClients from "@/components/thing/MqttClientsOfThing.vue";
 import {
   TSCE_MQTO,
@@ -109,6 +102,9 @@ import {
   TSCE_MSGI,
 } from "@/utils/event";
 import useThingEvent from "@/reactives/useThingEvent";
+
+const HttpPoster = defineAsyncComponent(() => import("@/components/thing/HttpPoster.vue"));
+const EditThingForm = defineAsyncComponent(() => import("@/components/thing/EditThingForm.vue"));
 
 const router = useRouter();
 const { t } = useI18n();

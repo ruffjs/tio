@@ -51,7 +51,6 @@
 export default {
   name: "Login",
   inheritAttrs: false,
-  customOptions: { title: "Login TIO", zIndex: 1999, actived: false, standalone: true },
 };
 </script>
 

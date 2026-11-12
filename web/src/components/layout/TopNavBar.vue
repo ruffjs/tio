@@ -22,21 +22,21 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
-import List from "@/components/views/List.vue";
-import AddThingForm from "./AddThingForm.vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import useTheme from "@/reactives/useTheme";
+
+const AddThingForm = defineAsyncComponent(() => import("./AddThingForm.vue"));
 
 const store = useStore();
 const router = useRouter();
 const { route } = useThingsAndShadows();
 const { themeMode, themeLabel, nextThemeMode, toggleTheme } = useTheme();
 const hasAuth = computed(() => !!store.state.user.auth);
-const isList = computed(() => route.name === List.name);
+const isList = computed(() => route.name === "List");
 
 const isAdding = ref(false);
 const isSetting = ref(false);

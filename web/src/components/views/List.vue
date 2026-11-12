@@ -143,20 +143,20 @@
 export default {
   name: "List",
   inheritAttrs: false,
-  customOptions: { title: "TIO Playground", zIndex: 0, actived: true },
 };
 </script>
 <script setup>
-import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, reactive, watch, computed, defineAsyncComponent, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { suggestions } from "@/configs/query";
 import { queryShadows } from "@/apis";
 import { TSCE_MQTO, TSCE_MQTT } from "@/utils/event";
-import ThingsList from "@/components/list/ThingsList.vue";
 import SQLEditor from "@/components/list/SQLEditor.vue";
 import JSONEditor from "@/components/common/JSONEditor.vue";
 import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import useThingEvent from "@/reactives/useThingEvent";
+
+const ThingsList = defineAsyncComponent(() => import("@/components/list/ThingsList.vue"));
 
 const defaultPageSize = 20;
 const placeholder = suggestions[0].value;
