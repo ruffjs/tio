@@ -102,3 +102,24 @@ func TestParseQueryEscapesJsonPathQuote(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, p.Where, "a''b")
 }
+
+func FuzzParseQuery(f *testing.F) {
+	seeds := []string{
+		"select * from shadow",
+		"select thingId from shadow where thingId = 't1'",
+		"select `state.desired.color` as color from shadow where `tags.a` = 'x'",
+		"select * from shadow where 1=1 and randomblob(1000) is not null",
+		"select * from shadow where thingId in (select id from thing)",
+		"select * from shadow union select * from thing",
+		"select * from shadow for update",
+		"select * from shadow where `tags.a'b` = 'x'",
+		"not sql",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, q string) {
+		// Must never panic; a parse/validation error is a valid outcome.
+		_, _ = parseQuerySql(q)
+	})
+}

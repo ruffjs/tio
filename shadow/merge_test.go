@@ -632,3 +632,25 @@ func TestMergePatch_Immutability(t *testing.T) {
 	result["items"].([]any)[0].(map[string]any)["value"] = 999
 	require.Equal(t, 1, old["items"].([]any)[0].(map[string]any)["value"], "result array shares reference with old")
 }
+
+func FuzzMergePatch(f *testing.F) {
+	seeds := [][2]string{
+		{`{}`, `{}`},
+		{`{"a":1}`, `{"a":2}`},
+		{`{"a":{"b":1}}`, `{"a":{"c":2}}`},
+		{`{"a":1}`, `{"a":null}`},
+		{`{"a":[1,2]}`, `{"a":[3]}`},
+	}
+	for _, s := range seeds {
+		f.Add(s[0], s[1])
+	}
+	f.Fuzz(func(t *testing.T, oldJSON, patchJSON string) {
+		var oldM, patch map[string]any
+		if json.Unmarshal([]byte(oldJSON), &oldM) != nil ||
+			json.Unmarshal([]byte(patchJSON), &patch) != nil {
+			t.Skip()
+		}
+		// Must never panic; the boolean only reports whether anything changed.
+		_, _ = shadow.MergePatch(oldM, patch)
+	})
+}
