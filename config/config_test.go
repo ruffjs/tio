@@ -353,3 +353,25 @@ func TestProtocolValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateNatsConfigRejectsEmptyPasswords(t *testing.T) {
+	cfg, err := LoadConfigFile("../config.yaml")
+	require.NoError(t, err)
+	n := cfg.Connector.Nats
+	require.NoError(t, ValidateNatsConfig(n, DBMySQL))
+
+	n.SuperUsers = append(n.SuperUsers, UserPassword{Name: "empty", Password: ""})
+	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+
+	n = cfg.Connector.Nats
+	n.AppClient.Password = ""
+	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+
+	n = cfg.Connector.Nats
+	n.SystemClient.Password = ""
+	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+
+	n = cfg.Connector.Nats
+	n.MqttPublisher.Password = ""
+	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+}

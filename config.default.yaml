@@ -67,3 +67,9 @@ pprof:
 log:
   # Log level: "debug", "info", "warn", "error"
   level: debug
+
+auth:
+  # Let a thing with no authValue store the first password it presents.
+  # Off by default: set authValue when creating things, or turn this on for one
+  # upgrade window only.
+  allowPasswordBootstrap: false

@@ -12,7 +12,14 @@ import (
 )
 
 // AuthzMqttClient authenticates MQTT clients with either password or client certificate.
-func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thingSvc thing.Service, provision thing.Provision) connector.AuthzFn {
+// allowPasswordBootstrap lets a thing with an empty AuthValue store the first password it presents.
+func AuthzMqttClient(
+	ctx context.Context,
+	superUsers []config.UserPassword,
+	thingSvc thing.Service,
+	provision thing.Provision,
+	allowPasswordBootstrap bool,
+) connector.AuthzFn {
 	return func(authCtx connector.AuthContext) (connector.AuthResult, bool) {
 		if result, ok := authenticateSuperUser(authCtx, superUsers); ok {
 			return result, true
@@ -22,13 +29,16 @@ func AuthzMqttClient(ctx context.Context, superUsers []config.UserPassword, thin
 			return authenticateByCertificate(ctx, authCtx, thingSvc)
 		}
 
-		return authenticateByPassword(ctx, authCtx, thingSvc, provision)
+		return authenticateByPassword(ctx, authCtx, thingSvc, provision, allowPasswordBootstrap)
 	}
 }
 
 func authenticateSuperUser(authCtx connector.AuthContext, superUsers []config.UserPassword) (connector.AuthResult, bool) {
+	if authCtx.Password == "" {
+		return connector.AuthResult{}, false
+	}
 	for _, u := range superUsers {
-		if authCtx.Username == u.Name && authCtx.Password == u.Password {
+		if u.Password != "" && authCtx.Username == u.Name && authCtx.Password == u.Password {
 			slog.Info("Mqtt client authorized by super user", "user", u.Name, "clientId", authCtx.ClientIdentifier)
 			return connector.AuthResult{
 				Principal:  u.Name,
@@ -72,7 +82,7 @@ func authenticateByCertificate(ctx context.Context, authCtx connector.AuthContex
 	}, true
 }
 
-func authenticateByPassword(ctx context.Context, authCtx connector.AuthContext, thingSvc thing.Service, provision thing.Provision) (connector.AuthResult, bool) {
+func authenticateByPassword(ctx context.Context, authCtx connector.AuthContext, thingSvc thing.Service, provision thing.Provision, allowBootstrap bool) (connector.AuthResult, bool) {
 	user := authCtx.Username
 	th, err := thingSvc.Get(ctx, user)
 	if err != nil {
@@ -92,7 +102,7 @@ func authenticateByPassword(ctx context.Context, authCtx connector.AuthContext, 
 		return connector.AuthResult{}, false
 	}
 
-	return authenticateWithThing(ctx, authCtx, th, thingSvc)
+	return authenticateWithThing(ctx, authCtx, th, thingSvc, allowBootstrap)
 }
 
 func handleGetThingError(ctx context.Context, authCtx connector.AuthContext, err error, provision thing.Provision) (connector.AuthResult, bool) {
@@ -108,11 +118,15 @@ func handleGetThingError(ctx context.Context, authCtx connector.AuthContext, err
 	return connector.AuthResult{}, false
 }
 
-func authenticateWithThing(ctx context.Context, authCtx connector.AuthContext, th *thing.Thing, thingSvc thing.Service) (connector.AuthResult, bool) {
+func authenticateWithThing(ctx context.Context, authCtx connector.AuthContext, th *thing.Thing, thingSvc thing.Service, allowBootstrap bool) (connector.AuthResult, bool) {
 	user, password, clientID := authCtx.Username, authCtx.Password, authCtx.ClientIdentifier
 
 	switch {
 	case th.AuthValue == "" && password != "":
+		if !allowBootstrap {
+			logFailure("thing has no password and password bootstrap is disabled", user, clientID)
+			return connector.AuthResult{}, false
+		}
 		if err := thingSvc.UpdateAuthValue(ctx, user, password); err != nil {
 			slog.Error("Failed to update thing AuthValue", "user", user, "clientId", clientID, "error", err)
 			return connector.AuthResult{}, false
@@ -122,7 +136,7 @@ func authenticateWithThing(ctx context.Context, authCtx connector.AuthContext, t
 			Principal:  user,
 			AuthMethod: "password-bootstrap",
 		}, true
-	case th.AuthValue == password:
+	case password != "" && th.AuthValue == password:
 		slog.Info("Mqtt client authorized", "user", user, "clientId", clientID)
 		return connector.AuthResult{
 			Principal:  user,

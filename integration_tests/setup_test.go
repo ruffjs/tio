@@ -102,7 +102,8 @@ func TestMain(m *testing.M) {
 	shadowSvc = shadowWire.InitSvc(dbConn, natsConnector, shadow.Config{})
 	thingSvc = thingWire.InitSvc(testCtx, dbConn, shadowSvc, natsConnector)
 
-	authzFn := auth.AuthzMqttClient(testCtx, cfg.Connector.Nats.SuperUsers, thingSvc, nil)
+	authzFn := auth.AuthzMqttClient(testCtx, cfg.Connector.Nats.SuperUsers, thingSvc, nil,
+		cfg.Auth.AllowPasswordBootstrap)
 
 	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
 		log.Fatal(err)

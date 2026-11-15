@@ -113,6 +113,11 @@ type Config struct {
 		Mysql  mysql.Config  `json:"mysql"`
 		Sqlite sqlite.Config `json:"sqlite"`
 	} `json:"db"`
+	Auth struct {
+		// AllowPasswordBootstrap lets a thing with an empty AuthValue store the
+		// first password it presents. Off by default.
+		AllowPasswordBootstrap bool `json:"allowPasswordBootstrap"`
+	} `json:"auth"`
 	Connector       Connector `json:"connector"`
 	Protocol        Protocol  `json:"protocol"`
 	ProvisionSecret string    `json:"-"`
@@ -329,11 +334,28 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 	if cfg.AppClient.User == "" {
 		return fmt.Errorf("nats appClient.user must not be empty")
 	}
+	if cfg.AppClient.Password == "" {
+		return fmt.Errorf("nats appClient.password must not be empty")
+	}
 	if cfg.SystemClient.User == "" {
 		return fmt.Errorf("nats systemClient.user must not be empty")
 	}
+	if cfg.SystemClient.Password == "" {
+		return fmt.Errorf("nats systemClient.password must not be empty")
+	}
 	if cfg.MqttPublisher.User == "" {
 		return fmt.Errorf("nats mqttPublisher.user must not be empty")
+	}
+	if cfg.MqttPublisher.Password == "" {
+		return fmt.Errorf("nats mqttPublisher.password must not be empty")
+	}
+	for _, u := range cfg.SuperUsers {
+		if u.Name == "" {
+			return fmt.Errorf("nats superUsers[].name must not be empty")
+		}
+		if u.Password == "" {
+			return fmt.Errorf("nats superUsers[%q].password must not be empty", u.Name)
+		}
 	}
 
 	return nil

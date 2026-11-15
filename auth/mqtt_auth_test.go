@@ -16,14 +16,15 @@ import (
 
 func TestAuthzMqttClient(t *testing.T) {
 	tests := []struct {
-		name          string
-		superUsers    []config.UserPassword
-		thingSvc      *stubThingService
-		provision     thing.Provision
-		authCtx       connector.AuthContext
-		wantOK        bool
-		wantPrincipal string
-		wantMethod    string
+		name           string
+		superUsers     []config.UserPassword
+		thingSvc       *stubThingService
+		provision      thing.Provision
+		allowBootstrap bool
+		authCtx        connector.AuthContext
+		wantOK         bool
+		wantPrincipal  string
+		wantMethod     string
 	}{
 		{
 			name: "password thing should authenticate with password",
@@ -203,7 +204,7 @@ func TestAuthzMqttClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			authz := auth.AuthzMqttClient(context.Background(), tt.superUsers, tt.thingSvc, tt.provision)
+			authz := auth.AuthzMqttClient(context.Background(), tt.superUsers, tt.thingSvc, tt.provision, tt.allowBootstrap)
 
 			result, ok := authz(tt.authCtx)
 			require.Equal(t, tt.wantOK, ok)
@@ -286,4 +287,53 @@ func (s stubProvision) AutoRegisterViaHmac(_ context.Context, thingId, password 
 		return false, thing.Thing{}, nil
 	}
 	return true, thing.Thing{Id: thingId, AuthType: thing.AuthTypePassword, AuthValue: password, Enabled: true}, nil
+}
+
+func TestAuthRejectsEmptyPassword(t *testing.T) {
+	ctx := context.Background()
+	dev := &stubThingService{
+		things: map[string]thing.Thing{
+			"dev-empty": {Id: "dev-empty", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: ""},
+			"dev-pw":    {Id: "dev-pw", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: "pw-1"},
+		},
+	}
+
+	t.Run("thing with empty password", func(t *testing.T) {
+		authz := auth.AuthzMqttClient(ctx, nil, dev, nil, true)
+		_, ok := authz(connector.AuthContext{ClientIdentifier: "c1", Username: "dev-empty", Password: ""})
+		require.False(t, ok)
+	})
+
+	t.Run("super user with empty configured password", func(t *testing.T) {
+		authz := auth.AuthzMqttClient(ctx, []config.UserPassword{{Name: "admin", Password: ""}}, dev, nil, false)
+		_, ok := authz(connector.AuthContext{ClientIdentifier: "c2", Username: "admin", Password: ""})
+		require.False(t, ok)
+	})
+}
+
+func TestPasswordBootstrapConfig(t *testing.T) {
+	ctx := context.Background()
+	newDev := func() *stubThingService {
+		return &stubThingService{
+			things: map[string]thing.Thing{
+				"dev-empty": {Id: "dev-empty", Enabled: true, AuthType: thing.AuthTypePassword, AuthValue: ""},
+			},
+		}
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		dev := newDev()
+		authz := auth.AuthzMqttClient(ctx, nil, dev, nil, false)
+		_, ok := authz(connector.AuthContext{ClientIdentifier: "c1", Username: "dev-empty", Password: "new-pw"})
+		require.False(t, ok)
+		require.Empty(t, dev.updateAuths)
+	})
+
+	t.Run("enabled stores the first password", func(t *testing.T) {
+		dev := newDev()
+		authz := auth.AuthzMqttClient(ctx, nil, dev, nil, true)
+		_, ok := authz(connector.AuthContext{ClientIdentifier: "c1", Username: "dev-empty", Password: "new-pw"})
+		require.True(t, ok)
+		require.Equal(t, "new-pw", dev.updateAuths["dev-empty"])
+	})
 }
