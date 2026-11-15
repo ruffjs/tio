@@ -172,7 +172,9 @@ func PatchDesiredStateHandler(ctx context.Context, svc shadow.Service) restful.R
 		_, err = svc.SetDesired(ctx, thingId, stateReq)
 		if err != nil {
 			slog.Error("Error setting desired", "error", err, "body", stateReq)
-			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
+			if !checkHttpErrAndSend(err, w) {
+				rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
+			}
 			return
 		}
 		rest.SendResp(w, 200, rest.RespOK(""))
@@ -197,7 +199,9 @@ func SetTagsHandler(ctx context.Context, svc shadow.Service) restful.RouteFuncti
 		err = svc.SetTag(ctx, thingId, tagsReq)
 		if err != nil {
 			slog.Error("Error setting tags", "error", err, "body", tagsReq)
-			rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
+			if !checkHttpErrAndSend(err, w) {
+				rest.SendResp(w, 500, rest.Resp[any]{Code: 500, Message: err.Error()})
+			}
 			return
 		}
 		rest.SendResp(w, 200, rest.RespOK(""))

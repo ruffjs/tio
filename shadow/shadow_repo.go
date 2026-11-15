@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type shadowRepo struct {
@@ -61,12 +62,16 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 		return nil, err
 	}
 
-	// update when version match
-	ex := r.db
-	if version > 0 {
-		ex = ex.Where("version = ?", version)
+	// Always conditional: a write without the version just read would silently
+	// overwrite a concurrent update.
+	if version <= 0 {
+		return nil, errors.Wrap(model.ErrVersionConflict, "update without version")
 	}
-	res := ex.Save(&en)
+	// Save() drops the Where clause, so use Updates with an explicit condition.
+	res := r.db.Model(&Entity{}).
+		Where("thing_id = ? AND version = ?", thingId, version).
+		Select("*").
+		Updates(&en)
 	if res.Error != nil {
 		return nil, errors.Wrap(res.Error, "update in db")
 	}
@@ -150,9 +155,20 @@ func (r shadowRepo) GetWithStatus(ctx context.Context, thingId string) (*ShadowW
 }
 
 func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
+	return r.get(ctx, thingId, false)
+}
+
+func (r shadowRepo) GetForUpdate(ctx context.Context, thingId string) (*Shadow, error) {
+	return r.get(ctx, thingId, true)
+}
+
+func (r shadowRepo) get(ctx context.Context, thingId string, forUpdate bool) (*Shadow, error) {
 	e := Entity{}
-	res := r.db.Model(&Entity{}).
-		Where("shadow.thing_id=?", thingId).
+	q := r.db.Model(&Entity{})
+	if forUpdate {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	res := q.Where("shadow.thing_id=?", thingId).
 		First(&e)
 
 	err := res.Error

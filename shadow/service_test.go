@@ -515,3 +515,24 @@ func assertDelta(t *testing.T, lastDelta lastDelta, token, color string) {
 	dTs := time.Now().UnixMilli() - ts
 	require.Truef(t, dTs >= 0 && dTs < 100, "state metadata should be closer to current time")
 }
+
+func TestSetTagCacheUsesMergedTags(t *testing.T) {
+	svc, _, _ := newTestSvc()
+	id := fmt.Sprintf("for-set-tag-cache-%d", time.Now().UnixNano())
+	_, err := svc.Create(ctx, id)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.SetTag(ctx, id, shadow.TagsReq{Tags: shadow.TagsValue{"a": "1", "b": "2"}}))
+	// Populate the cache from the db.
+	got, ok := svc.GetFromCache(id)
+	require.True(t, ok)
+	require.Equal(t, "1", got.Tags["a"])
+	require.Equal(t, "2", got.Tags["b"])
+
+	require.NoError(t, svc.SetTag(ctx, id, shadow.TagsReq{Tags: shadow.TagsValue{"c": "3"}}))
+	got, ok = svc.GetFromCache(id)
+	require.True(t, ok)
+	require.Equal(t, "1", got.Tags["a"])
+	require.Equal(t, "2", got.Tags["b"])
+	require.Equal(t, "3", got.Tags["c"])
+}

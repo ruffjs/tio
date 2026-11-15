@@ -92,6 +92,9 @@ type Repo interface {
 	Delete(ctx context.Context, thingId string) error
 	Update(ctx context.Context, thingId string, version int64, s Shadow) (*Shadow, error)
 	Get(ctx context.Context, thingId string) (*Shadow, error)
+	// GetForUpdate reads the row with a write lock (MySQL SELECT ... FOR UPDATE;
+	// SQLite ignores the clause and serializes on its single connection).
+	GetForUpdate(ctx context.Context, thingId string) (*Shadow, error)
 	GetWithStatus(ctx context.Context, thingId string) (*ShadowWithStatus, error)
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[ShadowWithStatus], error)
 
@@ -339,8 +342,15 @@ func (s *shadowSvc) setState(
 	var changed bool
 
 	version := sr.Version
+	var readVersion int64
 	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
-		ss, err := txtRepo.Get(ctx, thingId)
+		var ss *Shadow
+		var err error
+		if version == 0 {
+			ss, err = txtRepo.GetForUpdate(ctx, thingId)
+		} else {
+			ss, err = txtRepo.Get(ctx, thingId)
+		}
 		if err != nil {
 			return err
 		}
@@ -351,6 +361,7 @@ func (s *shadowSvc) setState(
 			return errors.Wrap(model.ErrVersionConflict,
 				fmt.Sprintf("expect version %d but got %d", ss.Version, version))
 		}
+		readVersion = ss.Version
 
 		pre = cloneShadow(*ss)
 
@@ -383,17 +394,18 @@ func (s *shadowSvc) setState(
 		updatedMeta = applyMergedState(ss, merged, isDesired, patch)
 		ss.Version++
 
-		persisted, err = txtRepo.Update(ctx, thingId, version, *ss)
+		persisted, err = txtRepo.Update(ctx, thingId, readVersion, *ss)
 		if err != nil {
 			return err
 		}
-
-		s.cache.Del(thingId)
 		return nil
 	})
 	if err != nil {
 		return Shadow{}, nil, err
 	}
+	// Delete after commit: doing it inside the transaction would expose a
+	// window where a reader can repopulate the cache with the old row.
+	s.cache.Del(thingId)
 
 	typ := StateTypeReported
 	if isDesired {
@@ -556,8 +568,15 @@ func (s *shadowSvc) notifyRejected(thingId, clientToken string, err error) {
 }
 
 func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error {
+	var mergedTags TagsValue
 	err := s.repo.ExecWithTx(func(txtRepo Repo) error {
-		cur, err := txtRepo.Get(ctx, thingId)
+		var cur *Shadow
+		var err error
+		if t.Version == 0 {
+			cur, err = txtRepo.GetForUpdate(ctx, thingId)
+		} else {
+			cur, err = txtRepo.Get(ctx, thingId)
+		}
 		if err != nil {
 			return err
 		}
@@ -569,17 +588,18 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 				fmt.Sprintf("expect version %d but got %d", cur.Version, t.Version))
 		}
 
-		mergedTags := MergeTags(cur.Tags, t.Tags)
+		mergedTags = MergeTags(cur.Tags, t.Tags)
 		cur.Version++
 		cur.Tags = mergedTags
-		_, err = txtRepo.Update(ctx, thingId, t.Version, *cur)
+		_, err = txtRepo.Update(ctx, thingId, cur.Version-1, *cur)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	// update cache
-	s.cache.UpdateTags(thingId, t.Tags)
+	// Cache the merged tags, not the patch: replacing them with the patch would
+	// drop tags the rules engine already reads from the cache.
+	s.cache.UpdateTags(thingId, mergedTags)
 
 	return nil
 }
