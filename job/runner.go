@@ -46,12 +46,6 @@ func NewRunner(
 		// channels for direct method task
 		sysOpTaskCh:    make(chan []Task),
 		sysOpTaskDelCh: make(chan deleteTaskMsg),
-
-		// channels for get tasks
-		getPendingTasksOfCustomReqCh:  make(chan struct{}),
-		getPendingTasksOfCustomRespCh: nil,
-		getPendingTasksOfSysReqCh:     make(chan struct{}),
-		getPendingTasksOfSysRespCh:    nil,
 	}
 }
 
@@ -78,11 +72,6 @@ type runnerImpl struct {
 
 	sysOpTaskCh    chan []Task
 	sysOpTaskDelCh chan deleteTaskMsg
-	// channels for get tasks
-	getPendingTasksOfCustomReqCh  chan struct{}
-	getPendingTasksOfCustomRespCh chan []Task
-	getPendingTasksOfSysReqCh     chan struct{}
-	getPendingTasksOfSysRespCh    chan []Task
 
 	thingTaskQueues map[string]TaskQueue // thingId->[]Task, for general task
 
@@ -107,27 +96,6 @@ func (r *runnerImpl) PutTasks(operation string, l []Task) {
 	} else {
 		// TODO custom
 	}
-}
-
-func (r *runnerImpl) GetPendingTasksOfSys(op string) []Task {
-	if IsSysOp(op) {
-		r.getPendingTasksOfSysRespCh = make(chan []Task, 1)
-		defer func() {
-			r.getPendingTasksOfSysRespCh = nil
-		}()
-		r.getPendingTasksOfSysReqCh <- struct{}{}
-		return <-r.getPendingTasksOfSysRespCh
-	}
-	return []Task{}
-}
-
-func (r *runnerImpl) GetPendingTasksOfCustom() []Task {
-	r.getPendingTasksOfCustomRespCh = make(chan []Task, 1)
-	defer func() {
-		r.getPendingTasksOfCustomRespCh = nil
-	}()
-	r.getPendingTasksOfCustomReqCh <- struct{}{}
-	return <-r.getPendingTasksOfCustomRespCh
 }
 
 func (r *runnerImpl) DeleteTaskOfJob(jobId, operation string, force bool) {
@@ -191,7 +159,7 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 	err = r.repo.ExecWithTx(func(txRepo Repo) error {
 		t, er := txRepo.GetTask(r.ctx, msg.Task.TaskId)
 		if er != nil {
-			return err
+			return er
 		}
 		if t == nil {
 			return errors.New("task not found")
@@ -204,12 +172,12 @@ func (r *runnerImpl) updateTaskStatus(msg TaskChangeMsg) {
 			"progress":       msg.Progress,
 			"status_details": sdBuf,
 		}
-		if isTaskTerminal(t.Status) {
+		if isTaskTerminal(msg.Status) {
 			toUpdate["completed_at"] = time.Now()
 		}
 		er = txRepo.UpdateTask(r.ctx, msg.Task.TaskId, toUpdate)
 		if er != nil {
-			return err
+			return er
 		}
 		return nil
 	})
@@ -250,10 +218,11 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 				}
 				for k, v := range offlineThingTasks {
 					var vn []Task
+				nextTask:
 					for _, t := range v {
 						for _, id := range dl.tasks {
 							if t.TaskId == id {
-								break
+								continue nextTask
 							}
 						}
 						vn = append(vn, t)
@@ -288,14 +257,6 @@ func (r *runnerImpl) sysOpTaskLoop(addCh <-chan []Task, delCh <-chan deleteTaskM
 					slog.Debug("JobRunner retry: thing online, put back tasks", "thingId", thingId, "taskCount", len(l))
 				}
 			}
-		case <-r.getPendingTasksOfSysReqCh:
-			_ = r.pool.Submit(func() {
-				l := curQ.GetTasks()
-				for _, v := range offlineThingTasks {
-					l = append(l, v...)
-				}
-				r.getPendingTasksOfSysRespCh <- l
-			})
 		case <-tick.C:
 			// do task below
 		}

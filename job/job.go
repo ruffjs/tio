@@ -41,10 +41,6 @@ type Center interface {
 
 	// ReceiveMgrMsg Receive management message from MgrService, and return immediately.
 	ReceiveMgrMsg(msg MgrMsg)
-
-	GetPendingJobs() []PendingJobItem
-
-	GetPendingTasks(jobId string) []Task
 }
 
 // Runner
@@ -67,12 +63,6 @@ type Runner interface {
 
 	// OnTaskChange Notify task change to Center
 	OnTaskChange() <-chan TaskChangeMsg
-
-	// GetPendingTasksOfSys get pending tasks for system operations
-	// op: SysOpDirectMethod, SysOpUpdateShadow
-	GetPendingTasksOfSys(op string) []Task
-	// GetPendingTasksOfCustom get pending tasks for custom operations
-	GetPendingTasksOfCustom() []Task
 }
 
 type MgrMsgType string

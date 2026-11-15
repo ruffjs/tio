@@ -35,9 +35,6 @@ func NewCenter(
 		pendingJobChDel:    make(chan removeJobMsg),
 		updateJobContextCh: make(chan updateJobMsg),
 
-		getPendingReqCh:  make(chan struct{}),
-		getPendingRespCh: nil,
-
 		runner:      runner,
 		jobContexts: jc,
 	}
@@ -80,9 +77,6 @@ type centerImpl struct {
 	pendingJobCh    chan PendingJobItem
 	pendingJobChDel chan removeJobMsg
 
-	// channels for get pending jobs
-	getPendingReqCh    chan struct{}
-	getPendingRespCh   chan []PendingJobItem
 	updateJobContextCh chan updateJobMsg
 
 	jcLock      sync.RWMutex
@@ -166,40 +160,6 @@ func (c *centerImpl) ReceiveMgrMsg(msg MgrMsg) {
 	}
 }
 
-func (c *centerImpl) GetPendingJobs() []PendingJobItem {
-	c.getPendingRespCh = make(chan []PendingJobItem, 1)
-	defer func() {
-		c.getPendingRespCh = nil
-	}()
-	tm := time.After(time.Second)
-
-f:
-	for {
-		select {
-		case <-c.ctx.Done():
-			break f
-		case <-tm:
-			slog.Error("JobCenter get pending job timeout")
-			break f
-		case c.getPendingReqCh <- struct{}{}:
-			continue
-		case r := <-c.getPendingRespCh:
-			return r
-		}
-	}
-	return []PendingJobItem{}
-}
-
-func (c *centerImpl) GetPendingTasks(jobId string) []Task {
-	l := c.GetPendingJobs()
-	for _, j := range l {
-		if j.Context.JobId == jobId {
-			return j.Tasks
-		}
-	}
-	return []Task{}
-}
-
 func (c *centerImpl) addPendingJob(j PendingJobItem) {
 	c.pendingJobCh <- j
 }
@@ -252,21 +212,6 @@ func (c *centerImpl) rolloutLoop(l []*PendingJobItem) {
 				}
 			}
 			continue
-		case <-c.getPendingReqCh:
-			if c.getPendingRespCh != nil {
-				_ = c.pool.Submit(func() {
-					defer func() {
-						if err := recover(); err != nil { // getPendingRespCh maybe nil
-							slog.Error("JobCenter get pending job error", "error", err)
-						}
-					}()
-					var cp []PendingJobItem
-					for _, j := range pendingJobs {
-						cp = append(cp, *j)
-					}
-					c.getPendingRespCh <- cp
-				})
-			}
 		case njc := <-c.updateJobContextCh:
 			for _, p := range pendingJobs {
 				if njc.jobId == p.Context.JobId {
@@ -405,7 +350,11 @@ func (c *centerImpl) jobScheduleFilter(j *PendingJobItem) (next bool, remove boo
 		remove = true
 		force = true
 	default:
-		log.Fatalf("JobCenter schedule filter got unknown endBehavior=%q", endBehavior)
+		// Unknown config (old or corrupted row) must not stop the service.
+		slog.Error("JobCenter schedule filter got unknown endBehavior, canceling", "endBehavior", endBehavior)
+		next = true
+		remove = false
+		force = false
 	}
 
 	// notify runner cancel tasks
@@ -442,7 +391,8 @@ func (c *centerImpl) jobScheduleFilter(j *PendingJobItem) (next bool, remove boo
 func (c *centerImpl) preloadPendingJobs() (jobs []*PendingJobItem) {
 	l, err := c.repo.GetPendingJobs(c.ctx)
 	if err != nil {
-		log.Fatalf("JobCenter get pending jobs: %v", err)
+		slog.Error("JobCenter get pending jobs", "error", err)
+		return nil
 	}
 	for _, j := range l {
 		if len(j.Tasks) == 0 {
@@ -451,7 +401,7 @@ func (c *centerImpl) preloadPendingJobs() (jobs []*PendingJobItem) {
 			continue
 		}
 		if d, err := toDetail(j, []TaskStatusCount{}); err != nil {
-			log.Fatalf("JobCenter convert entity to Detail, jobId=%q, error: %v", j.JobId, err)
+			slog.Error("JobCenter convert entity to Detail, skipping job", "jobId", j.JobId, "error", err)
 		} else {
 			p := PendingJobItem{
 				Context: JobContext{

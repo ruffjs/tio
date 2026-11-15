@@ -49,6 +49,10 @@ func (r CreateReq) valid() error {
 		return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` size should be less than 60000 byte")
 	}
 
+	if err := r.jobDocValid(); err != nil {
+		return err
+	}
+
 	if r.TargetConfig.Type == "" {
 		return errors.WithMessage(model.ErrInvalidParams, "targetConfig type can't be empty")
 	}
@@ -74,6 +78,48 @@ func (r CreateReq) valid() error {
 		return err
 	}
 
+	return nil
+}
+
+const defaultDirectMethodRespTimeout = 30
+
+func (r CreateReq) jobDocValid() error {
+	if len(r.JobDoc) == 0 {
+		if IsSysOp(r.Operation) {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` can't be empty for a system operation")
+		}
+		return nil
+	}
+	b, err := json.Marshal(r.JobDoc, json.Deterministic(true))
+	if err != nil {
+		return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` is not a json object")
+	}
+
+	switch {
+	case IsDirectMethodOp(r.Operation):
+		var d InvokeDirectMethodReq
+		if err := json.Unmarshal(b, &d); err != nil {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` does not match the direct method operation: "+err.Error())
+		}
+		if d.Method == "" {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc.method` can't be empty")
+		}
+		if d.RespTimeout < 0 || d.RespTimeout > 300 {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc.responseTimeout` should between 0 and 300 second")
+		}
+		if d.RespTimeout == 0 {
+			// 0 would make the invoke timeout immediately.
+			r.JobDoc["responseTimeout"] = defaultDirectMethodRespTimeout
+		}
+	case IsUpdateShadowOp(r.Operation):
+		var d UpdateShadowReq
+		if err := json.Unmarshal(b, &d); err != nil {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc` does not match the update shadow operation: "+err.Error())
+		}
+		if d.State.Desired == nil {
+			return errors.WithMessage(model.ErrInvalidParams, "field `jobDoc.state.desired` can't be empty")
+		}
+	}
 	return nil
 }
 
