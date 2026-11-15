@@ -48,7 +48,14 @@ func parseQuerySql(qrySql string) (ParsedQuerySql, error) {
 	res.OriginSelectAlias = toSelectAlias(selStmt.SelectExprs)
 	res.SelectStatusAlias = updateSelectFields(selStmt)
 
+	if selStmt.Lock != "" {
+		return res, errors.WithMessage(model.ErrInvalidParams, "locking clause is not allowed in query")
+	}
+
 	err = sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+		if err := validQueryNode(node); err != nil {
+			return false, err
+		}
 		switch node := node.(type) {
 		case *sqlparser.ColName:
 			err := validColumn(node.Name.String())
@@ -194,6 +201,22 @@ func addAliasForSelectField(node *sqlparser.AliasedExpr) {
 	}
 }
 
+// validQueryNode rejects expression types that can burn DB resources
+// (functions such as randomblob/BENCHMARK/sleep, subqueries, joins, unions,
+// CASE, arithmetic) while keeping plain column/constant predicates working.
+func validQueryNode(node sqlparser.SQLNode) error {
+	switch node.(type) {
+	case *sqlparser.FuncExpr, *sqlparser.Subquery, *sqlparser.Union,
+		*sqlparser.ParenSelect, *sqlparser.ExistsExpr, *sqlparser.CaseExpr,
+		*sqlparser.BinaryExpr, *sqlparser.JoinTableExpr, *sqlparser.ConvertExpr,
+		*sqlparser.CollateExpr, *sqlparser.ValuesFuncExpr, *sqlparser.MatchExpr,
+		*sqlparser.GroupConcatExpr:
+		return errors.WithMessagef(model.ErrInvalidParams,
+			"unsupported expression in query: %s", sqlNodeToString(node))
+	}
+	return nil
+}
+
 func validColumn(col string) error {
 	if ok := validColumns[col]; ok {
 		return nil
@@ -228,7 +251,10 @@ func toDbCol(col string) string {
 
 // eg [a, b, c] to json_extract(a,$.b.c)
 func toJsonExtract(fArr []string) string {
-	return fmt.Sprintf("json_extract(%s, '$.%s')", fArr[0], strings.Join(fArr[1:], "."))
+	// The path is embedded in a single quoted literal: double quotes would
+	// otherwise end it and let the rest of the path run as SQL.
+	path := strings.ReplaceAll(strings.Join(fArr[1:], "."), "'", "''")
+	return fmt.Sprintf("json_extract(%s, '$.%s')", fArr[0], path)
 }
 
 func camelToSnake(camelCase string) string {

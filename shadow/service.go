@@ -268,6 +268,10 @@ func (s *shadowSvc) Query(ctx context.Context, pq model.PageQuery, query string)
 		}
 	}
 
+	// User supplied queries must not hold a connection forever.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	p, err := s.repo.Query(ctx, pq, parsedQ)
 	if err != nil {
 		return Page{}, err

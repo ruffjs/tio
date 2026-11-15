@@ -81,3 +81,24 @@ func TestParseQuery(t *testing.T) {
 		}
 	})
 }
+
+func TestParseQueryRejectsDangerousExpressions(t *testing.T) {
+	cases := []string{
+		"select * from shadow where 1=1 and randomblob(1000000000) is not null",
+		"select * from shadow where BENCHMARK(1000000, MD5('x'))",
+		"select * from shadow where thingId in (select id from thing)",
+		"select * from shadow union select * from thing",
+		"select * from shadow where thingId = sleep(10)",
+		"select * from shadow for update",
+	}
+	for _, q := range cases {
+		_, err := parseQuerySql(q)
+		require.Error(t, err, q)
+	}
+}
+
+func TestParseQueryEscapesJsonPathQuote(t *testing.T) {
+	p, err := parseQuerySql("select * from shadow where `tags.a'b` = 'x'")
+	require.NoError(t, err)
+	require.Contains(t, p.Where, "a''b")
+}

@@ -47,7 +47,9 @@ var (
 )
 
 const (
-	stopWaitTime = time.Second * 1
+	// stopWaitTime leaves room for NATS drain, MQTT quiesce and server close
+	// inside a 5s SIGTERM budget.
+	stopWaitTime = time.Second * 3
 )
 
 func initLogger(cfg struct {
@@ -120,7 +122,8 @@ func main() {
 	if cfg.ProvisionSecret == "" {
 		provisionSvc = nil
 	}
-	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.Nats.SuperUsers, thingSvc, provisionSvc)
+	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.Nats.SuperUsers, thingSvc, provisionSvc,
+		cfg.Auth.AllowPasswordBootstrap)
 
 	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
 		log.Fatalf("Configure NATS auth error: %v", err)
@@ -218,19 +221,25 @@ func main() {
 	if cfg.API.Cors {
 		httpCon.Filter(restful.OPTIONSFilter())
 	}
+	httpCon.Filter(api.BodyLimitMiddleware())
 	startHttpSvr(ctx, cfg, httpCon)
-
-	time.Sleep(1 * time.Second)
 }
 
 func startHttpSvr(ctx context.Context, cfg config.Config, container *restful.Container) {
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
-	server := &http.Server{Addr: addr, Handler: container}
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           container,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      360 * time.Second, // direct method calls may wait up to 300s
+		IdleTimeout:       120 * time.Second,
+	}
 	errCh := make(chan error)
 	go func() {
 		slog.Info("Http listening", "addr", addr)
 
-		slog.Info("Open http", "url", fmt.Sprintf("http://127.0.0.1%s", addr), "user", cfg.API.BasicAuth.Name, "password", cfg.API.BasicAuth.Password)
+		slog.Info("Open http", "url", fmt.Sprintf("http://127.0.0.1%s", addr), "user", cfg.API.BasicAuth.Name)
 		errCh <- server.ListenAndServe()
 	}()
 	select {
@@ -288,7 +297,7 @@ func newMysqlDB(cfg mysql.Config) *gorm.DB {
 
 func signalHandler(ctx context.Context) error {
 	c := make(chan os.Signal, 2)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGABRT)
 	select {
 	case sig := <-c:
 		return fmt.Errorf("%s", sig)
