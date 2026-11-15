@@ -218,6 +218,11 @@ func validQueryNode(node sqlparser.SQLNode) error {
 }
 
 func validColumn(col string) error {
+	// The JSON path is embedded in a single quoted literal; a backslash would
+	// be an escape on MySQL but a literal on SQLite.
+	if strings.ContainsRune(col, '\\') {
+		return errors.WithMessagef(model.ErrInvalidParams, "column %q contains an unsupported character", col)
+	}
 	if ok := validColumns[col]; ok {
 		return nil
 	}

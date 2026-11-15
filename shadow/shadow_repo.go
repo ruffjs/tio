@@ -79,6 +79,8 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 		slog.Error("Update shadow got unexpected affected row", "thingId", thingId, "rowsAffected", res.RowsAffected)
 		return nil, errors.Wrap(model.ErrVersionConflict, "")
 	}
+	// Updates() writes updated_at in the DB but does not assign it to en.
+	en.UpdatedAt = time.Now()
 	n, err := toShadow(en)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert entity to shadow")
@@ -158,6 +160,9 @@ func (r shadowRepo) Get(ctx context.Context, thingId string) (*Shadow, error) {
 	return r.get(ctx, thingId, false)
 }
 
+// GetForUpdate waits for a row lock. On MySQL the driver readTimeout (10s)
+// bounds the wait, so a no-version update under long contention fails and the
+// client retries instead of holding a transaction open.
 func (r shadowRepo) GetForUpdate(ctx context.Context, thingId string) (*Shadow, error) {
 	return r.get(ctx, thingId, true)
 }

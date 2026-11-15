@@ -135,7 +135,7 @@ preflight-demo-mtls:
 	@echo "mTLS demo prerequisites passed; certificate authentication will be verified by the test."
 
 test-demo-mtls: preflight-demo-mtls
-	go test ./demos/mtls/device -count=1
+	go test -tags=demo ./demos/mtls/device -count=1
 
 web-install:
 	cd web && yarn

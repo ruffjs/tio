@@ -98,12 +98,18 @@ func main() {
 		}()
 	}
 
-	migrateConn := newMigrationDb(cfg)
-	autoMigrate(migrateConn)
-	if sqlDB, err := migrateConn.DB(); err == nil {
-		_ = sqlDB.Close()
-	}
 	dbConn := newDb(cfg)
+	if cfg.DB.Typ == config.DBMySQL {
+		// Migrations use a separate DSN without readTimeout, so DDL cannot hit it.
+		migrateConn := newMigrationDb(cfg)
+		autoMigrate(migrateConn)
+		if sqlDB, err := migrateConn.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	} else {
+		// One connection only: a second :memory: database would be empty.
+		autoMigrate(dbConn)
+	}
 
 	if err := cfg.Protocol.Validate(); err != nil {
 		log.Fatalf("Invalid protocol config: %v", err)
@@ -286,9 +292,6 @@ func newDb(cfg config.Config) *gorm.DB {
 // newMigrationDb drops readTimeout for MySQL: DDL such as ALTER TABLE can take
 // longer than a normal read, and failing it would stop startup.
 func newMigrationDb(cfg config.Config) *gorm.DB {
-	if cfg.DB.Typ != config.DBMySQL {
-		return newDb(cfg)
-	}
 	conn, err := mysql.ConnectForMigration(cfg.DB.Mysql)
 	if err != nil {
 		log.Fatal(err.Error())

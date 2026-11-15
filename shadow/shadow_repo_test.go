@@ -29,6 +29,7 @@ func TestShadowRepoUpdateRequiresVersion(t *testing.T) {
 	_, err = r.Update(ctx, "thing-update-version", 99, *s)
 	require.ErrorIs(t, err, model.ErrVersionConflict)
 
-	_, err = r.Update(ctx, "thing-update-version", 1, *s)
+	updated, err := r.Update(ctx, "thing-update-version", 1, *s)
 	require.NoError(t, err)
+	require.NotZero(t, updated.UpdatedAt)
 }

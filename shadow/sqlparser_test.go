@@ -90,6 +90,7 @@ func TestParseQueryRejectsDangerousExpressions(t *testing.T) {
 		"select * from shadow union select * from thing",
 		"select * from shadow where thingId = sleep(10)",
 		"select * from shadow for update",
+		"select * from shadow where `tags.a\\` = 'x'",
 	}
 	for _, q := range cases {
 		_, err := parseQuerySql(q)

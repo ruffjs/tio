@@ -104,7 +104,8 @@ SQLite 只有一条连接，所有读写串行执行：设备数或写入频率�
 - 替换默认凭证：API `basicAuth`、MySQL、NATS `appClient`/`systemClient`/`mqttPublisher`/`superUsers`（见 `config-nats.default.yaml`）。NATS 内部账号密码为空时启动直接报错。
 - 关闭调试：`log.level: info`，SQLite/MySQL 的 `showSql: false`，`pprof.enabled: false`。
 - 不要把 `/docs`、`/metrics`、pprof 暴露到公网。
-- 只想使用部分凭证或不需要 NATS 超级用户时，删除对应条目而不是留空密码。
+- NATS 凭证必须显式改成非空值；省略字段会沿用内置默认值（`public`），不会清除。不需要超级用户时写 `superUsers: []`。
+- 请求体上限：普通接口 1 MiB，批量导入与规则配置 8 MiB；方法调用的 `data` 也受 1 MiB 限制。
 
 **升级说明**：`auth.allowPasswordBootstrap` 默认关闭。之前依赖“设备首次连接时用上报密码写入 authValue”的部署，升级后空 authValue 的设备会认证失败。升级前请批量设置 authValue；或临时把 `auth.allowPasswordBootstrap` 设为 `true` 完成一轮接入，再改回 `false`。
 

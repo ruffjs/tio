@@ -61,7 +61,9 @@ Built on [NATS](https://nats.io/) with an embedded NATS Server — no external m
 ## Supported DB
 
 - MySQL: For production environments
-- sqlite3: For testing, development or light use scenarios. sqlite3 even supports memory mode when the cofnig is `":memory:"` —— check this in `config.yaml`
+- sqlite3: For testing, development or light use scenarios. sqlite3 even supports memory mode when the config is `":memory:"` — check this in `config.yaml`
+
+SQLite uses a single connection, so all reads and writes are serialized: as devices or write rates grow, Shadow, Job and Presence contend for it. Use MySQL in production; SQLite is for development and small deployments.
 
 ## Run
 
@@ -69,6 +71,18 @@ Built on [NATS](https://nats.io/) with an embedded NATS Server — no external m
 - `go run cmd/tio/main.go`
 - vist `http://127.0.0.1:9000/` for web admin and debug tools
 - vist `http://127.0.0.1:9000/docs` for api docs
+
+### Production deployment checklist
+
+The default configuration is for local development. Before going live:
+
+- Replace every default credential: API `basicAuth`, MySQL, and NATS `appClient`/`systemClient`/`mqttPublisher`/`superUsers` (see `config-nats.default.yaml`). NATS internal accounts fail startup when their password is empty.
+- NATS credentials must be set to non-empty values explicitly. Omitting a field keeps the embedded default (`public`) instead of clearing it; use `superUsers: []` when no super user is needed.
+- Turn debugging off: `log.level: info`, `showSql: false` for SQLite/MySQL, `pprof.enabled: false`.
+- Do not expose `/docs`, `/metrics` or pprof to the public internet.
+- Request bodies are capped at 1 MiB (8 MiB for batch import and rule config); direct-method `data` also counts against the 1 MiB limit.
+
+**Upgrade note**: `auth.allowPasswordBootstrap` defaults to `false`. Deployments that relied on a thing with an empty `authValue` storing the first password it presented will reject those devices after upgrading. Set `authValue` in bulk before upgrading, or temporarily set `auth.allowPasswordBootstrap: true` for one onboarding round and turn it back off.
 
 ## Build
 
