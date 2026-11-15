@@ -25,6 +25,7 @@ type MqttConfig struct {
 }
 
 type mqttImpl struct {
+	parent   context.Context
 	ctx      context.Context
 	cancel   context.CancelFunc
 	name     string
@@ -32,8 +33,8 @@ type mqttImpl struct {
 	conn     connector.Connector
 	handlers sync.Map
 
-	mu      sync.RWMutex
-	started bool
+	mu      sync.Mutex
+	started atomic.Bool
 	status  rmodel.StatusInfo
 	metric  Metric
 }
@@ -43,10 +44,8 @@ func newMqtt(ctx context.Context, name string, cfg map[string]any, _ ruleconnect
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, errors.WithMessage(err, "decode config")
 	}
-	subCtx, cancel := context.WithCancel(ctx)
 	m := &mqttImpl{
-		ctx:    subCtx,
-		cancel: cancel,
+		parent: ctx,
 		name:   name,
 		config: ac,
 		conn:   mainConn,
@@ -60,13 +59,17 @@ func (m *mqttImpl) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.started {
+	if m.started.Load() {
 		slog.Info("Rule skip starting source (already started)", "type", TypeMqtt, "name", m.name)
 		return nil
 	}
-	m.started = true
+	// A stopped source has a cancelled ctx: rebuild it so Start works again.
+	m.ctx, m.cancel = context.WithCancel(m.parent)
+	m.started.Store(true)
 
 	if err := m.subscribe(); err != nil {
+		m.started.Store(false)
+		m.cancel()
 		m.status = rmodel.StatusDisconnected("failed to subscribe: "+err.Error(), err)
 		return errors.WithMessagef(err, "failed to subscribe topic %q", m.config.Topic)
 	}
@@ -79,12 +82,14 @@ func (m *mqttImpl) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if !m.started {
+	if !m.started.Load() {
 		slog.Info("Rule skip stopping source (not started)", "type", TypeMqtt, "name", m.name)
 		return
 	}
-	m.started = false
-	m.cancel()
+	m.started.Store(false)
+	if m.cancel != nil {
+		m.cancel()
+	}
 	m.status = rmodel.StatusNotStarted()
 	slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
 }
@@ -112,7 +117,7 @@ func (m *mqttImpl) OnMsg(ruleName string, h MsgHander) {
 func (m *mqttImpl) subscribe() error {
 	queueName := "tio-rule-" + m.name
 	return m.conn.QueueSubscribe(m.ctx, m.config.Topic, queueName, func(msg connector.Message) {
-		if !m.started {
+		if !m.started.Load() {
 			return
 		}
 

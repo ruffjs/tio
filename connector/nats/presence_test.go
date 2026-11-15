@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
 
 	"github.com/nats-io/nats-server/v2/server"
@@ -546,4 +547,22 @@ func TestPresenceDoesNotRetryOtherWriteErrors(t *testing.T) {
 	c.syncLocalPresence("moving-device", "")
 	require.Equal(t, 1, kv.writes)
 	require.Empty(t, c.pendingPresence)
+}
+
+func TestIsSingleNode(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  config.NatsServerConfig
+		want bool
+	}{
+		{"no routes no cluster port", config.NatsServerConfig{}, true},
+		{"seed node with cluster port only", config.NatsServerConfig{ClusterPort: 6222}, false},
+		{"node with routes", config.NatsServerConfig{Routes: []string{"nats://127.0.0.1:6222"}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			conn := &Connector{cfg: config.NatsConfig{Server: c.cfg}}
+			require.Equal(t, c.want, conn.isSingleNode())
+		})
+	}
 }

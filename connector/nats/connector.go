@@ -347,17 +347,15 @@ func (c *Connector) PublishRetained(topic string, payload []byte) error {
 }
 
 func (c *Connector) publishMqtt(topic string, qos byte, retained bool, payload []byte) error {
+	// Snapshot under the lock, publish outside: a QoS1 publish can block for
+	// seconds and must not hold up reconcile or other publishers.
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.publishMqttLocked(topic, qos, retained, payload)
-}
-
-// Caller must hold mu or presenceMu to protect the publisher from shutdown.
-func (c *Connector) publishMqttLocked(topic string, qos byte, retained bool, payload []byte) error {
-	if c.mqttPub == nil {
+	pub := c.mqttPub
+	c.mu.Unlock()
+	if pub == nil {
 		return errors.New("mqtt publisher not started")
 	}
-	return c.mqttPub.Publish(topic, qos, retained, payload)
+	return pub.Publish(topic, qos, retained, payload)
 }
 
 func (c *Connector) Server() *NatsServer              { return c.natsSvr }

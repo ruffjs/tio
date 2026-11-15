@@ -304,10 +304,10 @@ func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType 
 		return
 	}
 
-	if err := c.publishMqttLocked(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
+	if err := c.publishMqtt(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
 		slog.Error("publish presence event via MQTT", "thingId", thingId, "error", err)
 	}
-	if err := c.publishMqttLocked(connector.TopicPresence(thingId), 1, true, payload); err != nil {
+	if err := c.publishMqtt(connector.TopicPresence(thingId), 1, true, payload); err != nil {
 		slog.Error("publish retained presence via MQTT", "thingId", thingId, "error", err)
 	}
 }
@@ -320,17 +320,13 @@ func (c *Connector) startReconciliation(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-c.presenceReconnect:
-			c.mu.Lock()
 			if c.ctx.Err() == nil {
 				c.compensatePresence()
 			}
-			c.mu.Unlock()
 		case <-ticker.C:
-			c.mu.Lock()
 			if c.ctx.Err() == nil {
 				c.reconcile()
 			}
-			c.mu.Unlock()
 		}
 	}
 }
@@ -423,6 +419,12 @@ func (c *Connector) reconcile() {
 	}
 }
 
+// isSingleNode uses static config, not the momentary route count: a seed node
+// may have no routes while still being part of a cluster.
+func (c *Connector) isSingleNode() bool {
+	return len(c.cfg.Server.Routes) == 0 && c.cfg.Server.ClusterPort == 0
+}
+
 func (c *Connector) queryAliveServers() map[string]bool {
 	result := make(map[string]bool)
 
@@ -433,7 +435,8 @@ func (c *Connector) queryAliveServers() map[string]bool {
 		}
 	}
 
-	if c.sysConn != nil {
+	// A single node only knows itself: asking $SYS only adds latency.
+	if c.sysConn != nil && !c.isSingleNode() {
 		for name := range c.requestAliveServers("$SYS.REQ.SERVER.PING", systemRequestTimeout) {
 			result[name] = true
 		}

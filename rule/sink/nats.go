@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-viper/mapstructure/v2"
 	"ruff.io/tio/connector"
@@ -35,10 +36,7 @@ func NewNats(_ context.Context, name string, cfg map[string]any, _ ruleconnector
 		name: name,
 		cfg:  ac,
 		conn: mainConn,
-		ch:   make(chan *Msg, 10000),
-		done: make(chan struct{}),
 	}
-	go a.publishLoop()
 	return a, nil
 }
 
@@ -49,14 +47,22 @@ type natsImpl struct {
 	ch   chan *Msg
 	done chan struct{}
 
-	started bool
+	started atomic.Bool
 	mu      sync.Mutex
 }
 
 func (s *natsImpl) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.started = true
+	if s.started.Load() {
+		return nil
+	}
+	// Rebuild both channels: a new loop over the old queue would replay
+	// messages that were queued before Stop.
+	s.ch = make(chan *Msg, 10000)
+	s.done = make(chan struct{})
+	s.started.Store(true)
+	go s.publishLoop(s.ch, s.done)
 	slog.Info("Rule started sink", "type", s.Type(), "name", s.name)
 	return nil
 }
@@ -64,17 +70,17 @@ func (s *natsImpl) Start() error {
 func (s *natsImpl) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.started {
+	if !s.started.Load() {
 		return nil
 	}
-	s.started = false
+	s.started.Store(false)
 	close(s.done)
 	slog.Info("Rule stopped sink", "type", s.Type(), "name", s.name)
 	return nil
 }
 
 func (s *natsImpl) Status() model.StatusInfo {
-	if !s.started {
+	if !s.started.Load() {
 		return model.StatusNotStarted()
 	}
 	return model.StatusConnected()
@@ -89,21 +95,25 @@ func (*natsImpl) Type() string {
 }
 
 func (s *natsImpl) Publish(msg Msg) {
-	if !s.started {
+	if !s.started.Load() {
 		return
 	}
+	// Snapshot under the lock: Start/Stop replace these fields.
+	s.mu.Lock()
+	ch, done := s.ch, s.done
+	s.mu.Unlock()
 	select {
-	case s.ch <- &msg:
-	case <-s.done:
+	case ch <- &msg:
+	case <-done:
 	}
 }
 
-func (s *natsImpl) publishLoop() {
+func (s *natsImpl) publishLoop(ch chan *Msg, done chan struct{}) {
 	for {
 		select {
-		case msg := <-s.ch:
+		case msg := <-ch:
 			s.publish(msg)
-		case <-s.done:
+		case <-done:
 			return
 		}
 	}
