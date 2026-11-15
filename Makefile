@@ -5,7 +5,7 @@ VERSION ?= dev
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 
 .PHONY: help run build test test-race fmt fix fix-diff mod-tidy mod-check vet lint check
-.PHONY: test-integration test-protocols test-mtls
+.PHONY: test-repeat test-integration test-protocols test-mtls
 .PHONY: preflight-demo-light test-demo-light preflight-demo-mtls test-demo-mtls
 .PHONY: web-install web-build web-dev docker-build
 .PHONY: nats-cluster-up nats-cluster-down
@@ -16,6 +16,7 @@ help:
 	@echo "  make build             Build Tio into dist/"
 	@echo "  make test              Run normal tests"
 	@echo "  make test-race         Run normal tests with the race detector"
+	@echo "  make test-repeat       Run normal tests twice to catch shared state"
 	@echo "  make fix               Modernize Go source with go fix"
 	@echo "  make fix-diff          Preview Go modernization changes"
 	@echo "  make lint              Run non-mutating Go checks"
@@ -46,6 +47,9 @@ test:
 test-race:
 	go test -race $$(go list ./... | grep -v '/demos/')
 
+test-repeat:
+	go test -count=2 $$(go list ./... | grep -v '/demos/')
+
 fmt:
 	go fmt ./...
 
@@ -74,13 +78,13 @@ test-integration:
 
 test-protocols:
 	TIO_TEST_PROTOCOL=legacy TIO_TEST_ENCODING=json \
-		go test -tags=integration ./integration_tests -run TestLegacy -count=1
+		go test -tags=integration ./integration_tests -count=1
 	TIO_TEST_PROTOCOL=legacy TIO_TEST_ENCODING=cbor \
-		go test -tags=integration ./integration_tests -run TestLegacy -count=1
+		go test -tags=integration ./integration_tests -count=1
 	TIO_TEST_PROTOCOL=simple TIO_TEST_ENCODING=json \
-		go test -tags=integration ./integration_tests -run TestSimple -count=1
+		go test -tags=integration ./integration_tests -count=1
 	TIO_TEST_PROTOCOL=simple TIO_TEST_ENCODING=cbor \
-		go test -tags=integration ./integration_tests -run TestSimple -count=1
+		go test -tags=integration ./integration_tests -count=1
 
 test-mtls:
 	TIO_TEST_MQTT_TLS=1 TIO_TEST_PROTOCOL=legacy TIO_TEST_ENCODING=json \

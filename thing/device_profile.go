@@ -54,3 +54,9 @@ func (p DeviceProfiles) GetDeviceProfile(ctx context.Context, thingId string) (c
 func invalidateDeviceProfile(thingId string) {
 	deviceProfileCache.Delete(thingId)
 }
+
+// ResetDeviceProfileCache clears cached profiles. Tests that build several
+// services in one process reuse thing ids and need a clean cache.
+func ResetDeviceProfileCache() {
+	deviceProfileCache.Flush()
+}

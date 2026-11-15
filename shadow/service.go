@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"reflect"
 	"slices"
-	"sync"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -19,8 +18,6 @@ import (
 const (
 	StateTypeDesired  = "desired"
 	StateTypeReported = "reported"
-
-	MaxShadowCount = 100_000
 )
 
 type Service interface {
@@ -120,27 +117,8 @@ type shadowSvc struct {
 	rejectedSubscribers []StateRejectedSubscribe
 }
 
-var svcSingleton *shadowSvc
-var svcOnce sync.Once
-
 func NewSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
-	svcOnce.Do(func() {
-		u := make([]StateUpdateSubscribe, 0)
-		d := make([]StateDeltaSubscribe, 0)
-		acp := make([]StateAcceptedSubscribe, 0)
-		rjt := make([]StateRejectedSubscribe, 0)
-		svcSingleton = &shadowSvc{
-			repo:                r,
-			cache:               newCache(),
-			cfg:                 cfg,
-			connectorChecker:    a,
-			updateSubscribers:   u,
-			deltaSubscribers:    d,
-			acceptedSubscribers: acp,
-			rejectedSubscribers: rjt,
-		}
-	})
-	return svcSingleton
+	return NewTestSvc(r, a, cfg)
 }
 
 func NewTestSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {

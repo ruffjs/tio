@@ -174,9 +174,10 @@ func TestHandler_Accepted(t *testing.T) {
 		err := h.AcceptedResp(ctx, c.msg)
 		require.NoError(t, err)
 
-		require.GreaterOrEqual(t, len(mc.Published), 1)
+		msgs := mc.PublishedMessages()
+		require.GreaterOrEqual(t, len(msgs), 1)
 		found := false
-		for _, pub := range mc.Published {
+		for _, pub := range msgs {
 			if pub.Topic == c.topic {
 				var resp shadow.StateAcceptedResp
 				err := json.Unmarshal(pub.Payload, &resp)

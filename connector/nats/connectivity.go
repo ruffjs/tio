@@ -171,7 +171,7 @@ func (c *Connector) Remove(thingId string) error {
 		_ = c.kv.Delete(key)
 	}
 
-	_ = c.publishMqtt(connector.TopicPresence(thingId), 1, true, nil)
+	_ = c.publishMqttLocked(connector.TopicPresence(thingId), 1, true, nil)
 
 	return nil
 }

@@ -130,7 +130,7 @@ func TestShadowSvc_QueryWithWhereFilter(t *testing.T) {
 func TestSvcImpl_Set(t *testing.T) {
 
 	t.Run("should auto create when first set desired", func(t *testing.T) {
-		thingId = "for-set-desired"
+		thingId = fmt.Sprintf("for-set-desired-%d", time.Now().UnixNano())
 		s, err := svc.Create(ctx, thingId)
 		require.NoError(t, err)
 		req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{Desired: stateVal}}
@@ -144,7 +144,7 @@ func TestSvcImpl_Set(t *testing.T) {
 	})
 
 	t.Run("should auto create when first set reported", func(t *testing.T) {
-		thingId = "for-report"
+		thingId = fmt.Sprintf("for-report-%d", time.Now().UnixNano())
 		s, err := svc.Create(ctx, thingId)
 		require.NoError(t, err)
 		req := shadow.StateReq{ClientToken: "xxx", Version: 1, State: shadow.StateDR{Reported: stateVal}}
@@ -472,7 +472,7 @@ func TestShadowSvc_DeltaLeafPartialConvergence(t *testing.T) {
 
 func TestSvcImpl_SetTags(t *testing.T) {
 	t.Run("set tags", func(t *testing.T) {
-		thingId = "for-set-tags"
+		thingId = fmt.Sprintf("for-set-tags-%d", time.Now().UnixNano())
 		tags := shadow.TagsValue{"aaa": "xxxx", "bbb": "yyyy", "ccc": 111.0, "ddd": true}
 		_, err := svc.Create(ctx, thingId)
 		require.NoError(t, err)
@@ -486,7 +486,7 @@ func TestSvcImpl_SetTags(t *testing.T) {
 		require.Equal(t, int64(2), s.Version)
 	})
 	t.Run("set tags with wrong version", func(t *testing.T) {
-		thingId = "for-set-tags-wrong-version"
+		thingId = fmt.Sprintf("for-set-tags-wrong-version-%d", time.Now().UnixNano())
 		tags := shadow.TagsValue{"aaa": "xxxx", "bbb": "yyyy", "ccc": 111.0, "ddd": true}
 		_, err := svc.Create(ctx, thingId)
 		require.NoError(t, err)

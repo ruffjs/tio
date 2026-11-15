@@ -304,10 +304,10 @@ func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType 
 		return
 	}
 
-	if err := c.publishMqtt(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
+	if err := c.publishMqttLocked(connector.TopicPresenceEvent(thingId), 1, false, payload); err != nil {
 		slog.Error("publish presence event via MQTT", "thingId", thingId, "error", err)
 	}
-	if err := c.publishMqtt(connector.TopicPresence(thingId), 1, true, payload); err != nil {
+	if err := c.publishMqttLocked(connector.TopicPresence(thingId), 1, true, payload); err != nil {
 		slog.Error("publish retained presence via MQTT", "thingId", thingId, "error", err)
 	}
 }

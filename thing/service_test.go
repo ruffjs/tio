@@ -64,6 +64,7 @@ func (s failingShadowSvc) NotifyDeleted(string)                          {}
 func (s failingShadowSvc) NotifyUpdate(string, bool)                     {}
 
 func NewTestSvc() (thing.Service, shadow.Service) {
+	thing.ResetDeviceProfileCache()
 	db := mock.NewSqliteConnTest()
 	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
 	shadowSvc := shadowWire.InitSvc(db, connector, shadow.Config{})
@@ -72,6 +73,7 @@ func NewTestSvc() (thing.Service, shadow.Service) {
 }
 
 func NewTestSvcWithDB() (thing.Service, shadow.Service, *gorm.DB) {
+	thing.ResetDeviceProfileCache()
 	db := mock.NewSqliteConnTest()
 	_ = db.AutoMigrate(thing.Entity{}, shadow.Entity{}, &shadow.ConnStatusEntity{})
 	shadowSvc := shadowWire.InitSvc(db, connector, shadow.Config{})

@@ -62,7 +62,7 @@ func TestNtpHandler(t *testing.T) {
 		var respPayload []byte
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
-			for _, pub := range mc.Published {
+			for _, pub := range mc.PublishedMessages() {
 				if pub.Topic == respTopic {
 					respPayload = pub.Payload
 					break

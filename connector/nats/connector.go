@@ -348,10 +348,21 @@ func (c *Connector) PublishRetained(topic string, payload []byte) error {
 
 func (c *Connector) publishMqtt(topic string, qos byte, retained bool, payload []byte) error {
 	// Snapshot under the lock, publish outside: a QoS1 publish can block for
-	// seconds and must not hold up reconcile or other publishers.
+	// seconds and must not hold up other publishers.
 	c.mu.Lock()
 	pub := c.mqttPub
 	c.mu.Unlock()
+	return publishWith(pub, topic, qos, retained, payload)
+}
+
+// publishMqttLocked is for callers that already hold mu or presenceMu. It does
+// not take mu, so presence code holding presenceMu cannot deadlock against a
+// caller holding mu and waiting for presenceMu (Shutdown, tests).
+func (c *Connector) publishMqttLocked(topic string, qos byte, retained bool, payload []byte) error {
+	return publishWith(c.mqttPub, topic, qos, retained, payload)
+}
+
+func publishWith(pub *mqttPublisher, topic string, qos byte, retained bool, payload []byte) error {
 	if pub == nil {
 		return errors.New("mqtt publisher not started")
 	}
