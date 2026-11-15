@@ -30,12 +30,30 @@ func (l *loggerImp) Printf(format string, args ...any) {
 	slog.Info(fmt.Sprintf(format, args...))
 }
 
-func Connect(cfg Config) (*gorm.DB, error) {
-	// gorm:gorm@tcp(127.0.0.1:3306)/gorm?charset=utf8&parseTime=True&loc=Local
-	dsn := fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=%s&loc=%s&parseTime=True",
+func dsn(cfg Config, withReadTimeout bool) string {
+	s := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=%s&loc=%s&parseTime=True&timeout=5s&writeTimeout=10s",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DB, cfg.Charset, cfg.Timezone,
 	)
+	if withReadTimeout {
+		s += "&readTimeout=10s"
+	}
+	return s
+}
+
+// Connect returns the business connection pool. Reads are bounded so a hung
+// query cannot hold a handler goroutine forever.
+func Connect(cfg Config) (*gorm.DB, error) {
+	return connect(cfg, true)
+}
+
+// ConnectForMigration returns a connection without readTimeout: auto migration
+// runs DDL, which may legitimately take longer than a normal read.
+func ConnectForMigration(cfg Config) (*gorm.DB, error) {
+	return connect(cfg, false)
+}
+
+func connect(cfg Config, withReadTimeout bool) (*gorm.DB, error) {
 	logLevel := logger.Info
 	if !cfg.ShowSql {
 		logLevel = logger.Silent
@@ -51,7 +69,7 @@ func Connect(cfg Config) (*gorm.DB, error) {
 	)
 	db, err := gorm.Open(
 		mysql.New(mysql.Config{
-			DSN:               dsn,
+			DSN:               dsn(cfg, withReadTimeout),
 			DefaultStringSize: 256,
 		}),
 		&gorm.Config{Logger: l},

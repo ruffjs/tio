@@ -98,8 +98,12 @@ func main() {
 		}()
 	}
 
+	migrateConn := newMigrationDb(cfg)
+	autoMigrate(migrateConn)
+	if sqlDB, err := migrateConn.DB(); err == nil {
+		_ = sqlDB.Close()
+	}
 	dbConn := newDb(cfg)
-	autoMigrate(dbConn)
 
 	if err := cfg.Protocol.Validate(); err != nil {
 		log.Fatalf("Invalid protocol config: %v", err)
@@ -277,6 +281,19 @@ func newDb(cfg config.Config) *gorm.DB {
 		log.Fatalf("Unknown database type: %v", cfg.DB.Typ)
 	}
 	return nil
+}
+
+// newMigrationDb drops readTimeout for MySQL: DDL such as ALTER TABLE can take
+// longer than a normal read, and failing it would stop startup.
+func newMigrationDb(cfg config.Config) *gorm.DB {
+	if cfg.DB.Typ != config.DBMySQL {
+		return newDb(cfg)
+	}
+	conn, err := mysql.ConnectForMigration(cfg.DB.Mysql)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	return conn
 }
 
 func newSqliteDB(cfg sqlite.Config) *gorm.DB {
