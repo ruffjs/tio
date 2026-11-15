@@ -22,6 +22,8 @@ jobs:
         run: go vet ./...
       - name: Mod tidy
         run: go mod tidy -diff
+      - name: Vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - name: Test
         run: make test
       - name: Race

@@ -88,12 +88,25 @@ Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 S
 - MySQL：用于生产环境
 - sqlite3：用于测试、开发或轻量使用场景。当配置为 `":memory:"` 时，sqlite3 甚至支持内存模式，方便测试。请查看 `config.yaml` 进行相应配置
 
+SQLite 只有一条连接，所有读写串行执行：设备数或写入频率上去后，Shadow、Job、Presence 会互相排队。生产环境请使用 MySQL；SQLite 仅用于开发和小规模部署。
+
 ## 运行
 
 - 单机直接使用内嵌默认配置：MQTT `1883`、WebSocket `8083`、API `9000`；应用设置可通过 `config.yaml` 修改。
 - 运行 `cd web && yarn && yarn build && cd - && go run cmd/tio/main.go`
 - 访问 [http://127.0.0.1:9000](http://127.0.0.1:9000) 打开调试管理后台
 - 访问 [http://127.0.0.1:9000/docs](http://127.0.0.1:9000/docs) 查看 API 文档
+
+### 生产部署检查
+
+默认配置面向本机开发，上线前至少确认：
+
+- 替换默认凭证：API `basicAuth`、MySQL、NATS `appClient`/`systemClient`/`mqttPublisher`/`superUsers`（见 `config-nats.default.yaml`）。NATS 内部账号密码为空时启动直接报错。
+- 关闭调试：`log.level: info`，SQLite/MySQL 的 `showSql: false`，`pprof.enabled: false`。
+- 不要把 `/docs`、`/metrics`、pprof 暴露到公网。
+- 只想使用部分凭证或不需要 NATS 超级用户时，删除对应条目而不是留空密码。
+
+**升级说明**：`auth.allowPasswordBootstrap` 默认关闭。之前依赖“设备首次连接时用上报密码写入 authValue”的部署，升级后空 authValue 的设备会认证失败。升级前请批量设置 authValue；或临时把 `auth.allowPasswordBootstrap` 设为 `true` 完成一轮接入，再改回 `false`。
 
 ### NATS 配置
 
