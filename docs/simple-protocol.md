@@ -300,13 +300,27 @@ MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，
 ```json
 {
   "reqId": "req-001",
+  "taskId": "ota-001",
   "status": "ongoing",
   "progress": 80,
   "timestamp": 1662514061000
 }
 ```
 
-`reqId` 原样回传，OTA 服务按 `thingId` 和 `reqId` 关联任务。`status` 由设备上报，只取 `ongoing`、`done` 或 `failed`。`progress` 只在 `ongoing` 时携带，取值 0–100。`timestamp` 是设备上报时的 Unix 毫秒时间戳。
+失败时携带错误信息：
+
+```json
+{
+  "reqId": "req-001",
+  "taskId": "ota-001",
+  "status": "failed",
+  "errCode": 1400,
+  "errMsg": "invalid url",
+  "timestamp": 1662514061000
+}
+```
+
+`reqId` 原样回传，`taskId` 为 OTA 任务 ID，OTA 服务按 `thingId` 和 `reqId` 关联任务。`status` 由设备上报，只取 `ongoing`、`done` 或 `failed`。`progress` 只在 `ongoing` 时携带，取值 0–100。`errCode` 和 `errMsg` 只在 `failed` 时携带，分别表示错误码和错误描述。`timestamp` 是设备上报时的 Unix 毫秒时间戳。
 
 ### 任务状态
 
