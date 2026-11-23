@@ -143,9 +143,14 @@ func startConnectorClusterWithMode(t *testing.T, n int, protocolMode string) *co
 
 func connectMqttDevice(t *testing.T, mqttPort int, thingId string, autoReconnect bool) mqtt.Client {
 	t.Helper()
+	return connectMqttSession(t, mqttPort, thingId, thingId, autoReconnect)
+}
+
+func connectMqttSession(t *testing.T, mqttPort int, thingId, clientId string, autoReconnect bool) mqtt.Client {
+	t.Helper()
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("tcp://127.0.0.1:%d", mqttPort))
-	opts.SetClientID(thingId)
+	opts.SetClientID(clientId)
 	opts.SetUsername(thingId)
 	opts.SetPassword("test")
 	opts.SetAutoReconnect(autoReconnect)
@@ -218,6 +223,27 @@ func TestClusterControlDisconnect(t *testing.T) {
 	}
 
 	device.Disconnect(100)
+}
+
+func TestClusterCloseAll(t *testing.T) {
+	cc := startConnectorCluster(t, 3)
+	for _, origin := range []int{0, 2} {
+		t.Run(fmt.Sprintf("node-%d", origin+1), func(t *testing.T) {
+			thingId := fmt.Sprintf("dev-close-all-%d", origin)
+			first := connectMqttSession(t, cc.mqttPorts[0], thingId, thingId+"-first", false)
+			t.Cleanup(func() { first.Disconnect(0) })
+			second := connectMqttSession(t, cc.mqttPorts[1], thingId, thingId+"-second", false)
+			t.Cleanup(func() { second.Disconnect(0) })
+			require.True(t, first.IsConnectionOpen())
+			require.True(t, second.IsConnectionOpen())
+
+			require.NoError(t, cc.connectors[origin].CloseAll(thingId))
+
+			require.Eventually(t, func() bool {
+				return !first.IsConnectionOpen() && !second.IsConnectionOpen()
+			}, 5*time.Second, 50*time.Millisecond)
+		})
+	}
 }
 
 func TestClusterRemove(t *testing.T) {

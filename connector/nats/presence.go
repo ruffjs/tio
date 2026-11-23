@@ -100,8 +100,11 @@ func (c *Connector) initControl() error {
 			return
 		}
 
-		resp := controlDisconnectResponse{Disconnected: c.disconnectLocal(req.ThingId)}
-		if !resp.Disconnected {
+		closed, err := c.disconnectLocal(req.ThingId)
+		resp := controlDisconnectResponse{Disconnected: err == nil && (closed || req.AllowAbsent)}
+		if err != nil {
+			resp.Error = err.Error()
+		} else if !resp.Disconnected {
 			resp.Error = fmt.Sprintf("no connection found for %q on server %q", req.ThingId, req.ServerId)
 		}
 		data, err := json.Marshal(resp, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))

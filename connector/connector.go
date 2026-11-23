@@ -2,9 +2,12 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 )
+
+var ErrConnectionNotFound = errors.New("no connection found")
 
 const (
 	TopicEventPresenceTmpl = "$iothub/events/things/{thingId}/presence"

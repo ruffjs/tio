@@ -224,6 +224,7 @@ func main() {
 	metricsWs := metrics.Service()
 
 	httpCon.Add(thingWs)
+	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc).Filter(api.LoggingMiddleware).Filter(azf))
 	httpCon.Add(cfgWs)
 	httpCon.Add(ruleWs)
 	httpCon.Add(metricsWs)

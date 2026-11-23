@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"ruff.io/tio/api"
 	"ruff.io/tio/auth"
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
@@ -166,6 +167,8 @@ func TestMain(m *testing.M) {
 		shadowApi.SimpleMethodService(testCtx, thingWs, simpleInvoker, thingSvc)
 	}
 	httpCon.Add(thingWs)
+	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc).
+		Filter(api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)))
 
 	httpSvr = httptest.NewServer(httpCon)
 

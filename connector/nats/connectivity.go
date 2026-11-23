@@ -2,8 +2,8 @@ package nats
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"ruff.io/tio/connector"
@@ -13,8 +13,9 @@ import (
 )
 
 type controlDisconnectRequest struct {
-	ThingId  string `json:"thingId"`
-	ServerId string `json:"serverId"`
+	ThingId     string `json:"thingId"`
+	ServerId    string `json:"serverId"`
+	AllowAbsent bool   `json:"allowAbsent,omitzero"`
 }
 
 type controlDisconnectResponse struct {
@@ -98,35 +99,40 @@ func (c *Connector) AllClientInfo() ([]connector.ClientInfo, error) {
 	return result, nil
 }
 
-func (c *Connector) disconnectLocal(thingId string) bool {
+func (c *Connector) disconnectLocal(thingId string) (bool, error) {
 	if c.natsSvr == nil {
-		return false
+		return false, server.ErrServerNotRunning
 	}
-	opts := server.ConnzOptions{Username: true, User: thingId}
-	connz, err := c.natsSvr.Server().Connz(&opts)
+	conns, err := c.localConnections(thingId)
 	if err != nil {
-		slog.Error("disconnectLocal: get connz", "thingId", thingId, "error", err)
-		return false
+		return false, fmt.Errorf("get connections for %q: %w", thingId, err)
 	}
 	var closed bool
-	for _, ci := range connz.Conns {
+	var disconnectErr error
+	for _, ci := range conns {
 		if ci.AuthorizedUser == thingId {
 			if err := c.natsSvr.Server().DisconnectClientByID(ci.Cid); err == nil {
 				closed = true
+			} else {
+				disconnectErr = errors.Join(disconnectErr, fmt.Errorf("disconnect connection %d: %w", ci.Cid, err))
 			}
 		}
 	}
-	return closed
+	return closed, disconnectErr
 }
 
 func (c *Connector) Close(thingId string) error {
-	if c.disconnectLocal(thingId) {
+	closed, err := c.disconnectLocal(thingId)
+	if err != nil {
+		return err
+	}
+	if closed {
 		return nil
 	}
 
 	entry, err := c.kv.Get(presenceKeyPrefix + thingId)
 	if err == nats.ErrKeyNotFound {
-		return fmt.Errorf("no connection found for %q", thingId)
+		return fmt.Errorf("%w for %q", connector.ErrConnectionNotFound, thingId)
 	}
 	if err != nil {
 		return fmt.Errorf("get presence for %q: %w", thingId, err)
@@ -136,16 +142,49 @@ func (c *Connector) Close(thingId string) error {
 		return fmt.Errorf("unmarshal presence for %q: %w", thingId, err)
 	}
 	if !rec.Connected {
-		return fmt.Errorf("no connection found for %q", thingId)
+		return fmt.Errorf("%w for %q", connector.ErrConnectionNotFound, thingId)
 	}
 
-	payload, err := json.Marshal(controlDisconnectRequest{ThingId: thingId, ServerId: rec.ServerId}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
+	return c.requestDisconnect(controlDisconnectRequest{ThingId: thingId, ServerId: rec.ServerId})
+}
+
+// CloseAll closes the thing's connections on this node and all routed peers.
+func (c *Connector) CloseAll(thingId string) error {
+	if c.natsSvr == nil {
+		return server.ErrServerNotRunning
+	}
+	topology, err := c.natsSvr.Server().Routez(nil)
+	if err != nil {
+		return fmt.Errorf("list cluster routes: %w", err)
+	}
+	peers := make(map[string]struct{})
+	for _, route := range topology.Routes {
+		peers[route.RemoteName] = struct{}{}
+	}
+
+	results := make(chan error, len(peers))
+	for peer := range peers {
+		go func() {
+			results <- c.requestDisconnect(controlDisconnectRequest{
+				ThingId: thingId, ServerId: peer, AllowAbsent: true,
+			})
+		}()
+	}
+	_, err = c.disconnectLocal(thingId)
+	for range peers {
+		err = errors.Join(err, <-results)
+	}
+	return err
+}
+
+func (c *Connector) requestDisconnect(req controlDisconnectRequest) error {
+	payload, err := json.Marshal(req, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	if err != nil {
 		return fmt.Errorf("marshal control disconnect: %w", err)
 	}
 	reply, err := c.natsConn.Request(controlDisconnectSubj, payload, systemRequestTimeout)
 	if err != nil {
-		return fmt.Errorf("request disconnect of %q from server %q: %w", thingId, rec.ServerId, err)
+		return fmt.Errorf("request disconnect of %q from server %q: %w", req.ThingId, req.ServerId, err)
 	}
 	var resp controlDisconnectResponse
 	if err := json.Unmarshal(reply.Data, &resp); err != nil {
@@ -155,7 +194,7 @@ func (c *Connector) Close(thingId string) error {
 		if resp.Error == "" {
 			resp.Error = "disconnect was not confirmed"
 		}
-		return fmt.Errorf("disconnect %q from server %q: %s", thingId, rec.ServerId, resp.Error)
+		return fmt.Errorf("disconnect %q from server %q: %s", req.ThingId, req.ServerId, resp.Error)
 	}
 	return nil
 }
