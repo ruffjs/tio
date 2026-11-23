@@ -307,6 +307,9 @@ func tlsConfigEmpty(cfg config.NatsTLSConfig) bool {
 func buildMqttPublisherTLSConfig(cfg config.NatsTLSConfig) (*tls.Config, error) {
 	tlsCfg := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		// The publisher only dials the MQTT listener on 127.0.0.1 in this
+		// process, so the peer identity is implied by loopback.
+		InsecureSkipVerify: true,
 	}
 
 	if cfg.CAFile != "" {

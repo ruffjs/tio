@@ -2,6 +2,7 @@ package nats
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json/v2"
 	"fmt"
 	"log/slog"
@@ -223,6 +224,13 @@ func TestJetStreamAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to delete stream: %v", err)
 	}
+}
+
+func TestBuildMqttPublisherTLSConfig(t *testing.T) {
+	tlsCfg, err := buildMqttPublisherTLSConfig(config.NatsTLSConfig{})
+	require.NoError(t, err)
+	require.True(t, tlsCfg.InsecureSkipVerify)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsCfg.MinVersion)
 }
 
 func TestServerName(t *testing.T) {
