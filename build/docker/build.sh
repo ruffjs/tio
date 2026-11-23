@@ -19,9 +19,9 @@ function build_web() {
 function build_docker() {
   build_web
 
-  version=$(date '+%Y%m%d%H%M%S')
-  repo="tio"
   gitCommit=`git rev-parse HEAD`
+  version=$(date '+%Y%m%d%H%M%S')-${gitCommit:0:7}
+  repo="tio"
   docker build --build-arg version=${version} --build-arg gitCommit=${gitCommit} \
     --platform $PLATFORM \
     -t $repo:$version \
