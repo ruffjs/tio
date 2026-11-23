@@ -259,6 +259,65 @@ Event 推荐使用 `{"id":"evt-001","name":"door_closed","ts":1685428658000,"dat
 
 Data 适用于高频、允许少量丢失的数据，使用 QoS 0，格式由业务双方约定。
 
+## OTA 透传推荐
+
+业务服务负责创建 OTA 任务、下发任务和记录状态，设备负责执行并上报状态。Tio 按 Topic 和 ACL 原样转发 Payload，消息编码由业务服务和设备约定。以下是推荐的 Topic 和 JSON 格式。
+
+| 方向 | MQTT Topic | NATS Subject |
+|---|---|---|
+| OTA 服务 → 设备 | `tio/{thingId}/down/ota_task` | `tio.{thingId}.down.ota_task` |
+| 设备 → OTA 服务 | `tio/{thingId}/up/ota_status` | `tio.{thingId}.up.ota_status` |
+
+MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，例如 `tio/{thingId}/custom/ota/task` 和 `tio/{thingId}/custom/ota/status`。设备可以发布和订阅自己名下的这两个自定义 Topic。需要沿用 ACL 的发布和订阅方向限制时，使用上表的 `down` 和 `up` 路径。
+
+### 下发任务
+
+```json
+{
+  "reqId": "req-001",
+  "taskId": "ota-001",
+  "type": "app",
+  "meta": {
+    "version": "1.0.3",
+    "md5": "5d41402abc4b2a76b9719d911017c592",
+    "content-type": "application/octet-stream",
+    "content-length": 1570000
+  },
+  "fileUrl": "https://a/fw-v1.0.3.bin"
+}
+```
+
+- `reqId` 由任务生成方指定，在同一设备内唯一。OTA 服务保存它与 `taskId` 的对应关系，用于关联设备上报。
+- `taskId` 是 OTA 任务 ID。同一次任务下发重试沿用原 `taskId` 和 `reqId`，设备可按 `taskId` 去重并重报当前状态。
+- `type` 是升级类型，例如 `app`、`appconfig` 或 `os`。
+- `meta` 可省略，字段可按升级类型扩展。示例中的 `version`、`md5`、`content-type` 和 `content-length` 分别表示目标版本、文件 MD5、媒体类型和文件字节数。
+- `fileUrl` 是设备下载更新包的地址，通常为 HTTP 或 HTTPS URL，推荐使用 HTTPS。
+
+### 上报状态
+
+```json
+{
+  "reqId": "req-001",
+  "status": "ongoing",
+  "progress": 80,
+  "timestamp": 1662514061000
+}
+```
+
+`reqId` 原样回传，OTA 服务按 `thingId` 和 `reqId` 关联任务。`status` 由设备上报，只取 `ongoing`、`done` 或 `failed`。`progress` 只在 `ongoing` 时携带，取值 0–100。`timestamp` 是设备上报时的 Unix 毫秒时间戳。
+
+### 任务状态
+
+| 状态 | 含义 | 来源 |
+|---|---|---|
+| `pending` | 任务已创建，等待设备开始执行 | OTA 服务 |
+| `ongoing` | 设备正在执行任务 | 设备上报 |
+| `done` | 升级已完成，目标版本或配置已生效 | 设备上报 |
+| `failed` | 设备执行升级失败 | 设备上报 |
+| `canceled` | OTA 服务已取消任务 | OTA 服务 |
+
+需要重启的升级，建议设备保存任务关联信息，重启后确认更新已生效再上报 `done`。OTA 服务应允许设备直接上报终态，并避免迟到的进度更新已记录的终态。若业务需要中止设备上已开始的升级，由 OTA 服务和设备另行约定取消交互。
+
 ## 协议扩展与兼容
 
 通用控制能力通过新增 `{type}` 扩展，业务事件和高频数据使用 Event/Data。已发布的类型名称和方向保持稳定；Payload 可增加向后兼容的可选字段，不兼容变化使用新类型或协议版本。
