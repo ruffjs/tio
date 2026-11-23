@@ -69,7 +69,9 @@ func TestDualProfileAndMethodAcrossNodes(t *testing.T) {
 	for i := range handlers {
 		router := &protocol.MethodRouter{Profiles: profiles[i], Simple: handlers[i]}
 		for range 3 {
-			resp, err := router.Invoke(t.Context(), "dual-cluster-device", "echo", nil, 3*time.Second)
+			resp, err := router.InvokeMethod(t.Context(), shadow.MethodReqMsg{
+				ThingId: "dual-cluster-device", Method: "echo", RespTimeout: 3,
+			})
 			require.NoError(t, err)
 			require.Equal(t, 200, resp.Code)
 			require.Equal(t, "cluster-reply", resp.Data)

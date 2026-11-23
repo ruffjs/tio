@@ -548,11 +548,7 @@ func TestJobApiAbsent(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.StatusCode, "Job endpoint should return 404")
 }
 
-func TestLegacySimpleInvokeRouteNotExposed(t *testing.T) {
-	if cfg.Protocol.Mode != "legacy" {
-		t.Skip("Skipping test: only runs in legacy protocol mode")
-	}
-
+func TestInvokeRouteNotExposed(t *testing.T) {
 	thingId := ID()
 	crateThing(thingId)
 
@@ -567,6 +563,6 @@ func TestLegacySimpleInvokeRouteNotExposed(t *testing.T) {
 	resp, err := httpSvr.Client().Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode,
-		"simple invoke route should not be registered in legacy mode")
+		"invoke route should not be registered in %s mode", cfg.Protocol.Mode)
 	resp.Body.Close()
 }

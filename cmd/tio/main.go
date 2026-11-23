@@ -162,7 +162,6 @@ func main() {
 	ruleMgr.Boot(ctx, shadowSvc, natsConnector)
 
 	var methodHandler shadow.MethodHandler
-	var simpleInvoker shadowApi.SimpleInvoker
 	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding, Mode: cfg.Protocol.Mode}
 	legacyMethodHandler := shadow.NewMethodHandler(conn, deviceCodec, profiles)
 	shadowStateHandler := shadow.NewShadowHandler(conn, deviceCodec, profiles)
@@ -195,12 +194,8 @@ func main() {
 	switch cfg.Protocol.Mode {
 	case "legacy":
 		methodHandler = legacyMethodHandler
-	case "simple":
-		simpleInvoker = simpleHandler
-	case "dual":
-		router := &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
-		methodHandler = router
-		simpleInvoker = router
+	case "simple", "dual":
+		methodHandler = &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
 	}
 
 	httpCon := restful.NewContainer()
@@ -210,9 +205,6 @@ func main() {
 	azf := api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)
 	thingWs := thingApi.Service(ctx, thingSvc)
 	shadowApi.Service(ctx, thingWs, shadowSvc, thingSvc, methodHandler)
-	if simpleInvoker != nil {
-		shadowApi.SimpleMethodService(ctx, thingWs, simpleInvoker, thingSvc)
-	}
 	thingWs.Filter(metrics.Middleware).
 		Filter(api.LoggingMiddleware).
 		Filter(azf)

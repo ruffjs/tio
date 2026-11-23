@@ -114,33 +114,22 @@ func TestDeviceProtocolCreateAndReconnect(t *testing.T) {
 						_ = client.Publish(topic, 1, false, payload)
 					}
 				}))
-				endpoints := []string{"methods/echo", "invoke"}
-				if cfg.Protocol.Mode == "legacy" {
-					endpoints = endpoints[:1]
-				} else if cfg.Protocol.Mode == "simple" {
-					endpoints = endpoints[1:]
+				body := `{"data":{},"respTimeout":3}`
+				resp, err := http.Post(httpSvr.URL+"/api/v1/things/"+id+"/methods/echo", "application/json", strings.NewReader(body))
+				require.NoError(t, err)
+				raw, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode, string(raw))
+				var result struct {
+					Data struct {
+						Code int    `json:"code"`
+						Data string `json:"data"`
+					} `json:"data"`
 				}
-				for _, endpoint := range endpoints {
-					body := `{"data":{},"respTimeout":3}`
-					if endpoint == "invoke" {
-						body = `{"method":"echo","params":{},"timeout":3}`
-					}
-					resp, err := http.Post(httpSvr.URL+"/api/v1/things/"+id+"/"+endpoint, "application/json", strings.NewReader(body))
-					require.NoError(t, err)
-					raw, err := io.ReadAll(resp.Body)
-					resp.Body.Close()
-					require.NoError(t, err)
-					require.Equal(t, http.StatusOK, resp.StatusCode, string(raw))
-					var result struct {
-						Data struct {
-							Code int    `json:"code"`
-							Data string `json:"data"`
-						} `json:"data"`
-					}
-					require.NoError(t, json.Unmarshal(raw, &result))
-					require.Equal(t, 200, result.Data.Code, string(raw))
-					require.Equal(t, "pong", result.Data.Data)
-				}
+				require.NoError(t, json.Unmarshal(raw, &result))
+				require.Equal(t, 200, result.Data.Code, string(raw))
+				require.Equal(t, "pong", result.Data.Data)
 			})
 		}
 	}

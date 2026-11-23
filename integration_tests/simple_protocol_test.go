@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -499,12 +498,11 @@ func TestSimpleProtocol_MethodCallAndReply(t *testing.T) {
 	}()
 
 	methodBody := strings.NewReader(`{
-		"method": "doSomething",
-		"params": {"action": "test", "key": "value"},
-		"timeout": 5
+		"data": {"action": "test", "key": "value"},
+		"respTimeout": 5
 	}`)
 	req, _ := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
+		fmt.Sprintf("%s/api/v1/things/%s/methods/doSomething", httpSvr.URL, thingId), methodBody)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := httpSvr.Client().Do(req)
 	require.NoError(t, err)
@@ -547,12 +545,11 @@ func TestSimpleProtocol_MethodCallTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	methodBody := strings.NewReader(`{
-		"method": "timeoutTest",
-		"params": {"key": "value"},
-		"timeout": 1
+		"data": {"key": "value"},
+		"respTimeout": 1
 	}`)
 	req, _ := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
+		fmt.Sprintf("%s/api/v1/things/%s/methods/timeoutTest", httpSvr.URL, thingId), methodBody)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := httpSvr.Client().Do(req)
 	require.NoError(t, err)
@@ -598,12 +595,11 @@ func TestSimpleProtocol_MethodCallHTTPCancellation(t *testing.T) {
 
 	httpCtx, httpCancel := context.WithCancel(ctx)
 	methodBody := strings.NewReader(`{
-		"method": "cancelTest",
-		"params": {"key": "value"},
-		"timeout": 30
+		"data": {"key": "value"},
+		"respTimeout": 30
 	}`)
 	req, _ := http.NewRequestWithContext(httpCtx, http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/invoke", httpSvr.URL, thingId), methodBody)
+		fmt.Sprintf("%s/api/v1/things/%s/methods/cancelTest", httpSvr.URL, thingId), methodBody)
 	req.Header.Set("Content-Type", "application/json")
 
 	done := make(chan struct{})
@@ -877,27 +873,4 @@ func TestSimpleProtocol_ConfigValidation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSimpleProtocol_LegacyMethodRouteNotExposed(t *testing.T) {
-	if cfg.Protocol.Mode != "simple" {
-		t.Skip("Skipping test: only runs in simple protocol mode")
-	}
-
-	thingId := ID()
-	crateThing(thingId)
-
-	methodBody := strings.NewReader(`{
-		"respTimeout": 1,
-		"data": {"hello": "world"}
-	}`)
-	req, _ := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("%s/api/v1/things/%s/methods/testMethod", httpSvr.URL, thingId), methodBody)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpSvr.Client().Do(req)
-	require.NoError(t, err)
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
-	require.Equal(t, http.StatusNotFound, resp.StatusCode,
-		"legacy method route should not be registered in simple mode")
 }

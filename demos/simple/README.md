@@ -28,7 +28,7 @@
 - `shadow_get` → `shadow_get_reply`。
 - `shadow_update` → `shadow_update_reply`，并通过 HTTP 核对持久化状态；检查旧版本 `409` 和无效状态 `400`。
 - 服务端 HTTP 设置多层 desired 基线，再只修改最深的 `control.target.value` → `shadow_desired` → 设备上报并核对 desired/reported 收敛。
-- 服务端 HTTP `/invoke` → `method_req` → 设备 `method_resp` → HTTP 返回结果，核对请求 ID 和数据。
+- 服务端 HTTP `POST /api/v1/things/{thingId}/methods/{name}` → `method_req` → 设备 `method_resp` → HTTP 返回结果，核对请求 ID 和数据。
 - Data/Event 原始二进制透传，以及自定义 Topic 双向收发。
 
 嵌套测试结构如下；每次运行使用唯一的一级字段名：

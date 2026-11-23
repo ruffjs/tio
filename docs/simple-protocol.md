@@ -184,6 +184,8 @@ Topic：`tio/{thingId}/down/shadow_desired`
 
 ## Method
 
+三种部署模式共用 HTTP 接口 `POST /api/v1/things/{thingId}/methods/{name}`。请求体的 `data` 传给设备，`respTimeout` 指定等待回复的秒数，默认为 30 秒。Dual 模式按设备的 `messageProtocol` 选择设备侧协议。
+
 ### 方法请求
 
 Topic：`tio/{thingId}/down/method_req`

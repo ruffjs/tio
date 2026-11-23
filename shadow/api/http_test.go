@@ -50,6 +50,21 @@ func doJSON(t *testing.T, svr *httptest.Server, method, path string, body any) i
 	return resp.StatusCode
 }
 
+func TestMethodRejectsNegativeResponseTimeout(t *testing.T) {
+	ws := new(restful.WebService).Path("/things")
+	ws.Route(ws.POST("/{id}/methods/{name}").To(shadowapi.InvokeMethodHandler(t.Context(), nil, nil)))
+	c := restful.NewContainer()
+	c.Add(ws)
+	req := httptest.NewRequest(http.MethodPost, "/things/device/methods/echo", bytes.NewBufferString(`{"respTimeout":-1}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+
+	c.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+	require.Contains(t, resp.Body.String(), "respTimeout")
+}
+
 func TestShadowAPIVersionConflictReturns409(t *testing.T) {
 	svr, svc := newShadowServer(t)
 	defer svr.Close()

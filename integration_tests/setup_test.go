@@ -120,7 +120,6 @@ func TestMain(m *testing.M) {
 	shadowSvc.Init(testCtx)
 
 	var methodHandler shadow.MethodHandler
-	var simpleInvoker shadowApi.SimpleInvoker
 	var simpleHandler *protocol.SimpleHandler
 	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding, Mode: cfg.Protocol.Mode}
 	legacyMethodHandler := shadow.NewMethodHandler(natsConnector, deviceCodec, profiles)
@@ -152,20 +151,13 @@ func TestMain(m *testing.M) {
 	switch cfg.Protocol.Mode {
 	case "legacy":
 		methodHandler = legacyMethodHandler
-	case "simple":
-		simpleInvoker = simpleHandler
-	case "dual":
-		router := &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
-		methodHandler = router
-		simpleInvoker = router
+	case "simple", "dual":
+		methodHandler = &protocol.MethodRouter{Profiles: profiles, Legacy: legacyMethodHandler, Simple: simpleHandler}
 	}
 
 	httpCon := restful.NewContainer()
 	thingWs := thingApi.Service(testCtx, thingSvc)
 	shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
-	if simpleInvoker != nil {
-		shadowApi.SimpleMethodService(testCtx, thingWs, simpleInvoker, thingSvc)
-	}
 	httpCon.Add(thingWs)
 	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc).
 		Filter(api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)))

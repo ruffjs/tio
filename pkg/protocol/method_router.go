@@ -3,7 +3,6 @@ package protocol
 import (
 	"context"
 	"time"
-	"uuid"
 
 	"ruff.io/tio/connector"
 	"ruff.io/tio/pkg/codec"
@@ -33,13 +32,4 @@ func (r *MethodRouter) InvokeMethod(ctx context.Context, req shadow.MethodReqMsg
 	}
 	resp, err := r.Simple.Invoke(ctx, req.ThingId, req.Method, req.Req.Data, time.Duration(req.RespTimeout)*time.Second)
 	return shadow.MethodResp{Code: resp.Code, Message: resp.Message, Data: resp.Data}, err
-}
-
-func (r *MethodRouter) Invoke(ctx context.Context, thingId, method string, params any, timeout time.Duration) (SimpleInvokeResult, error) {
-	id := uuid.NewV7()
-	resp, err := r.InvokeMethod(ctx, shadow.MethodReqMsg{
-		ThingId: thingId, Method: method, RespTimeout: int(timeout / time.Second),
-		Req: shadow.MethodReq{ClientToken: id.String(), Data: params},
-	})
-	return SimpleInvokeResult{Code: resp.Code, Message: resp.Message, Data: resp.Data}, err
 }

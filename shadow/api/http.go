@@ -239,7 +239,7 @@ func InvokeMethodHandler(
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: "connTimeout should between 0 and 300 second"})
 			return
 		}
-		if req.RespTimeout > 300 {
+		if req.RespTimeout < 0 || req.RespTimeout > 300 {
 			rest.SendResp(w, 400, rest.Resp[any]{Code: 400, Message: "respTimeout should between 0 and 300 second"})
 			return
 		}
@@ -271,7 +271,7 @@ func InvokeMethodHandler(
 			reqMsg.RespTimeout = defaultMethodReqTimeout
 		}
 
-		resp, err := method.InvokeMethod(ctx, reqMsg)
+		resp, err := method.InvokeMethod(r.Request.Context(), reqMsg)
 		if err != nil {
 			slog.Error("Direct method request", "request", reqMsg, "error", err)
 			if !checkHttpErrAndSend(err, w) {

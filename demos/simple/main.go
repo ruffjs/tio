@@ -400,7 +400,7 @@ func run() (err error) {
 	methodDone := make(chan error, 1)
 	go func() {
 		var result rest.Resp[string]
-		callErr := p.api(http.MethodPost, p.thingPath+"/invoke", map[string]any{"method": method, "params": runID, "timeout": 4}, &result)
+		callErr := p.api(http.MethodPost, p.thingPath+"/methods/"+method, map[string]any{"data": runID, "respTimeout": 4}, &result)
 		if callErr == nil && (result.Code != 200 || result.Data != runID) {
 			callErr = fmt.Errorf("HTTP method result differs from the device response")
 		}
