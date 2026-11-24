@@ -198,6 +198,7 @@ func (c *Connector) startServerAndClients(ctx context.Context) error {
 		c.cleanupLocked()
 		return err
 	}
+	c.compensatePresence(false)
 	return nil
 }
 

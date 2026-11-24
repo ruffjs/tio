@@ -386,6 +386,15 @@ func TestPresenceConnectDisconnect(t *testing.T) {
 			return err == nil && len(page.Content) == 1 &&
 				page.Content[0].(map[string]any)["connected"] == connected
 		}, 2*time.Second, 20*time.Millisecond, "shadow query connected=%v", connected)
+
+		resp, err := httpSvr.Client().Get(httpSvr.URL + "/api/v1/things/" + thingId + "/shadows/default")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var body rest.Resp[shadow.ShadowWithStatus]
+		require.NoError(t, json.UnmarshalRead(resp.Body, &body, json.RejectUnknownMembers(true)))
+		require.NotNil(t, body.Data.Connected)
+		require.Equal(t, connected, *body.Data.Connected)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

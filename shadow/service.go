@@ -22,7 +22,7 @@ const (
 
 type Service interface {
 	Init(ctx context.Context)
-	HandleLocalPresence(ci connector.ClientInfo)
+	HandleLocalPresence(ctx context.Context, ci connector.ClientInfo)
 	StateService
 	CrudService
 	TagsService
@@ -95,7 +95,7 @@ type Repo interface {
 	GetWithStatus(ctx context.Context, thingId string) (*ShadowWithStatus, error)
 	Query(ctx context.Context, q model.PageQuery, query ParsedQuerySql) (model.PageData[ShadowWithStatus], error)
 
-	UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error
+	UpdateConnStatus(ctx context.Context, s []connector.ClientInfo, restore bool) error
 	UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error
 }
 
@@ -110,7 +110,6 @@ type shadowSvc struct {
 	cache               Cache
 	cfg                 Config
 	connectorChecker    connector.ConnectChecker
-	ctx                 context.Context
 	updateSubscribers   []StateUpdateSubscribe
 	deltaSubscribers    []StateDeltaSubscribe
 	acceptedSubscribers []StateAcceptedSubscribe
@@ -139,7 +138,6 @@ func NewTestSvc(r Repo, a connector.ConnectChecker, cfg Config) Service {
 }
 
 func (s *shadowSvc) Init(ctx context.Context) {
-	s.ctx = ctx
 	if err := s.doFirstSyncStatus(ctx); err != nil {
 		slog.Error("sync conn status on init", "error", err)
 	}
@@ -185,16 +183,12 @@ func (s *shadowSvc) SetReported(ctx context.Context, thingId string, sr StateReq
 	return ss, err
 }
 
-func (s *shadowSvc) HandleLocalPresence(ci connector.ClientInfo) {
-	ctx := s.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{ci})
+func (s *shadowSvc) HandleLocalPresence(ctx context.Context, ci connector.ClientInfo) {
+	err := s.repo.UpdateConnStatus(ctx, []connector.ClientInfo{ci}, false)
 	if err != nil {
 		slog.Error("update conn error", "clientId", ci.ClientId, "error", err)
 	} else {
-		s.cache.UpdateConnStatus(ci.ClientId, ci)
+		s.cache.Del(ci.ClientId)
 	}
 }
 
@@ -204,6 +198,11 @@ func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "get all client info for sync conn status")
 	}
+	for i := range clients {
+		if clients[i].Username != "" {
+			clients[i].ClientId = clients[i].Username
+		}
+	}
 
 	batch := 100
 	for from, to := 0, batch; from < len(clients); from, to = to, to+batch {
@@ -211,7 +210,7 @@ func (s *shadowSvc) doFirstSyncStatus(ctx context.Context) error {
 			to = len(clients)
 		}
 		l := clients[from:to]
-		err := s.repo.UpdateConnStatus(ctx, l)
+		err := s.repo.UpdateConnStatus(ctx, l, true)
 		if err != nil {
 			return errors.Wrap(err, "update conn status")
 		}
@@ -589,16 +588,13 @@ func (s *shadowSvc) SetTag(ctx context.Context, thingId string, t TagsReq) error
 // ========= CacheService interface =========
 
 func (s *shadowSvc) GetFromCache(thingId string) (ShadowWithStatus, bool) {
-	if s, ok := s.cache.Get(thingId); ok {
-		return s, true
-	}
-	ss, err := s.repo.GetWithStatus(context.Background(), thingId)
-	if err == nil && ss != nil {
-		// TODO: LRU cache
-		s.cache.Set(thingId, *ss)
+	return s.cache.GetOrLoad(thingId, func() (ShadowWithStatus, bool) {
+		ss, err := s.repo.GetWithStatus(context.Background(), thingId)
+		if err != nil || ss == nil {
+			return ShadowWithStatus{}, false
+		}
 		return *ss, true
-	}
-	return ShadowWithStatus{}, false
+	})
 }
 func (s *shadowSvc) NotifyCreated(thingId string, sd ShadowWithEnable) {
 	// do nothing

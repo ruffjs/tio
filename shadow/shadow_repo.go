@@ -90,20 +90,13 @@ func (r shadowRepo) Update(ctx context.Context, thingId string, version int64, s
 }
 
 // UpdateConnStatus batch update in a transaction
-func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientInfo) error {
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientInfo, restore bool) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, c := range s {
 			ex := tx.Model(&ConnStatusEntity{ThingId: c.ClientId})
 			ts := c.ConnectedAt
 			if c.DisconnectedAt != nil && (c.ConnectedAt == nil || c.ConnectedAt.Before(*c.DisconnectedAt)) {
 				ts = c.DisconnectedAt
-			}
-			// This update cannot cover newer data than it.
-			if ts != nil {
-				ex.Where("(connected_at IS NULL OR connected_at <= ?) "+
-					"AND (disconnected_at IS NULL OR disconnected_at <= ?)",
-					ts, ts,
-				)
 			}
 			var up map[string]any
 			if c.Connected {
@@ -114,10 +107,29 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientIn
 				}
 			} else {
 				up = map[string]any{
-					"connected":         0,
-					"disconnected_at":   c.DisconnectedAt,
-					"disconnect_reason": c.DisconnectReason,
-					"remote_addr":       c.RemoteAddr,
+					"connected":       0,
+					"disconnected_at": c.DisconnectedAt,
+					"remote_addr":     c.RemoteAddr,
+				}
+				if !restore || c.DisconnectReason != "" {
+					up["disconnect_reason"] = c.DisconnectReason
+				}
+			}
+			if c.PresenceRevision != 0 {
+				revisionComparison := "presence_revision < ?"
+				if restore {
+					// Refresh rows present in the startup snapshot before clearing stale rows.
+					revisionComparison = "presence_revision <= ?"
+				}
+				ex = ex.Where("presence_epoch < ? OR (presence_epoch = ? AND "+revisionComparison+")",
+					c.PresenceEpoch, c.PresenceEpoch, c.PresenceRevision)
+				up["presence_epoch"] = c.PresenceEpoch
+				up["presence_revision"] = c.PresenceRevision
+			} else {
+				ex = ex.Where("presence_revision = 0")
+				if ts != nil {
+					ex = ex.Where("(connected_at IS NULL OR connected_at <= ?) "+
+						"AND (disconnected_at IS NULL OR disconnected_at <= ?)", ts, ts)
 				}
 			}
 			if err := ex.Updates(up).Error; err != nil {
@@ -126,7 +138,6 @@ func (r shadowRepo) UpdateConnStatus(ctx context.Context, s []connector.ClientIn
 		}
 		return nil
 	})
-	return err
 }
 
 func (r shadowRepo) UpdateAllConnStatusDisconnect(ctx context.Context, updateTimeBefore time.Time) error {

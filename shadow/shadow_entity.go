@@ -105,6 +105,8 @@ type ConnStatusEntity struct {
 	DisconnectedAt   *time.Time
 	DisconnectReason string    `gorm:"default:'';"`
 	RemoteAddr       string    `gorm:"default:'';"`
+	PresenceEpoch    int64     `gorm:"not null;default:0" json:"-"`
+	PresenceRevision uint64    `gorm:"not null;default:0" json:"-"`
 	UpdatedAt        time.Time `gorm:"autoUpdateTime;not null;" json:"updatedAt"`
 }
 

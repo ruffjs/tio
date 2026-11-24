@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -33,6 +34,8 @@ type PresenceRecord struct {
 	ClientId   string `json:"clientId"`
 	RemoteAddr string `json:"remoteAddr"`
 	Timestamp  int64  `json:"timestamp"`
+	InstanceId string `json:"instanceId,omitempty"`
+	ConnId     uint64 `json:"connId,omitempty"`
 }
 
 type sysClientInfo struct {
@@ -187,6 +190,10 @@ func (c *Connector) trySyncLocalPresence(thingId, reason string) error {
 	if err := c.ctx.Err(); err != nil {
 		return err
 	}
+	epoch, err := c.presenceStreamEpoch()
+	if err != nil {
+		return err
+	}
 	key := presenceKeyPrefix + thingId
 	entry, err := c.kv.Get(key)
 	if err != nil && err != nats.ErrKeyNotFound {
@@ -210,36 +217,69 @@ func (c *Connector) trySyncLocalPresence(thingId, reason string) error {
 	}
 	if connected {
 		ci := conns[len(conns)-1]
-		if rec.Connected && rec.ServerId == c.cfg.Server.ServerName && rec.ClientId == ci.MQTTClient && rec.RemoteAddr == ci.IP {
+		instanceId := c.natsSvr.Server().ID()
+		if rec.Connected && rec.InstanceId == instanceId && rec.ConnId == ci.Cid {
 			return nil
 		}
 		rec.ClientId, rec.RemoteAddr = ci.MQTTClient, ci.IP
+		rec.InstanceId, rec.ConnId = instanceId, ci.Cid
 	}
 	now := time.Now()
 	rec.ThingId, rec.ServerId = thingId, c.cfg.Server.ServerName
 	rec.Connected, rec.Timestamp = connected, now.UnixMilli()
 	data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
-	if revision == 0 {
-		_, err = c.kv.Create(key, data)
-	} else {
-		_, err = c.kv.Update(key, data, revision)
-	}
+	revision, epoch, err = c.writePresence(key, data, revision, epoch)
 	if err != nil {
 		return err
 	}
 	eventType := connector.EventDisconnected
-	ci := connector.ClientInfo{ClientId: thingId, Username: thingId, Connected: connected, RemoteAddr: rec.RemoteAddr}
+	ci := presenceClientInfo(rec, revision, epoch)
+	ci.ClientId = thingId
 	if connected {
 		eventType = connector.EventConnected
-		ci.ConnectedAt = &now
 	} else {
-		ci.DisconnectedAt, ci.DisconnectReason = &now, reason
+		ci.DisconnectReason = reason
 	}
 	c.publishMqttPresence(thingId, now, eventType, rec)
 	if c.presenceHandler != nil {
 		c.presenceHandler(ci)
 	}
 	return nil
+}
+
+func (c *Connector) presenceStreamEpoch() (int64, error) {
+	stream, err := c.js.StreamInfo("KV_" + presenceKVBucket)
+	if err != nil {
+		return 0, fmt.Errorf("get presence stream: %w", err)
+	}
+	return stream.Created.UnixNano(), nil
+}
+
+func (c *Connector) writePresence(key string, data []byte, revision uint64, epoch int64) (uint64, int64, error) {
+	var err error
+	if revision == 0 {
+		revision, err = c.kv.Create(key, data)
+	} else {
+		revision, err = c.kv.Update(key, data, revision)
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	currentEpoch, err := c.presenceStreamEpoch()
+	if err != nil {
+		return 0, 0, err
+	}
+	if currentEpoch != epoch {
+		// A replacement stream can reuse revisions from the previous stream.
+		entry, err := c.kv.GetRevision(key, revision)
+		if errors.Is(err, nats.ErrKeyNotFound) || err == nil && !bytes.Equal(entry.Value(), data) {
+			return 0, 0, nats.ErrKeyExists
+		}
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	return revision, currentEpoch, nil
 }
 
 func (c *Connector) localConnections(user string) ([]*server.ConnInfo, error) {
@@ -261,7 +301,7 @@ func (c *Connector) localConnections(user string) ([]*server.ConnInfo, error) {
 	}
 }
 
-func (c *Connector) compensatePresence() {
+func (c *Connector) compensatePresence(includeStored bool) {
 	c.presenceMu.Lock()
 	defer c.presenceMu.Unlock()
 	conns, err := c.localConnections("")
@@ -269,18 +309,20 @@ func (c *Connector) compensatePresence() {
 		slog.Error("scan presence connections", "error", err)
 		return
 	}
-	keys, err := c.kv.Keys()
-	if err != nil && err != nats.ErrNoKeysFound {
-		slog.Error("scan presence records", "error", err)
-		return
-	}
 	users := make(map[string]bool)
 	for _, ci := range conns {
 		users[ci.AuthorizedUser] = true
 	}
-	for _, key := range keys {
-		if after, ok := strings.CutPrefix(key, presenceKeyPrefix); ok {
-			users[after] = true
+	if includeStored {
+		keys, err := c.kv.Keys()
+		if err != nil && err != nats.ErrNoKeysFound {
+			slog.Error("scan presence records", "error", err)
+			return
+		}
+		for _, key := range keys {
+			if after, ok := strings.CutPrefix(key, presenceKeyPrefix); ok {
+				users[after] = true
+			}
 		}
 	}
 	for user := range users {
@@ -296,11 +338,12 @@ func (c *Connector) publishMqttPresence(thingId string, ts time.Time, eventType 
 	}
 
 	payload, err := c.deviceCodec.Marshal(connector.PresenceEvent{
-		Timestamp:  ts.UnixMilli(),
-		EventType:  eventType,
-		ThingId:    thingId,
-		ClientId:   rec.ClientId,
-		RemoteAddr: rec.RemoteAddr,
+		Timestamp:   ts.UnixMilli(),
+		TimestampUs: ts.UnixMicro(),
+		EventType:   eventType,
+		ThingId:     thingId,
+		ClientId:    rec.ClientId,
+		RemoteAddr:  rec.RemoteAddr,
 	})
 	if err != nil {
 		slog.Error("marshal presence event", "thingId", thingId, "error", err)
@@ -324,7 +367,7 @@ func (c *Connector) startReconciliation(ctx context.Context) {
 			return
 		case <-c.presenceReconnect:
 			if c.ctx.Err() == nil {
-				c.compensatePresence()
+				c.compensatePresence(true)
 			}
 		case <-ticker.C:
 			if c.ctx.Err() == nil {
@@ -365,6 +408,11 @@ func (c *Connector) reconcile() {
 		activeUsers[user] = true
 	}
 
+	epoch, err := c.presenceStreamEpoch()
+	if err != nil {
+		slog.Error("reconcile: get presence stream", "error", err)
+		return
+	}
 	keys, err := c.kv.Keys()
 	if err != nil && err != nats.ErrNoKeysFound {
 		slog.Error("reconcile: get KV keys", "error", err)
@@ -372,7 +420,8 @@ func (c *Connector) reconcile() {
 	}
 
 	for _, key := range keys {
-		if !strings.HasPrefix(key, presenceKeyPrefix) {
+		user, ok := strings.CutPrefix(key, presenceKeyPrefix)
+		if !ok {
 			continue
 		}
 		entry, err := c.kv.Get(key)
@@ -383,9 +432,11 @@ func (c *Connector) reconcile() {
 		if json.Unmarshal(entry.Value(), &rec) != nil {
 			continue
 		}
+		active := activeUsers[user]
+		delete(activeUsers, user)
 
 		if rec.ServerId == c.cfg.Server.ServerName {
-			if rec.Connected && !activeUsers[rec.ThingId] {
+			if rec.Connected && !active {
 				c.syncLocalPresence(rec.ThingId, "reconciled stale presence")
 			}
 			continue
@@ -401,7 +452,11 @@ func (c *Connector) reconcile() {
 			rec.Connected = false
 			rec.Timestamp = now.UnixMilli()
 			data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
-			if _, err := c.kv.Put(key, data); err != nil {
+			revision, epoch, err := c.writePresence(key, data, entry.Revision(), epoch)
+			if errors.Is(err, nats.ErrKeyExists) {
+				continue
+			}
+			if err != nil {
 				slog.Error("reconcile: put stale presence", "key", key, "error", err)
 				continue
 			}
@@ -409,16 +464,15 @@ func (c *Connector) reconcile() {
 			c.publishMqttPresence(rec.ThingId, now, connector.EventDisconnected, rec)
 
 			if c.presenceHandler != nil {
-				c.presenceHandler(connector.ClientInfo{
-					ClientId:         rec.ThingId,
-					Username:         rec.ThingId,
-					Connected:        false,
-					DisconnectedAt:   &now,
-					DisconnectReason: "reconciled stale presence",
-					RemoteAddr:       rec.RemoteAddr,
-				})
+				ci := presenceClientInfo(rec, revision, epoch)
+				ci.ClientId = rec.ThingId
+				ci.DisconnectReason = "reconciled stale presence"
+				c.presenceHandler(ci)
 			}
 		}
+	}
+	for user := range activeUsers {
+		c.syncLocalPresence(user, "reconciled missing presence")
 	}
 }
 

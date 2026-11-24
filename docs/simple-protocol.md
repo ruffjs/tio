@@ -68,6 +68,8 @@ subscribe:
 | `$iothub/things/{thingId}/presence` | 是 | 当前在线状态快照 |
 | `$iothub/events/things/{thingId}/presence` | 否 | 上下线事件流 |
 
+两个 Topic 的消息都包含 `timestamp`（Unix 毫秒）和 `timestampUs`（Unix 微秒），表示 Tio 观测到状态变更的同一时刻。需要微秒精度的消费者优先读取 `timestampUs`，处理旧消息时读取 `timestamp`。
+
 Payload 编码统一使用部署的 `protocol.defaultEncoding`，不随 Thing 配置变化。Simple 模式的普通设备没有这些 Topic 的权限；Legacy/Dual 模式的设备沿用原有 `$iothub` 权限，可以订阅自己的 Presence 和事件流。使用超级用户凭证的后端服务在所有模式下均可订阅。
 
 超级用户可通过 MQTT 或 NATS 发布、订阅 `TIO_APP` 账号内的全部 Topic/Subject，不受部署 `mode` 限制；MQTT 支持 `#` 订阅，NATS 支持 `>` 订阅。

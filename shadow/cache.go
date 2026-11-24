@@ -3,21 +3,18 @@ package shadow
 import (
 	"log/slog"
 	"sync"
-
-	"ruff.io/tio/connector"
 )
 
 // Shadow cache
 
 type Cache interface {
 	Get(thingId string) (ShadowWithStatus, bool)
+	GetOrLoad(thingId string, load func() (ShadowWithStatus, bool)) (ShadowWithStatus, bool)
 	// full update shadow
 	Set(thingId string, shadow ShadowWithStatus)
 
 	// partial update shadow base
 	SetShadow(thingId string, shadow Shadow)
-	// partial update shadow conn status
-	UpdateConnStatus(thingId string, conn connector.ClientInfo)
 	// partial update shadow tags
 	UpdateTags(thingId string, tags TagsValue)
 
@@ -27,68 +24,107 @@ type Cache interface {
 }
 
 func newCache() Cache {
-	return &cacheImpl{}
+	return &cacheImpl{entries: make(map[string]*cacheEntry)}
 }
 
 type cacheImpl struct {
-	cache sync.Map
+	mu      sync.Mutex
+	entries map[string]*cacheEntry
+}
+
+type cacheEntry struct {
+	value *ShadowWithStatus
 }
 
 func (c *cacheImpl) Set(thingId string, shadow ShadowWithStatus) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.set(thingId, shadow)
+}
+
+func (c *cacheImpl) set(thingId string, shadow ShadowWithStatus) {
 	slog.Debug("Shadow cache Set", "thingId", thingId, "shadowVersion", shadow.Version)
-	c.cache.Store(thingId, shadow)
+	c.entries[thingId] = &cacheEntry{value: &shadow}
 }
 
 func (c *cacheImpl) SetShadow(thingId string, shadow Shadow) {
-	if s, ok := c.Get(thingId); ok {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s, ok := c.get(thingId); ok {
 		s.Shadow = shadow
-		c.Set(thingId, s)
+		c.set(thingId, s)
 		slog.Debug("Shadow cache SetShadow", "thingId", thingId, "shadowVersion", shadow.Version)
 	} else {
-		c.Set(thingId, ShadowWithStatus{Shadow: shadow, Enabled: true})
+		c.set(thingId, ShadowWithStatus{Shadow: shadow, Enabled: true})
 	}
 }
 
 func (c *cacheImpl) Get(thingId string) (ShadowWithStatus, bool) {
-	if s, ok := c.cache.Load(thingId); ok {
-		sd := s.(ShadowWithStatus)
-		return sd, ok
-	} else {
-		return ShadowWithStatus{}, false
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.get(thingId)
+}
+
+func (c *cacheImpl) get(thingId string) (ShadowWithStatus, bool) {
+	if entry := c.entries[thingId]; entry != nil && entry.value != nil {
+		return *entry.value, true
 	}
+	return ShadowWithStatus{}, false
+}
+
+func (c *cacheImpl) GetOrLoad(thingId string, load func() (ShadowWithStatus, bool)) (ShadowWithStatus, bool) {
+	c.mu.Lock()
+	if value, ok := c.get(thingId); ok {
+		c.mu.Unlock()
+		return value, true
+	}
+	entry := c.entries[thingId]
+	if entry == nil {
+		entry = &cacheEntry{}
+		c.entries[thingId] = entry
+	}
+	c.mu.Unlock()
+
+	value, ok := load()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Invalidation removes the placeholder for this device.
+	if c.entries[thingId] == entry {
+		if ok {
+			c.set(thingId, value)
+		} else {
+			delete(c.entries, thingId)
+		}
+	}
+	return value, ok
 }
 
 func (c *cacheImpl) UpdateTags(thingId string, tags TagsValue) {
-	if s, ok := c.Get(thingId); ok {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s, ok := c.get(thingId); ok {
 		s.Tags = tags
-		c.Set(thingId, s)
+		c.set(thingId, s)
 		slog.Debug("Shadow cache UpdateTags", "thingId", thingId, "tags", tags)
-	}
-}
-
-func (c *cacheImpl) UpdateConnStatus(thingId string, conn connector.ClientInfo) {
-	if s, ok := c.Get(thingId); ok {
-		s.Connected = &conn.Connected
-		if conn.ConnectedAt != nil {
-			s.ConnectedAt = conn.ConnectedAt
-		}
-		if conn.DisconnectedAt != nil {
-			s.DisconnectedAt = conn.DisconnectedAt
-		}
-		s.RemoteAddr = conn.RemoteAddr
-		c.Set(thingId, s)
-		slog.Debug("Shadow cache UpdateConnStatus", "thingId", thingId, "conn", conn.Connected, "shadowVersion", s.Version)
+	} else {
+		delete(c.entries, thingId)
 	}
 }
 
 func (c *cacheImpl) updateThing(thingId string, enable bool) {
-	if s, ok := c.Get(thingId); ok {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s, ok := c.get(thingId); ok {
 		s.Enabled = enable
-		c.Set(thingId, s)
+		c.set(thingId, s)
 		slog.Debug("Shadow cache updateThing", "thingId", thingId, "enable", enable)
+	} else {
+		delete(c.entries, thingId)
 	}
 }
 
 func (c *cacheImpl) Del(thingId string) {
-	c.cache.Delete(thingId)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, thingId)
 }

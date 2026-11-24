@@ -30,6 +30,8 @@ type ClientInfo struct {
 	DisconnectedAt   *time.Time `json:"disconnectedAt"`
 	DisconnectReason string     `json:"disconnectReason"`
 	RemoteAddr       string     `json:"remoteAddr"`
+	PresenceEpoch    int64      `json:"-"`
+	PresenceRevision uint64     `json:"-"`
 }
 
 type Connector interface {
@@ -77,6 +79,7 @@ type ConnectChecker interface {
 
 type PresenceEvent struct {
 	Timestamp        int64  `json:"timestamp"`
+	TimestampUs      int64  `json:"timestampUs,omitempty"`
 	EventType        string `json:"eventType"`
 	ThingId          string `json:"thingId"`
 	ClientId         string `json:"clientId"`

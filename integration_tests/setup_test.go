@@ -109,13 +109,12 @@ func TestMain(m *testing.M) {
 	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
 		log.Fatal(err)
 	}
+	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
+		go shadowSvc.HandleLocalPresence(testCtx, ci)
+	})
 	if err := natsConnector.Start(testCtx); err != nil {
 		log.Fatal(err)
 	}
-
-	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
-		go shadowSvc.HandleLocalPresence(ci)
-	})
 
 	shadowSvc.Init(testCtx)
 

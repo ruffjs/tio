@@ -39,6 +39,10 @@ func (c *Connector) IsConnected(thingId string) (bool, error) {
 }
 
 func (c *Connector) ClientInfo(thingId string) (connector.ClientInfo, error) {
+	epoch, err := c.presenceStreamEpoch()
+	if err != nil {
+		return connector.ClientInfo{}, err
+	}
 	entry, err := c.kv.Get(presenceKeyPrefix + thingId)
 	if err == nats.ErrKeyNotFound {
 		return connector.ClientInfo{}, fmt.Errorf("presence not found for %q", thingId)
@@ -51,11 +55,20 @@ func (c *Connector) ClientInfo(thingId string) (connector.ClientInfo, error) {
 		return connector.ClientInfo{}, fmt.Errorf("unmarshal presence for %q: %w", thingId, err)
 	}
 
+	if err := c.checkPresenceEpoch(epoch); err != nil {
+		return connector.ClientInfo{}, err
+	}
+	return presenceClientInfo(rec, entry.Revision(), epoch), nil
+}
+
+func presenceClientInfo(rec PresenceRecord, revision uint64, epoch int64) connector.ClientInfo {
 	ci := connector.ClientInfo{
-		ClientId:   rec.ClientId,
-		Username:   rec.ThingId,
-		Connected:  rec.Connected,
-		RemoteAddr: rec.RemoteAddr,
+		ClientId:         rec.ClientId,
+		Username:         rec.ThingId,
+		Connected:        rec.Connected,
+		RemoteAddr:       rec.RemoteAddr,
+		PresenceEpoch:    epoch,
+		PresenceRevision: revision,
 	}
 	ts := time.UnixMilli(rec.Timestamp)
 	if rec.Connected {
@@ -63,10 +76,14 @@ func (c *Connector) ClientInfo(thingId string) (connector.ClientInfo, error) {
 	} else {
 		ci.DisconnectedAt = &ts
 	}
-	return ci, nil
+	return ci
 }
 
 func (c *Connector) AllClientInfo() ([]connector.ClientInfo, error) {
+	epoch, err := c.presenceStreamEpoch()
+	if err != nil {
+		return nil, err
+	}
 	keys, err := c.kv.Keys()
 	if err != nil && err != nats.ErrNoKeysFound {
 		return nil, fmt.Errorf("list presence keys: %w", err)
@@ -82,21 +99,17 @@ func (c *Connector) AllClientInfo() ([]connector.ClientInfo, error) {
 		if json.Unmarshal(entry.Value(), &rec) != nil {
 			continue
 		}
-		ci := connector.ClientInfo{
-			ClientId:   rec.ClientId,
-			Username:   rec.ThingId,
-			Connected:  rec.Connected,
-			RemoteAddr: rec.RemoteAddr,
-		}
-		ts := time.UnixMilli(rec.Timestamp)
-		if rec.Connected {
-			ci.ConnectedAt = &ts
-		} else {
-			ci.DisconnectedAt = &ts
-		}
-		result = append(result, ci)
+		result = append(result, presenceClientInfo(rec, entry.Revision(), epoch))
 	}
-	return result, nil
+	return result, c.checkPresenceEpoch(epoch)
+}
+
+func (c *Connector) checkPresenceEpoch(epoch int64) error {
+	currentEpoch, err := c.presenceStreamEpoch()
+	if err == nil && currentEpoch != epoch {
+		return errors.New("presence stream changed while reading records")
+	}
+	return err
 }
 
 func (c *Connector) disconnectLocal(thingId string) (bool, error) {

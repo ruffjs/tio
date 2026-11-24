@@ -138,6 +138,9 @@ func main() {
 	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
 		log.Fatalf("Configure NATS auth error: %v", err)
 	}
+	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
+		go shadowSvc.HandleLocalPresence(ctx, ci)
+	})
 	if err := natsConnector.Start(ctx); err != nil {
 		log.Fatalf("NATS connector start error: %v", err)
 	}
@@ -151,10 +154,6 @@ func main() {
 			slog.Error("NATS connector shutdown error", "error", err)
 		}
 	}()
-
-	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
-		go shadowSvc.HandleLocalPresence(ci)
-	})
 
 	shadowSvc.Init(ctx)
 

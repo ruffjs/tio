@@ -33,8 +33,8 @@ type failingShadowSvc struct {
 	setTagErr error
 }
 
-func (s failingShadowSvc) Init(context.Context)                   {}
-func (s failingShadowSvc) HandleLocalPresence(tioconn.ClientInfo) {}
+func (s failingShadowSvc) Init(context.Context)                                    {}
+func (s failingShadowSvc) HandleLocalPresence(context.Context, tioconn.ClientInfo) {}
 func (s failingShadowSvc) SetDesired(context.Context, string, shadow.StateReq) (shadow.Shadow, error) {
 	return shadow.Shadow{}, nil
 }

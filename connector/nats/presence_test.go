@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json/v2"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -117,6 +119,40 @@ func TestPresenceDisconnectEvent(t *testing.T) {
 	}
 }
 
+func TestPresencePublishPreservesMicroseconds(t *testing.T) {
+	c := newPresenceTestConnector(t)
+	const thingID = "presence-clock"
+	topics := []string{connector.TopicPresenceEvent(thingID), connector.TopicPresence(thingID)}
+	subs := make([]*nats.Subscription, 0, len(topics))
+	for _, topic := range topics {
+		subject, err := MqttPublishTopicToNatsSubject(topic)
+		require.NoError(t, err)
+		sub, err := c.AppConn().SubscribeSync(subject)
+		require.NoError(t, err)
+		subs = append(subs, sub)
+	}
+	require.NoError(t, c.AppConn().Flush())
+
+	onlineAt := time.Unix(1795500000, 123456000)
+	offlineAt := onlineAt.Add(40 * time.Microsecond)
+	require.Equal(t, onlineAt.UnixMilli(), offlineAt.UnixMilli())
+	c.publishMqttPresence(thingID, onlineAt, connector.EventConnected, PresenceRecord{ThingId: thingID})
+	c.publishMqttPresence(thingID, offlineAt, connector.EventDisconnected, PresenceRecord{ThingId: thingID})
+	for _, sub := range subs {
+		for _, at := range []time.Time{onlineAt, offlineAt} {
+			msg, err := sub.NextMsg(time.Second)
+			require.NoError(t, err)
+			var payload struct {
+				Timestamp   int64 `json:"timestamp"`
+				TimestampUs int64 `json:"timestampUs"`
+			}
+			require.NoError(t, c.deviceCodec.Unmarshal(msg.Data, &payload))
+			require.Equal(t, at.UnixMilli(), payload.Timestamp)
+			require.Equal(t, at.UnixMicro(), payload.TimestampUs)
+		}
+	}
+}
+
 func TestPresenceOnLocalPresenceCallback(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
@@ -177,6 +213,115 @@ func TestPresenceReconnectUpdatesRecord(t *testing.T) {
 	json.Unmarshal(entry2.Value(), &rec2)
 	if !rec2.Connected {
 		t.Fatal("expected connected=true after reconnect")
+	}
+}
+
+func TestPresenceRecoversSessionAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	cfg := testConnectorConfig(t)
+	const thingID = "device-restart"
+	const clientID = "mqtt-device-restart"
+	newConnector := func() *Connector {
+		c, err := NewConnector(cfg, testDeviceCodec(t), "legacy")
+		require.NoError(t, err)
+		require.NoError(t, c.ConfigureAuth(usernameAuthzFn, nil))
+		t.Cleanup(func() { _ = c.Shutdown() })
+		return c
+	}
+	connect := func(c *Connector) {
+		opts := mqtt.NewClientOptions().
+			AddBroker(fmt.Sprintf("tcp://127.0.0.1:%d", getMqttPort(t, c.natsSvr))).
+			SetClientID(clientID).SetUsername(thingID).SetPassword("password").
+			SetAutoReconnect(false).SetConnectTimeout(3 * time.Second)
+		client := mqtt.NewClient(opts)
+		token := client.Connect()
+		require.True(t, token.WaitTimeout(5*time.Second))
+		require.NoError(t, token.Error())
+		t.Cleanup(func() { client.Disconnect(100) })
+	}
+
+	first := newConnector()
+	require.NoError(t, first.Start(ctx))
+	connect(first)
+	waitForPresence(t, first, thingID, true)
+	old, err := first.ClientInfo(thingID)
+	require.NoError(t, err)
+	require.Equal(t, clientID, old.ClientId)
+	const historicalKey = presenceKeyPrefix + "inactive-device"
+	historical, err := json.Marshal(PresenceRecord{
+		ThingId: "inactive-device", ServerId: cfg.Server.ServerName, Connected: true,
+	})
+	require.NoError(t, err)
+	historicalRevision, err := first.kv.Put(historicalKey, historical)
+	require.NoError(t, err)
+	require.NoError(t, first.Shutdown())
+
+	second := newConnector()
+	var callbacks []connector.ClientInfo
+	second.OnLocalPresence(func(ci connector.ClientInfo) {
+		if ci.Username == thingID {
+			callbacks = append(callbacks, ci)
+		}
+	})
+	require.NoError(t, second.StartServerOnly())
+	connect(second) // The MQTT CONNECT happens before the system subscription.
+	require.NoError(t, second.StartClients(ctx))
+
+	entry, err := second.kv.Get(historicalKey)
+	require.NoError(t, err)
+	require.Equal(t, historicalRevision, entry.Revision())
+
+	current, err := second.ClientInfo(thingID)
+	require.NoError(t, err)
+	require.True(t, current.Connected)
+	require.Equal(t, old.PresenceEpoch, current.PresenceEpoch)
+	require.Greater(t, current.PresenceRevision, old.PresenceRevision)
+	second.presenceMu.Lock()
+	defer second.presenceMu.Unlock()
+	require.Len(t, callbacks, 1)
+	require.Equal(t, thingID, callbacks[0].ClientId)
+	require.Equal(t, current.PresenceRevision, callbacks[0].PresenceRevision)
+	require.Equal(t, current.ConnectedAt, callbacks[0].ConnectedAt)
+}
+
+func TestPresenceRecoversActiveSessionAfterStreamRecreation(t *testing.T) {
+	c := newPresenceTestConnector(t)
+	const thingID = "stream-recreated"
+	for range 3 {
+		_, err := c.kv.Put("padding", []byte("old stream"))
+		require.NoError(t, err)
+	}
+	connectDevice(t, c, thingID)
+	waitForPresence(t, c, thingID, true)
+	old, err := c.ClientInfo(thingID)
+	require.NoError(t, err)
+
+	c.presenceMu.Lock()
+	err = c.js.DeleteKeyValue(presenceKVBucket)
+	if err == nil {
+		_, err = c.js.CreateKeyValue(&nats.KeyValueConfig{Bucket: presenceKVBucket, History: 5})
+	}
+	c.presenceMu.Unlock()
+	require.NoError(t, err)
+
+	changes := make(chan connector.ClientInfo, 2)
+	c.OnLocalPresence(func(ci connector.ClientInfo) {
+		if ci.Username == thingID && ci.Connected {
+			changes <- ci
+		}
+	})
+	c.reconcile()
+	select {
+	case current := <-changes:
+		require.Greater(t, current.PresenceEpoch, old.PresenceEpoch)
+		require.Less(t, current.PresenceRevision, old.PresenceRevision)
+		snapshot, err := c.AllClientInfo()
+		require.NoError(t, err)
+		require.Len(t, snapshot, 1)
+		require.Equal(t, current.PresenceEpoch, snapshot[0].PresenceEpoch)
+		require.Equal(t, current.PresenceRevision, snapshot[0].PresenceRevision)
+	case <-time.After(time.Second):
+		t.Fatal("reconciliation did not restore the active device")
 	}
 }
 
@@ -296,7 +441,7 @@ func TestPresenceCompensatesSystemReconnect(t *testing.T) {
 	entry, err := c.kv.Get(presenceKeyPrefix + remote.ThingId)
 	require.NoError(t, err)
 	require.JSONEq(t, string(data), string(entry.Value()))
-	c.compensatePresence()
+	c.compensatePresence(true)
 	select {
 	case ci := <-changes:
 		t.Fatalf("duplicate compensated presence: %+v", ci)
@@ -339,7 +484,7 @@ func TestPresenceCompensationAfterShutdown(t *testing.T) {
 		require.ErrorIs(t, err, nats.ErrConnectionReconnecting)
 	}
 	resume()
-	c.compensatePresence()
+	c.compensatePresence(true)
 }
 
 func TestPresenceScanAllConnections(t *testing.T) {
