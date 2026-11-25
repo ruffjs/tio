@@ -28,14 +28,14 @@ const (
 )
 
 type PresenceRecord struct {
-	ThingId    string `json:"thingId"`
-	Connected  bool   `json:"connected"`
-	ServerId   string `json:"serverId"`
-	ClientId   string `json:"clientId"`
-	RemoteAddr string `json:"remoteAddr"`
-	Timestamp  int64  `json:"timestamp"`
-	InstanceId string `json:"instanceId,omitempty"`
-	ConnId     uint64 `json:"connId,omitempty"`
+	ThingId     string `json:"thingId"`
+	Connected   bool   `json:"connected"`
+	ServerId    string `json:"serverId"`
+	ClientId    string `json:"clientId"`
+	RemoteAddr  string `json:"remoteAddr"`
+	TimestampUs int64  `json:"timestampUs"`
+	InstanceId  string `json:"instanceId,omitempty"`
+	ConnId      uint64 `json:"connId,omitempty"`
 }
 
 type sysClientInfo struct {
@@ -226,7 +226,7 @@ func (c *Connector) trySyncLocalPresence(thingId, reason string) error {
 	}
 	now := time.Now()
 	rec.ThingId, rec.ServerId = thingId, c.cfg.Server.ServerName
-	rec.Connected, rec.Timestamp = connected, now.UnixMilli()
+	rec.Connected, rec.TimestampUs = connected, now.UnixMicro()
 	data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	revision, epoch, err = c.writePresence(key, data, revision, epoch)
 	if err != nil {
@@ -450,7 +450,7 @@ func (c *Connector) reconcile() {
 		if shouldDisconnect {
 			now := time.Now()
 			rec.Connected = false
-			rec.Timestamp = now.UnixMilli()
+			rec.TimestampUs = now.UnixMicro()
 			data, _ := json.Marshal(rec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 			revision, epoch, err := c.writePresence(key, data, entry.Revision(), epoch)
 			if errors.Is(err, nats.ErrKeyExists) {

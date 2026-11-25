@@ -26,12 +26,12 @@ type connectorCluster struct {
 }
 
 type presenceRecord struct {
-	ThingId    string `json:"thingId"`
-	Connected  bool   `json:"connected"`
-	ServerId   string `json:"serverId"`
-	ClientId   string `json:"clientId"`
-	RemoteAddr string `json:"remoteAddr"`
-	Timestamp  int64  `json:"timestamp"`
+	ThingId     string `json:"thingId"`
+	Connected   bool   `json:"connected"`
+	ServerId    string `json:"serverId"`
+	ClientId    string `json:"clientId"`
+	RemoteAddr  string `json:"remoteAddr"`
+	TimestampUs int64  `json:"timestampUs"`
 }
 
 func startConnectorCluster(t *testing.T, n int) *connectorCluster {
@@ -295,10 +295,10 @@ func TestClusterReconciliation_FakeRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	fakeRec := presenceRecord{
-		ThingId:   fakeThingId,
-		Connected: true,
-		ServerId:  "non-existent-node",
-		Timestamp: time.Now().UnixMilli(),
+		ThingId:     fakeThingId,
+		Connected:   true,
+		ServerId:    "non-existent-node",
+		TimestampUs: time.Now().UnixMicro(),
 	}
 	data, err := json.Marshal(fakeRec, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
 	require.NoError(t, err)

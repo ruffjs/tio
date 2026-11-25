@@ -75,6 +75,7 @@ func waitForPresence(t *testing.T, c *Connector, thingId string, connected bool)
 func TestPresenceConnectEvent(t *testing.T) {
 	c := newPresenceTestConnector(t)
 
+	startedAt := time.Now()
 	nc := connectDevice(t, c, "dev1")
 	defer nc.Close()
 
@@ -94,6 +95,11 @@ func TestPresenceConnectEvent(t *testing.T) {
 	if rec.ThingId != "dev1" {
 		t.Fatalf("thingId = %q", rec.ThingId)
 	}
+	require.GreaterOrEqual(t, rec.TimestampUs, startedAt.UnixMicro())
+	info, err := c.ClientInfo("dev1")
+	require.NoError(t, err)
+	require.NotNil(t, info.ConnectedAt)
+	require.Equal(t, rec.TimestampUs, info.ConnectedAt.UnixMicro())
 }
 
 func TestPresenceDisconnectEvent(t *testing.T) {
@@ -102,6 +108,7 @@ func TestPresenceDisconnectEvent(t *testing.T) {
 	nc := connectDevice(t, c, "dev2")
 	waitForPresence(t, c, "dev2", true)
 
+	startedAt := time.Now()
 	nc.Close()
 
 	waitForPresence(t, c, "dev2", false)
@@ -117,6 +124,11 @@ func TestPresenceDisconnectEvent(t *testing.T) {
 	if rec.Connected {
 		t.Fatal("expected connected=false after disconnect")
 	}
+	require.GreaterOrEqual(t, rec.TimestampUs, startedAt.UnixMicro())
+	info, err := c.ClientInfo("dev2")
+	require.NoError(t, err)
+	require.NotNil(t, info.DisconnectedAt)
+	require.Equal(t, rec.TimestampUs, info.DisconnectedAt.UnixMicro())
 }
 
 func TestPresencePublishPreservesMicroseconds(t *testing.T) {

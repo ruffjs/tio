@@ -70,7 +70,7 @@ func presenceClientInfo(rec PresenceRecord, revision uint64, epoch int64) connec
 		PresenceEpoch:    epoch,
 		PresenceRevision: revision,
 	}
-	ts := time.UnixMilli(rec.Timestamp)
+	ts := time.UnixMicro(rec.TimestampUs)
 	if rec.Connected {
 		ci.ConnectedAt = &ts
 	} else {

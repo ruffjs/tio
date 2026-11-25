@@ -99,15 +99,15 @@ func toShadow(en Entity) (Shadow, error) {
 
 // ConnStatusEntity for saving connectivity info
 type ConnStatusEntity struct {
-	ThingId          string `gorm:"primaryKey;size:64"`
-	Connected        bool   `gorm:"not null; default:0"`
-	ConnectedAt      *time.Time
-	DisconnectedAt   *time.Time
-	DisconnectReason string    `gorm:"default:'';"`
-	RemoteAddr       string    `gorm:"default:'';"`
-	PresenceEpoch    int64     `gorm:"not null;default:0" json:"-"`
-	PresenceRevision uint64    `gorm:"not null;default:0" json:"-"`
-	UpdatedAt        time.Time `gorm:"autoUpdateTime;not null;" json:"updatedAt"`
+	ThingId          string     `gorm:"primaryKey;size:64"`
+	Connected        bool       `gorm:"not null; default:0"`
+	ConnectedAt      *time.Time `gorm:"precision:6"`
+	DisconnectedAt   *time.Time `gorm:"precision:6"`
+	DisconnectReason string     `gorm:"default:'';"`
+	RemoteAddr       string     `gorm:"default:'';"`
+	PresenceEpoch    int64      `gorm:"not null;default:0" json:"-"`
+	PresenceRevision uint64     `gorm:"not null;default:0" json:"-"`
+	UpdatedAt        time.Time  `gorm:"autoUpdateTime;not null;" json:"updatedAt"`
 }
 
 func (t ConnStatusEntity) TableName() string {

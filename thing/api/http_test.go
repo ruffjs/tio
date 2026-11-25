@@ -348,13 +348,14 @@ func TestQueryHandler(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		// Update connection status directly in database using the same connection
-		now := time.Now()
-		connectedAt := now.Add(-1 * time.Hour)
+		connectedAt := time.Unix(1795500000, 123456000).UTC()
+		disconnectedAt := connectedAt.Add(-40 * time.Microsecond)
 		err = svrWithDB.DB.Model(&shadow.ConnStatusEntity{}).
 			Where("thing_id = ?", thId).
 			Updates(map[string]any{
-				"connected":    true,
-				"connected_at": &connectedAt,
+				"connected":       true,
+				"connected_at":    &connectedAt,
+				"disconnected_at": &disconnectedAt,
 			}).Error
 		require.NoError(t, err)
 
@@ -381,6 +382,9 @@ func TestQueryHandler(t *testing.T) {
 		require.NotNil(t, foundThing.Connected, "Connected field should not be nil")
 		require.True(t, *foundThing.Connected, "thing should be connected")
 		require.NotNil(t, foundThing.ConnectedAt, "ConnectedAt should not be nil")
+		require.Equal(t, connectedAt, *foundThing.ConnectedAt)
+		require.NotNil(t, foundThing.DisconnectedAt, "DisconnectedAt should not be nil")
+		require.Equal(t, disconnectedAt, *foundThing.DisconnectedAt)
 
 		// Query with withStatus=false (default)
 		req, _ = http.NewRequest(http.MethodGet,
