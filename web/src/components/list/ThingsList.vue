@@ -74,4 +74,15 @@ const handlePageSizeChange = (value) => {
     padding: 2px 15px 3px;
   }
 }
+
+@media (max-width: 640px) {
+  .things-list .things-list-paging {
+    justify-content: center;
+    padding: 2px 8px 3px;
+
+    :deep(.el-pagination__sizes) {
+      display: none;
+    }
+  }
+}
 </style>

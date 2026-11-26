@@ -59,8 +59,9 @@
           </div>
           <div
             class="chart-wrap"
-            @mousemove="onChartMove($event, 'msgRate')"
-            @mouseleave="hoverState.msgRate = null"
+            @pointerdown="onChartMove($event, 'msgRate')"
+            @pointermove="onChartMove($event, 'msgRate')"
+            @pointerleave="hoverState.msgRate = null"
           >
             <svg class="chart" viewBox="0 0 600 100" preserveAspectRatio="none" role="img">
               <line v-for="y in chartGrid" :key="y" x1="0" :y1="y" x2="600" :y2="y" class="grid-line" />
@@ -120,8 +121,9 @@
           </div>
           <div
             class="chart-wrap"
-            @mousemove="onChartMove($event, 'byteRate')"
-            @mouseleave="hoverState.byteRate = null"
+            @pointerdown="onChartMove($event, 'byteRate')"
+            @pointermove="onChartMove($event, 'byteRate')"
+            @pointerleave="hoverState.byteRate = null"
           >
             <svg class="chart" viewBox="0 0 600 100" preserveAspectRatio="none" role="img">
               <line v-for="y in chartGrid" :key="y" x1="0" :y1="y" x2="600" :y2="y" class="grid-line" />
@@ -200,6 +202,7 @@
       </div>
 
       <el-table
+        v-if="!isPhone"
         v-loading="loadingConns"
         :data="connections.items"
         class="clean-table"
@@ -277,6 +280,40 @@
         />
       </el-table>
 
+      <div v-else v-loading="loadingConns" class="conn-cards">
+        <div
+          v-for="(row, index) in connections.items"
+          :key="row.cid || row.clientId || index"
+          class="conn-card"
+          role="button"
+          tabindex="0"
+          @click="openDetail(row)"
+          @keydown.enter.prevent="openDetail(row)"
+          @keydown.space.prevent="openDetail(row)"
+        >
+          <div class="conn-card-head">
+            <span class="conn-card-id">{{ row.clientId || row.name || '-' }}</span>
+            <el-tag size="small" effect="plain" :type="row.type === 'mqtt' ? 'success' : 'info'">
+              {{ row.type || '-' }}
+            </el-tag>
+          </div>
+          <div class="conn-card-addr">{{ fmtAddr(row.ip, row.port) }}</div>
+          <div class="conn-card-meta">
+            <span>{{ $t('broker.activityShort') }} · {{ relativeTime(row.lastActivity) }}</span>
+            <span>{{ $t('broker.subscriptions') }} · {{ row.subscriptions ?? '-' }}</span>
+          </div>
+          <div class="conn-card-traffic">
+            <span>{{ $t('broker.uplink') }} · {{ num(row.inMsgs) }} msg / {{ fmtBytes(row.inBytes) }}</span>
+            <span>{{ $t('broker.downlink') }} · {{ num(row.outMsgs) }} msg / {{ fmtBytes(row.outBytes) }}</span>
+          </div>
+        </div>
+        <el-empty
+          v-if="connections.items.length === 0"
+          :image-size="80"
+          :description="$t('broker.noConnections')"
+        />
+      </div>
+
       <div class="pager">
         <el-pagination
           v-model:current-page="filters.page"
@@ -291,7 +328,7 @@
       </div>
     </section>
 
-    <el-drawer v-model="drawer.open" size="540px" :title="$t('broker.detail')">
+    <el-drawer v-model="drawer.open" :size="isPhone ? '100%' : '540px'" :title="$t('broker.detail')">
       <div v-loading="drawer.loading" class="drawer-body">
         <el-alert
           v-if="drawer.closed"
@@ -381,6 +418,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import dayjs from "dayjs";
 import { useI18n } from "vue-i18n";
+import useMediaQuery from "@/reactives/useMediaQuery";
 import {
   getBrokerConnection,
   getBrokerConnections,
@@ -388,6 +426,7 @@ import {
 } from "@/apis";
 
 const { t } = useI18n();
+const isPhone = useMediaQuery("(max-width: 640px)");
 
 const overview = ref(null);
 const loadingOverview = ref(false);
@@ -708,8 +747,163 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .broker-view {
+    padding: 0;
+  }
+
+  .workspace-toolbar {
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    flex-wrap: wrap;
+  }
+
   .charts {
     grid-template-columns: 1fr;
+  }
+
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters {
+    flex-wrap: wrap;
+  }
+
+  .filter-client,
+  .filter-sort {
+    flex: 1;
+    width: auto;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-toolbar {
+    gap: 10px;
+    margin-bottom: 12px;
+
+    h1 {
+      font-size: 20px;
+    }
+  }
+
+  .toolbar-actions {
+    gap: 6px;
+  }
+
+  .refresh-label {
+    display: none;
+  }
+
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .overview-card {
+    padding: 10px 12px;
+  }
+
+  .card-value {
+    font-size: 16px;
+  }
+
+  .charts {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .axis-y {
+    width: 36px;
+    height: 110px;
+  }
+
+  .chart {
+    height: 110px;
+  }
+
+  .table-shell {
+    padding: 12px;
+  }
+
+  .filters {
+    flex-direction: column;
+  }
+
+  .filter-client,
+  .filter-sort {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filters .el-button {
+    width: 100%;
+  }
+
+  .pager {
+    justify-content: center;
+  }
+
+  :deep(.el-pagination__sizes) {
+    display: none;
+  }
+
+  .conn-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 120px;
+  }
+
+  .conn-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 8px;
+    background: var(--el-bg-color);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .conn-card:active {
+    background: var(--el-fill-color-light);
+  }
+
+  .conn-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .conn-card-id {
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+
+  .conn-card-addr {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .conn-card-meta,
+  .conn-card-traffic {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
   }
 }
 
@@ -752,6 +946,7 @@ onBeforeUnmount(() => {
   position: relative;
   flex: 1;
   min-width: 0;
+  touch-action: pan-y;
 }
 
 .chart {

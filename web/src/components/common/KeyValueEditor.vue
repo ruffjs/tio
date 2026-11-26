@@ -167,25 +167,31 @@ watch(
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 6px;
       &:not(:last-child) {
         margin-bottom: 10px;
       }
       .input-prop {
+        flex: 1 1 0;
+        min-width: 0;
         padding: 0px;
-        margin-right: 10px;
       }
       .btn-check {
+        flex: 0 0 auto;
         height: 24px;
         padding: 5px 0;
         line-height: 14px;
         cursor: pointer;
         .el-icon-check {
           font-size: 14px;
-          margin-right: 10px;
+          margin-right: 4px;
         }
         .disable-icon {
           color: dimgray;
         }
+      }
+      .btn-delete {
+        flex: 0 0 auto;
       }
     }
   }

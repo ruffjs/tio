@@ -102,6 +102,7 @@
       </el-row>
     </el-form>
     <el-card
+      v-if="hasSubmitted"
       :header="t('things.response')"
       shadow="never"
       :class="['http-poster-res', isError ? 'is-error' : '']"
@@ -148,6 +149,7 @@ const props = defineProps({
   },
 });
 const submitting = ref(false);
+const hasSubmitted = ref(false);
 const hasJSONError = ref(false);
 const visible = ref(true);
 const api = shallowRef(null);
@@ -181,6 +183,7 @@ const handleSubmit = async () => {
   try {
     const valid = await formRef.value.validate();
     if (valid) {
+      hasSubmitted.value = true;
       submitting.value = true;
       isError.value = false;
       result.value = defaultRes;
@@ -212,6 +215,7 @@ watch(
   () => [props.code, props.thingId, props.payload],
   () => {
     visible.value = true;
+    hasSubmitted.value = false;
     api.value = createShadowApis(t)[props.code] || null;
     const _params = [];
     if (api.value) {
@@ -254,7 +258,7 @@ watch(
   .http-poster-form.el-form {
     width: 100%;
     margin-bottom: 20px;
-    padding-top: 20px;
+    padding: 20px 16px 8px;
     border-radius: 4px;
     border: 1px solid var(--el-border-color);
 
@@ -291,6 +295,11 @@ watch(
   height: 100vh;
   inset: 0 0 auto auto !important;
   right: 0 !important;
+
+  @media (max-width: 640px) {
+    width: 100vw !important;
+    height: 100dvh;
+  }
   .http-poster {
     .el-drawer__header {
       margin-bottom: 20px;
@@ -348,6 +357,21 @@ watch(
             }
           }
         }
+      }
+    }
+
+    @media (max-width: 640px) {
+      .http-poster-form.el-form {
+        padding: 12px 12px 4px;
+
+        .el-form-item {
+          margin-bottom: 8px;
+        }
+      }
+
+      .http-poster-form.el-form .el-col-23 .http-poster-body-json .jse-main {
+        min-height: 140px;
+        max-height: 200px;
       }
     }
   }

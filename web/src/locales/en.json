@@ -217,6 +217,7 @@
     "normalSubscriptions": "Device subscriptions",
     "internalSubscriptions": "Internal subscriptions",
     "noSubscriptions": "This connection has no subscriptions",
+    "noConnections": "No connections",
     "connectionClosed": "This connection has closed. Go back and refresh the list.",
     "inMsgsTip": "Client → broker: uplink messages / bytes",
     "outMsgsTip": "Broker → client: downlink messages / bytes",

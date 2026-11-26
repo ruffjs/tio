@@ -4,7 +4,7 @@
       :model-value="protocol"
       :disabled="profileDisabled"
       :placeholder="t('things.followDeployDefault')"
-      style="width: 300px"
+      style="width: 100%; max-width: 300px"
       @update:model-value="emit('update:protocol', $event)"
     >
       <el-option :label="t('things.followDeployDefault')" value="" />
@@ -16,7 +16,7 @@
     <el-select
       :model-value="encoding"
       :placeholder="t('things.followDeployDefault')"
-      style="width: 300px"
+      style="width: 100%; max-width: 300px"
       @update:model-value="emit('update:encoding', $event)"
     >
       <el-option :label="t('things.followDeployDefault')" value="" />

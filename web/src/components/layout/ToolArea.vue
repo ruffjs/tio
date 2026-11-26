@@ -1,5 +1,5 @@
 <template>
-  <div class="tool-box" :style="{ height: activeToolHeight }">
+  <div class="tool-box" :style="{ height: boxHeight }">
     <div class="tool-tabs">
       <div
         v-for="tool in tools"
@@ -10,7 +10,8 @@
         :key="tool.key"
         @click="switchActiveTool(tool)"
       >
-        <el-icon><Component :is="tool.icon" /></el-icon> <span>{{ tool.name }}</span>
+        <el-icon><Component :is="tool.icon" /></el-icon>
+        <span>{{ isPhone ? tool.shortName || tool.name : tool.name }}</span>
       </div>
     </div>
     <div class="tools-container">
@@ -37,15 +38,21 @@
 </template>
 
 <script setup>
-import { defineAsyncComponent, ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import useLayout from "@/reactives/useLayout";
+import useMediaQuery from "@/reactives/useMediaQuery";
 import { tools } from "@/configs/tool";
 
 const MqttClients = defineAsyncComponent(() => import("@/components/tools/MqttClients.vue"));
 const HttpLogs = defineAsyncComponent(() => import("@/components/tools/HttpLogs.vue"));
 const CodeSnippet = defineAsyncComponent(() => import("@/components/tools/CodeSnippet.vue"));
 
+const isMobile = useMediaQuery("(max-width: 900px)");
+const isPhone = useMediaQuery("(max-width: 640px)");
 const { activeToolKey, activeToolHeight, switchActiveTool, isConnFormVisible, isSubsFormVisible } = useLayout();
+const boxHeight = computed(() =>
+  isMobile.value && activeToolKey.value ? "85dvh" : activeToolHeight.value
+);
 const loadedTools = ref(new Set());
 watch([activeToolKey, isConnFormVisible, isSubsFormVisible], ([key, connectionForm, subscriptionForm]) => {
   if (key) loadedTools.value.add(key);
@@ -130,6 +137,39 @@ watch([activeToolKey, isConnFormVisible, isSubsFormVisible], ([key, connectionFo
 
   .tool-tabs {
     background: var(--tio-surface-solid);
+  }
+}
+
+@media (max-width: 900px) {
+  .tool-box {
+    .tool-tabs {
+      left: 0;
+      width: 100%;
+      min-width: 0;
+      height: calc(30px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .tool-tab-item {
+      flex: 1;
+      justify-content: center;
+      min-width: 0;
+      padding: 0 6px;
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    .tools-container {
+      height: calc(100% - 30px - env(safe-area-inset-bottom));
+    }
+
+    .tool-container {
+      overflow-y: auto;
+    }
   }
 }
 </style>

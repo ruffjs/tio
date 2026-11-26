@@ -12,18 +12,21 @@ export const tools = [
     key: "mqtt",
     icon: "Connection",
     name: "MQTT Clients",
+    shortName: "MQTT",
     height: 450,
   },
   {
     key: "logs",
     icon: "Memo",
     name: "HTTP Logs",
+    shortName: "Logs",
     height: 248,
   },
   {
     key: "apis",
     icon: "Compass",
     name: "Swagger (View API Definitions)",
+    shortName: "API",
     link: "/docs",
   },
 ];

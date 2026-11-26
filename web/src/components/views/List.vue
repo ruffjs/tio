@@ -467,7 +467,8 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
           font-weight: 650;
           white-space: nowrap;
 
-          &.el-button--text {
+          &.el-button--text,
+          &.is-text {
             flex: 0;
             width: 32px;
             height: 32px;
@@ -728,44 +729,110 @@ onSomethingStatusChange(({ thingId: eventThingId, type, about }) => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .main-view {
-    padding: 8px;
+    padding: 0;
 
     .thing-list {
+      justify-content: flex-start;
+      min-height: 0;
+      margin-bottom: 12px;
+
+      .list-heading {
+        margin-bottom: 12px;
+
+        h1 {
+          font-size: 20px;
+        }
+
+        p {
+          display: none;
+        }
+      }
+
       .list-view-search {
         flex-direction: column;
+        gap: 8px;
         height: auto;
-        padding: 12px;
+        padding: 10px;
 
         .list-view-search-left {
+          flex: none;
           width: 100%;
           height: auto;
-          padding: 0 0 12px;
+          padding: 0;
 
           .list-view-query-editor {
-            height: 50px;
+            height: 48px;
+          }
+
+          .list-view-query-link {
+            top: 10px;
           }
         }
 
         .list-view-search-right {
+          flex: none;
           width: 100%;
           height: auto;
-          min-width: auto;
-          flex-direction: row;
+          min-width: 0;
           gap: 8px;
           padding: 0;
 
           .el-button {
             flex: 1;
+            height: 44px;
+            font-size: 13px;
+          }
+
+          .el-button.el-button--text,
+          .el-button.is-text {
+            flex: 0 0 40px;
+            width: 40px;
             height: 40px;
-            font-size: 12px;
           }
         }
       }
 
-      &.active .list-view-search {
+      .list-view-active-body {
+        min-height: 0;
+        margin-top: 12px;
+
+        .list-view-things {
+          height: clamp(320px, 60dvh, 640px);
+        }
+
+        .list-view-empty {
+          height: 260px;
+        }
+
+        .sql-editor-tpls,
+        .query-history {
+          position: fixed;
+          inset: 0;
+          z-index: 30;
+          width: auto;
+          max-width: none;
+          height: 100dvh;
+          margin: 0;
+          padding-top: env(safe-area-inset-top);
+          border-radius: 0;
+        }
+      }
+
+      .list-view-inactive-body {
+        max-width: none;
         height: auto;
+
+        .list-view-tips {
+          height: auto;
+          min-height: 140px;
+          margin-top: 0;
+        }
+
+        .list-view-tips-content {
+          padding: 24px 12px;
+        }
       }
     }
   }

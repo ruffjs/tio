@@ -7,7 +7,7 @@
       size="small"
       style="width: 100%"
     >
-      <el-table-column fixed prop="thingId" :label="$t('things.thingId')" min-width="180">
+      <el-table-column fixed prop="thingId" :label="$t('things.thingId')" :min-width="isPhone ? 140 : 180">
         <template #default="scope">
           <el-button
             link
@@ -19,7 +19,7 @@
           </el-button></template
         >
       </el-table-column>
-      <el-table-column prop="connected" :label="$t('things.connected')" align="center" width="120">
+      <el-table-column prop="connected" :label="$t('things.connected')" align="center" :width="isPhone ? 96 : 120">
         <template #default="scope">
           <el-button
             v-if="scope.row.connected"
@@ -60,7 +60,7 @@
           formatTime(scope.row.createdAt)
         }}</template></el-table-column
       >
-      <el-table-column fixed="right" :label="$t('things.operations')" align="center" min-width="180">
+      <el-table-column :fixed="isPhone ? false : 'right'" :label="$t('things.operations')" align="center" :min-width="isPhone ? 120 : 180">
         <template #default="scope">
           <el-button
             link
@@ -99,7 +99,10 @@ import DeleteButton from "./DeleteButton.vue";
 import useObjectViewer from "@/reactives/useObjectViewer";
 import { diffState } from "@/utils/shadow";
 import useMqtt from "@/reactives/useMqtt";
+import useMediaQuery from "@/reactives/useMediaQuery";
 import { notifyDone } from "@/utils/layout";
+
+const isPhone = useMediaQuery("(max-width: 640px)");
 
 const formatTime = (time) => {
   return time ? dayjs(time).format("YYYY-MM-DD HH:mm:ss") : "-";
@@ -148,6 +151,21 @@ const deleteThing = (thing) => {
 .standard-thing-table {
   width: 100%;
   height: 100%;
+
+  :deep(.el-table__body .el-table-fixed-column--left),
+  :deep(.el-table__body .el-table-fixed-column--right) {
+    background: var(--tio-surface);
+  }
+
+  :deep(.el-table__header .el-table-fixed-column--left),
+  :deep(.el-table__header .el-table-fixed-column--right) {
+    background: var(--tio-surface-soft);
+  }
+
+  :deep(.el-table__body tr:hover > td.el-table-fixed-column--left),
+  :deep(.el-table__body tr:hover > td.el-table-fixed-column--right) {
+    background: var(--tio-accent-soft);
+  }
 
   .card-header {
     display: flex;

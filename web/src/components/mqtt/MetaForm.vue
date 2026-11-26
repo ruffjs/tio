@@ -7,7 +7,11 @@
     append-to-body
     @close="handleClose"
   >
-    <el-form label-width="185px" label-position="left" :model="form">
+    <el-form
+      :label-width="isPhone ? '' : '185px'"
+      :label-position="isPhone ? 'top' : 'left'"
+      :model="form"
+    >
       <el-row :gutter="20">
         <el-col :span="24">
           <KeyValueEditor
@@ -98,7 +102,9 @@
 import { reactive, watch } from "vue";
 import { getInitMeatModel } from "@/utils/mqtt";
 import KeyValueEditor from "@/components/common/KeyValueEditor.vue";
+import useMediaQuery from "@/reactives/useMediaQuery";
 
+const isPhone = useMediaQuery("(max-width: 640px)");
 const emit = defineEmits(["close", "save"]);
 const props = defineProps({
   visible: Boolean,

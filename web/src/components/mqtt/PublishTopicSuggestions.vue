@@ -1,7 +1,7 @@
 <template>
   <el-drawer
     :model-value="visible"
-    size="calc(50vw - 250px)"
+    :size="drawerSize"
     title="Suggested Topic Templates"
     class="publish-topic-suggestions"
     modal-class="publish-topic-suggestions-mask"
@@ -27,6 +27,7 @@
 <script setup>
 import { computed } from "vue";
 import { serverPubTopics, thingPubTopics } from "@/utils/subs";
+import useMediaQuery from "@/reactives/useMediaQuery";
 
 const emit = defineEmits(["close", "select"]);
 const props = defineProps({
@@ -36,6 +37,10 @@ const props = defineProps({
     required: true,
   },
 });
+const isMobile = useMediaQuery("(max-width: 900px)");
+const drawerSize = computed(() =>
+  isMobile.value ? "100%" : "calc(50vw - 250px)"
+);
 const isThing = computed(() => props.connConfig?.userrole === "thing");
 const suggestions = computed(() => {
   if (isThing.value) {

@@ -466,4 +466,17 @@ onMounted(() => {
     }
   }
 }
+
+@media (max-width: 640px) {
+  .thing-view {
+    .thing-summary {
+      padding: 0 0 12px;
+    }
+
+    .thing-workspace {
+      gap: 12px;
+      padding: 8px;
+    }
+  }
+}
 </style>

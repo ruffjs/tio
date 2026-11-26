@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="true"
-    width="480"
+    width="min(480px, calc(100vw - 24px))"
     :title="t('things.addThing')"
     append-to-body
     @close="emit('close')"
@@ -138,7 +138,8 @@ const handleConfirm = async () => {
 </script>
 <style scoped>
 .el-input {
-  width: 300px;
+  width: 100%;
+  max-width: 300px;
 }
 .dialog-footer button:first-child {
   margin-right: 10px;

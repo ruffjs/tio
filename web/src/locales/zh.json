@@ -222,6 +222,7 @@
     "normalSubscriptions": "设备订阅",
     "internalSubscriptions": "内部订阅",
     "noSubscriptions": "该连接没有订阅",
+    "noConnections": "暂无连接",
     "connectionClosed": "连接已结束，请返回列表刷新。",
     "inMsgsTip": "客户端 → Broker：上行消息数 / 字节数",
     "outMsgsTip": "Broker → 客户端：下行消息数 / 字节数",

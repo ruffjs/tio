@@ -1,20 +1,29 @@
 <template>
-  <div class="nav-container">
+  <div class="nav-container" :class="{ compact }">
     <div class="nav-buttons">
-      <LanguageSwitcher />
-      <button type="button" class="nav-button theme-button" @click="toggleTheme" :title="`Switch to ${nextThemeMode}`">
-        <el-icon>
-          <Monitor v-if="themeMode === 'auto'" />
-          <Sunny v-else-if="themeMode === 'dark'" />
-          <Moon v-else />
-        </el-icon>
-        {{ themeLabel }}
-      </button>
-      <button type="button" class="nav-button" @click="handleLogOut">
-        <el-icon><Avatar /></el-icon>{{ hasAuth ? $t('nav.logOut') : "" }}
-      </button>
-      <button type="button" v-if="isList" class="nav-button" @click="handleShowAddingForm">
-        <el-icon><CirclePlusFilled /></el-icon>{{ $t('nav.addThing') }}
+      <template v-if="!compact">
+        <LanguageSwitcher />
+        <button type="button" class="nav-button theme-button" @click="toggleTheme" :title="`Switch to ${nextThemeMode}`">
+          <el-icon>
+            <Monitor v-if="themeMode === 'auto'" />
+            <Sunny v-else-if="themeMode === 'dark'" />
+            <Moon v-else />
+          </el-icon>
+          {{ themeLabel }}
+        </button>
+        <button type="button" class="nav-button" @click="handleLogOut">
+          <el-icon><Avatar /></el-icon>{{ hasAuth ? $t('nav.logOut') : "" }}
+        </button>
+      </template>
+      <button
+        type="button"
+        v-if="isList"
+        class="nav-button"
+        :title="compact ? $t('nav.addThing') : undefined"
+        :aria-label="compact ? $t('nav.addThing') : undefined"
+        @click="handleShowAddingForm"
+      >
+        <el-icon><CirclePlusFilled /></el-icon><span v-if="!compact">{{ $t('nav.addThing') }}</span>
       </button>
     </div>
   </div>
@@ -30,6 +39,10 @@ import useThingsAndShadows from "@/reactives/useThingsAndShadows";
 import useTheme from "@/reactives/useTheme";
 
 const AddThingForm = defineAsyncComponent(() => import("./AddThingForm.vue"));
+
+defineProps({
+  compact: Boolean,
+});
 
 const store = useStore();
 const router = useRouter();
@@ -93,6 +106,7 @@ const handleLogOut = () => {
       color: var(--tio-text);
       font-size: 12px;
       font-weight: 650;
+      white-space: nowrap;
       cursor: pointer;
       transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 
@@ -109,6 +123,28 @@ const handleLogOut = () => {
       .el-icon {
         font-size: 14px;
         margin-right: 4px;
+      }
+    }
+  }
+
+  &.compact {
+    height: 52px;
+
+    .nav-buttons {
+      height: 52px;
+      padding: 4px;
+      gap: 0;
+    }
+
+    .nav-button {
+      width: 44px;
+      height: 44px;
+      min-height: 44px;
+      padding: 0;
+
+      .el-icon {
+        margin-right: 0;
+        font-size: 18px;
       }
     }
   }
