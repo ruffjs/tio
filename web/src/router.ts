@@ -7,6 +7,7 @@ const Login = () => import("@/components/views/Login.vue");
 const NotFound = () => import("@/components/views/NotFound.vue");
 const Thing = () => import("@/components/views/Thing.vue");
 const Rule = () => import("@/components/views/Rule.vue");
+const Broker = () => import("@/components/views/Broker.vue");
 
 const routes = [
   {
@@ -19,6 +20,12 @@ const routes = [
     path: "/rules",
     name: "Rule",
     component: Rule,
+  },
+  {
+    path: "/broker",
+    name: "Broker",
+    meta: { title: "Broker Overview", zIndex: 0, actived: true },
+    component: Broker,
   },
   {
     path: "/things/:thingId",

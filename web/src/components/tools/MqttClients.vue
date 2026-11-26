@@ -21,14 +21,6 @@
               @click="showMqttConnForm()"
             />
           </el-tooltip>
-          <el-tooltip :content="$t('mqtt.viewBrokerStatsTip')" placement="top">
-            <el-button
-              type="default"
-              icon="Odometer"
-              size="small"
-              @click="handleCheckStats"
-            />
-          </el-tooltip>
         </div>
       </div>
       <div class="mqtt-clients-conns-list">
@@ -78,26 +70,15 @@
     </div>
   </div>
   <MqttConnForm @close="handleCreateOrEditCancel" @done="handleCreateOrEditDone" />
-
-  <ObjectViewer
-    :visible="!!objectToBeView"
-    :data="objectToBeView"
-    :type="titleOfViewer"
-    as-tree
-    @close="handleCloseViewer"
-  />
 </template>
 
 <script setup>
 import { computed, ref } from "vue";
-import ObjectViewer from "@/components/common/ObjectViewer.vue";
 import MqttConnForm from "@/components/mqtt/MqttConnForm.vue";
 import MqttClientDetail from "@/components/mqtt/MqttClientDetail.vue";
 import SwitchSizeButton from "@/components/common/SwitchSizeButton.vue";
 import useMqtt from "@/reactives/useMqtt";
-import useObjectViewer from "@/reactives/useObjectViewer";
 import useLayout from "@/reactives/useLayout";
-import { getBrokerStats } from "@/apis";
 import { getSuggestedTopicsForThing } from "@/utils/subs";
 import { useI18n } from "vue-i18n";
 
@@ -189,20 +170,6 @@ const handleCreateOrEditDone = (config, connectedToken) => {
   }
   handleCreateOrEditCancel();
   connect(selectedConn.value.config, isForCreate ? connectedToken : "");
-};
-
-const {
-  objectToBeView,
-  titleOfViewer,
-  viewObject,
-  handleCloseViewer,
-} = useObjectViewer();
-const handleCheckStats = async () => {
-  try {
-    viewObject((await getBrokerStats()).data, "Embeded MQTT Broker Stats");
-  } catch (error) {
-    console.error("error", error);
-  }
 };
 </script>
 

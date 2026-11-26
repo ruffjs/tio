@@ -158,7 +158,7 @@ func TestMain(m *testing.M) {
 	thingWs := thingApi.Service(testCtx, thingSvc)
 	shadowApi.Service(testCtx, thingWs, shadowSvc, thingSvc, methodHandler)
 	httpCon.Add(thingWs)
-	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc).
+	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc, nil).
 		Filter(api.BasicAuthMiddleware(cfg.API.BasicAuth.Name, cfg.API.BasicAuth.Password)))
 
 	httpSvr = httptest.NewServer(httpCon)

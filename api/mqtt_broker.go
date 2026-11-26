@@ -10,7 +10,7 @@ import (
 	"ruff.io/tio/thing"
 )
 
-func MQTTBrokerService(closeAll func(string) error, things thing.Service) *restful.WebService {
+func MQTTBrokerService(closeAll func(string) error, things thing.Service, monitor BrokerMonitor) *restful.WebService {
 	ws := new(restful.WebService).Path("/api/v1/mqttBroker").Produces(restful.MIME_JSON)
 	ws.Route(ws.DELETE("/clients/{id}").
 		To(func(req *restful.Request, resp *restful.Response) {
@@ -41,5 +41,6 @@ func MQTTBrokerService(closeAll func(string) error, things thing.Service) *restf
 		Metadata(restfulspec.KeyOpenAPITags, []string{"mqttBroker"}).
 		Param(ws.PathParameter("id", "Thing ID").DataType("string")).
 		Returns(http.StatusOK, "OK", rest.RespOK(rest.H{"deleted": true, "message": "OK"})))
+	addMonitorRoutes(ws, monitor)
 	return ws
 }

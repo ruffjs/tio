@@ -21,6 +21,7 @@ import (
 
 	"ruff.io/tio"
 	"ruff.io/tio/api"
+	"ruff.io/tio/broker"
 	"ruff.io/tio/connector"
 	natsConn "ruff.io/tio/connector/nats"
 
@@ -144,6 +145,10 @@ func main() {
 	if err := natsConnector.Start(ctx); err != nil {
 		log.Fatalf("NATS connector start error: %v", err)
 	}
+	brokerMonitor := broker.New(natsConnector.Server().Server(), natsConnector.JetStream(), broker.Options{
+		ServerDefaultMaxConsumers: cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers,
+	})
+	brokerMonitor.Start(ctx)
 	if cfg.Connector.NatsConfigFile != "" {
 		slog.Info("NATS configuration", "file", cfg.Connector.NatsConfigFile)
 	} else {
@@ -215,7 +220,7 @@ func main() {
 	metricsWs := metrics.Service()
 
 	httpCon.Add(thingWs)
-	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc).Filter(api.LoggingMiddleware).Filter(azf))
+	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc, brokerMonitor).Filter(api.LoggingMiddleware).Filter(azf))
 	httpCon.Add(cfgWs)
 	httpCon.Add(ruleWs)
 	httpCon.Add(metricsWs)

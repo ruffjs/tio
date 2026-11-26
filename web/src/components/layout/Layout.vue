@@ -24,6 +24,12 @@
           </el-icon>
           <span>{{ $t('rules.navTitle') }}</span>
         </el-menu-item>
+        <el-menu-item index="/broker" route="/broker">
+          <el-icon>
+            <Connection />
+          </el-icon>
+          <span>{{ $t('broker.navTitle') }}</span>
+        </el-menu-item>
       </el-menu>
 
     </el-aside>
