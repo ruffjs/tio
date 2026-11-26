@@ -21,6 +21,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	require.Equal(t, 1883, cfg.Connector.Nats.Server.MqttPort)
 	require.Equal(t, 8083, cfg.Connector.Nats.Server.WsPort)
 	require.Equal(t, "./data/nats/tio-node-1", cfg.Connector.Nats.Server.StoreDir)
+	require.Equal(t, 80000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
 	require.Equal(t, []UserPassword{{Name: "$biz", Password: "public"}, {Name: "$tio", Password: "public"}}, cfg.Connector.Nats.SuperUsers)
 	require.NoError(t, ValidateNatsConfig(cfg.Connector.Nats, cfg.DB.Typ))
 }
@@ -30,13 +31,14 @@ func TestLoadConfigFile(t *testing.T) {
 	main := filepath.Join(dir, "config.yaml")
 	nats := filepath.Join(dir, "nats.yaml")
 	require.NoError(t, os.WriteFile(main, []byte("api:\n  port: 9100\nconnector:\n  natsConfigFile: ./nats.yaml\n"), 0600))
-	require.NoError(t, os.WriteFile(nats, []byte("server:\n  mqttPort: 1884\n  wsPort: 0\nsuperUsers:\n  - name: custom\n    password: secret\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("server:\n  mqttPort: 1884\n  wsPort: 0\n  jetStreamDefaultMaxConsumers: 25000\nsuperUsers:\n  - name: custom\n    password: secret\n"), 0600))
 	cfg, err := LoadConfigFile(main)
 	require.NoError(t, err)
 	require.Equal(t, 9100, cfg.API.Port)
 	require.Equal(t, nats, cfg.Connector.NatsConfigFile)
 	require.Equal(t, 1884, cfg.Connector.Nats.Server.MqttPort)
 	require.Zero(t, cfg.Connector.Nats.Server.WsPort)
+	require.Equal(t, 25000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
 	require.Equal(t, 4222, cfg.Connector.Nats.Server.Port)
 	require.Equal(t, "$tio-app", cfg.Connector.Nats.AppClient.User)
 	require.Equal(t, []UserPassword{{Name: "custom", Password: "secret"}}, cfg.Connector.Nats.SuperUsers)
@@ -47,6 +49,7 @@ func TestLoadConfigFile(t *testing.T) {
 	cfg, err = LoadConfigFile(main)
 	require.NoError(t, err)
 	require.Empty(t, cfg.Connector.Nats.SuperUsers)
+	require.Equal(t, 80000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
 }
 
 func TestLoadConfigErrors(t *testing.T) {
@@ -61,6 +64,7 @@ func TestLoadConfigErrors(t *testing.T) {
 		{"NATS path is a directory", "connector:\n  natsConfigFile: .\n", "", "read NATS config"},
 		{"invalid NATS YAML", "connector:\n  natsConfigFile: nats.yaml\n", "server: [\n", "read NATS config"},
 		{"unknown NATS option", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttPrt: 1884\n", "decode NATS config"},
+		{"invalid consumer limit", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  jetStreamDefaultMaxConsumers: -2\n", "jetStreamDefaultMaxConsumers"},
 		{"invalid single-node replicas", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttStreamReplicas: 3\n", "single-node mqttStreamReplicas"},
 	}
 	for _, tc := range cases {

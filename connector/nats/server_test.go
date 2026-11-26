@@ -89,18 +89,19 @@ func TestMQTTConsumerLimitIsLogged(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	s, _ := startMqttTestServer(t, -1)
-	device := testMqttSubscriber(t, getMqttPort(t, s), "device", "test-password")
-	nc, err := nats.Connect(s.ClientURL(), nats.UserInfo("app", "test-password"))
+	cfg := testServerConfig(t)
+	cfg.JetStreamDefaultMaxConsumers = 1
+	auth := &accountAuth{}
+	s, err := StartNatsServer(cfg, auth)
 	require.NoError(t, err)
-	t.Cleanup(nc.Close)
-	js, err := nc.JetStream()
+	t.Cleanup(func() {
+		if s.IsRunning() {
+			s.Shutdown()
+		}
+	})
+	auth.appAcc, err = s.Server().LookupAccount(AppAccountName)
 	require.NoError(t, err)
-	stream, err := js.StreamInfo("$MQTT_msgs")
-	require.NoError(t, err)
-	stream.Config.MaxConsumers = 1
-	_, err = js.UpdateStream(&stream.Config)
-	require.NoError(t, err)
+	device := testMqttSubscriber(t, getMqttPort(t, s), "app", "test-password")
 
 	token := device.SubscribeMultiple(map[string]byte{"device/one": 1, "device/two": 1}, nil).(*mqtt.SubscribeToken)
 	require.True(t, token.WaitTimeout(3*time.Second))

@@ -41,6 +41,10 @@ server:
   # Maximum disk storage (bytes) for JetStream
   # Default: 1GB (1073741824 bytes)
   jetStreamMaxStore: 1073741824
+  # Default consumer limit per JetStream stream, including the MQTT message stream.
+  # At six consumers per device, a 10,000-device fleet leaves 20,000 slots of headroom.
+  # A stream or account can set its own limit. 0 uses the NATS default, -1 disables the default limit.
+  jetStreamDefaultMaxConsumers: 80000
   # Number of stream replicas for MQTT message persistence
   # For single-node: 1
   # For cluster: 3 (recommended for high availability)

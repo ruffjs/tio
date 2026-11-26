@@ -269,6 +269,8 @@ type NatsServerConfig struct {
 	MqttTLS            NatsTLSConfig `json:"mqttTls"`
 	WebsocketTLS       NatsTLSConfig `json:"websocketTls"`
 	RouteTLS           NatsTLSConfig `json:"routeTls"`
+
+	JetStreamDefaultMaxConsumers int `json:"jetStreamDefaultMaxConsumers"`
 }
 
 type NatsTLSConfig struct {
@@ -307,6 +309,9 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 
 	if s.StoreDir == "" {
 		return fmt.Errorf("nats server.storeDir must not be empty when JetStream is used")
+	}
+	if s.JetStreamDefaultMaxConsumers < -1 {
+		return fmt.Errorf("nats server.jetStreamDefaultMaxConsumers must be -1, 0, or positive")
 	}
 
 	if !isMultiNode {

@@ -152,6 +152,7 @@ func buildServerOptions(cfg config.NatsServerConfig, authn server.Authentication
 		NoJetStreamStrict:  true,
 		JetStreamMaxMemory: cfg.JetStreamMaxMemory,
 		JetStreamMaxStore:  cfg.JetStreamMaxStore,
+		JetStreamLimits:    server.JSLimitOpts{DefaultMaxConsumers: cfg.JetStreamDefaultMaxConsumers},
 		StoreDir:           cfg.StoreDir,
 		NoLog:              true,
 		NoSigs:             true,
