@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"ruff.io/tio/config"
@@ -80,6 +81,40 @@ func TestServerStartsAndIsRunning(t *testing.T) {
 	if !s.IsRunning() {
 		t.Fatal("server should be running")
 	}
+}
+
+func TestMQTTConsumerLimitIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	s, _ := startMqttTestServer(t, -1)
+	device := testMqttSubscriber(t, getMqttPort(t, s), "device", "test-password")
+	nc, err := nats.Connect(s.ClientURL(), nats.UserInfo("app", "test-password"))
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+	js, err := nc.JetStream()
+	require.NoError(t, err)
+	stream, err := js.StreamInfo("$MQTT_msgs")
+	require.NoError(t, err)
+	stream.Config.MaxConsumers = 1
+	_, err = js.UpdateStream(&stream.Config)
+	require.NoError(t, err)
+
+	token := device.SubscribeMultiple(map[string]byte{"device/one": 1, "device/two": 1}, nil).(*mqtt.SubscribeToken)
+	require.True(t, token.WaitTimeout(3*time.Second))
+	require.NoError(t, token.Error())
+	result := token.Result()
+	require.Len(t, result, 2)
+	require.ElementsMatch(t, []byte{1, 0x80}, []byte{result["device/one"], result["device/two"]})
+	s.Server().Warnf("JetStream API queue limit reached, dropping %d requests", 10000)
+
+	device.Disconnect(100)
+	s.Shutdown()
+	require.Regexp(t, `"level":"ERROR","msg":"[^\n]*maximum consumers limit reached \(10026\)","component":"nats"`, buf.String())
+	require.Contains(t, buf.String(), `"level":"WARN","msg":"JetStream API queue limit reached, dropping 10000 requests","component":"nats"`)
+	require.NotContains(t, buf.String(), "test-password")
 }
 
 func TestServerAccountsExist(t *testing.T) {

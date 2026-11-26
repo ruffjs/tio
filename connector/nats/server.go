@@ -26,6 +26,25 @@ type NatsServer struct {
 	opts   config.NatsServerConfig
 }
 
+type brokerLogger struct{ *slog.Logger }
+
+func (l brokerLogger) Warnf(format string, args ...any) {
+	l.Warn(fmt.Sprintf(format, args...))
+}
+
+func (l brokerLogger) Errorf(format string, args ...any) {
+	l.Error(fmt.Sprintf(format, args...))
+}
+
+func (l brokerLogger) Fatalf(format string, args ...any) {
+	// The embedding Tio process handles startup failures.
+	l.Error(fmt.Sprintf(format, args...), "fatal", true)
+}
+
+func (brokerLogger) Noticef(string, ...any) {}
+func (brokerLogger) Debugf(string, ...any)  {}
+func (brokerLogger) Tracef(string, ...any)  {}
+
 func StartNatsServer(cfg config.NatsServerConfig, authn server.Authentication) (*NatsServer, error) {
 	opts, err := buildServerOptions(cfg, authn)
 	if err != nil {
@@ -37,6 +56,7 @@ func StartNatsServer(cfg config.NatsServerConfig, authn server.Authentication) (
 		return nil, fmt.Errorf("create nats server: %w", err)
 	}
 
+	s.SetLogger(brokerLogger{slog.With("component", "nats")}, false, false)
 	s.Start()
 
 	if !s.ReadyForConnections(10 * time.Second) {
