@@ -290,7 +290,7 @@ func (b *Broker) AllClientInfo() ([]connector.ClientInfo, error) {
 func (b *Broker) Close(thingId string) error {
 	var closed bool
 	for _, cl := range b.svr.Clients.GetAll() {
-		if string(cl.Properties.Username) == thingId {
+		if string(cl.Properties.Username) == thingId && !cl.Closed() {
 			cl.Stop(errors.New("manual close"))
 			closed = true
 		}
