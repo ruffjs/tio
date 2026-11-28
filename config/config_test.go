@@ -4,7 +4,6 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -18,54 +17,63 @@ func TestLoadConfigDefaults(t *testing.T) {
 	v.AddConfigPath(t.TempDir())
 	cfg, err := loadConfig(v)
 	require.NoError(t, err)
-	require.Equal(t, 1883, cfg.Connector.Nats.Server.MqttPort)
-	require.Equal(t, 8083, cfg.Connector.Nats.Server.WsPort)
-	require.Equal(t, "./data/nats/tio-node-1", cfg.Connector.Nats.Server.StoreDir)
-	require.Equal(t, 80000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
-	require.Equal(t, []UserPassword{{Name: "$biz", Password: "public"}, {Name: "$tio", Password: "public"}}, cfg.Connector.Nats.SuperUsers)
-	require.NoError(t, ValidateNatsConfig(cfg.Connector.Nats, cfg.DB.Typ))
+	require.False(t, cfg.Nats.Enabled)
+	require.Equal(t, "embedded", cfg.Nats.Mode)
+	require.Equal(t, 4222, cfg.Nats.Server.Port)
+	require.Equal(t, 1883, cfg.Connector.MqttBroker.TcpPort)
+	require.Equal(t, 8083, cfg.Connector.MqttBroker.WsPort)
+	require.Equal(t, []UserPassword{{Name: "$biz", Password: "public"}, {Name: "$tio", Password: "public"}}, cfg.Connector.MqttBroker.SuperUsers)
+	require.Equal(t, "./data/nats", cfg.Nats.JetStream.StoreDir)
+	require.Equal(t, 80000, cfg.Nats.JetStream.DefaultMaxConsumers)
 }
 
 func TestLoadConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	main := filepath.Join(dir, "config.yaml")
 	nats := filepath.Join(dir, "nats.yaml")
-	require.NoError(t, os.WriteFile(main, []byte("api:\n  port: 9100\nconnector:\n  natsConfigFile: ./nats.yaml\n"), 0600))
-	require.NoError(t, os.WriteFile(nats, []byte("server:\n  mqttPort: 1884\n  wsPort: 0\n  jetStreamDefaultMaxConsumers: 25000\nsuperUsers:\n  - name: custom\n    password: secret\n"), 0600))
+	require.NoError(t, os.WriteFile(main, []byte("api:\n  port: 9100\nnats:\n  enabled: true\n  configFile: ./nats.yaml\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("nats:\n  server:\n    port: 14222\n  jetStream:\n    enabled: true\n    defaultMaxConsumers: 25000\n"), 0600))
 	cfg, err := LoadConfigFile(main)
 	require.NoError(t, err)
 	require.Equal(t, 9100, cfg.API.Port)
-	require.Equal(t, nats, cfg.Connector.NatsConfigFile)
-	require.Equal(t, 1884, cfg.Connector.Nats.Server.MqttPort)
-	require.Zero(t, cfg.Connector.Nats.Server.WsPort)
-	require.Equal(t, 25000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
-	require.Equal(t, 4222, cfg.Connector.Nats.Server.Port)
-	require.Equal(t, "$tio-app", cfg.Connector.Nats.AppClient.User)
-	require.Equal(t, []UserPassword{{Name: "custom", Password: "secret"}}, cfg.Connector.Nats.SuperUsers)
+	require.True(t, cfg.Nats.Enabled)
+	require.Equal(t, nats, cfg.Nats.ConfigFile)
+	require.Equal(t, 14222, cfg.Nats.Server.Port)
+	require.True(t, cfg.Nats.JetStream.Enabled)
+	require.Equal(t, 25000, cfg.Nats.JetStream.DefaultMaxConsumers)
+	require.Equal(t, "$tio-app", cfg.Nats.AppClient.User)
 
-	// Lists can also be cleared, and absolute file references are accepted.
-	require.NoError(t, os.WriteFile(main, []byte("connector:\n  natsConfigFile: "+nats+"\n"), 0600))
-	require.NoError(t, os.WriteFile(nats, []byte("superUsers: []\n"), 0600))
+	// Absolute configFile reference is accepted.
+	require.NoError(t, os.WriteFile(main, []byte("nats:\n  configFile: "+nats+"\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("nats:\n  server:\n    port: 14223\n"), 0600))
 	cfg, err = LoadConfigFile(main)
 	require.NoError(t, err)
-	require.Empty(t, cfg.Connector.Nats.SuperUsers)
-	require.Equal(t, 80000, cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers)
+	require.Equal(t, 14223, cfg.Nats.Server.Port)
+}
+
+func TestLoadConfigNatsConfigFileOverridesJetStream(t *testing.T) {
+	dir := t.TempDir()
+	main := filepath.Join(dir, "config.yaml")
+	nats := filepath.Join(dir, "nats.yaml")
+	require.NoError(t, os.WriteFile(main, []byte("nats:\n  enabled: true\n  configFile: ./nats.yaml\n"), 0600))
+	require.NoError(t, os.WriteFile(nats, []byte("nats:\n  jetStream:\n    enabled: false\n    storeDir: /tmp/tio-nats\n"), 0600))
+	cfg, err := LoadConfigFile(main)
+	require.NoError(t, err)
+	require.False(t, cfg.Nats.JetStream.Enabled)
+	require.Equal(t, "/tmp/tio-nats", cfg.Nats.JetStream.StoreDir)
 }
 
 func TestLoadConfigErrors(t *testing.T) {
 	cases := []struct {
 		name, main, nats, want string
 	}{
-		{"inline settings", "connector:\n  nats:\n    server:\n      mqttPort: 1884\n", "", "connector.natsConfigFile"},
-		{"empty inline settings", "connector:\n  nats: {}\n", "", "connector.natsConfigFile"},
 		{"old encoding key", "protocol:\n  encoding: cbor\n", "", "protocol.defaultEncoding"},
 		{"invalid main", "api: [\n", "", "read main config"},
-		{"missing NATS file", "connector:\n  natsConfigFile: missing.yaml\n", "", "read NATS config"},
-		{"NATS path is a directory", "connector:\n  natsConfigFile: .\n", "", "read NATS config"},
-		{"invalid NATS YAML", "connector:\n  natsConfigFile: nats.yaml\n", "server: [\n", "read NATS config"},
-		{"unknown NATS option", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttPrt: 1884\n", "decode NATS config"},
-		{"invalid consumer limit", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  jetStreamDefaultMaxConsumers: -2\n", "jetStreamDefaultMaxConsumers"},
-		{"invalid single-node replicas", "connector:\n  natsConfigFile: nats.yaml\n", "server:\n  mqttStreamReplicas: 3\n", "single-node mqttStreamReplicas"},
+		{"missing NATS file", "nats:\n  configFile: missing.yaml\n", "", "read NATS config"},
+		{"NATS path is a directory", "nats:\n  configFile: .\n", "", "read NATS config"},
+		{"invalid NATS YAML", "nats:\n  configFile: nats.yaml\n", "nats: [\n", "read NATS config"},
+		{"unknown NATS option", "nats:\n  configFile: nats.yaml\n", "nats:\n  server:\n    unknownOpt: 1\n", "decode NATS config"},
+		{"invalid consumer limit", "nats:\n  enabled: true\n  configFile: nats.yaml\n", "nats:\n  jetStream:\n    defaultMaxConsumers: -2\n", "defaultMaxConsumers"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,6 +87,19 @@ func TestLoadConfigErrors(t *testing.T) {
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
+}
+
+func TestValidateNatsConfig_DisabledSkipsValidation(t *testing.T) {
+	require.NoError(t, ValidateNatsConfig(NatsConfig{Enabled: false}, DBMySQL))
+	require.NoError(t, ValidateNatsConfig(NatsConfig{Enabled: false, Server: NatsServerConfig{Routes: []string{"nats://a:6222"}}}, DBSqlite))
+}
+
+func TestValidateNatsConfig_MultiNodeWithSQLite(t *testing.T) {
+	cfg := validSingleNatsConfig()
+	cfg.Server.Routes = []string{"nats://node-2:6222"}
+	err := ValidateNatsConfig(cfg, DBSqlite)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "sqlite")
 }
 
 func TestShippedConfigs(t *testing.T) {
@@ -101,12 +122,13 @@ func TestLoadNatsDefaultsFile(t *testing.T) {
 	defaultsFile, err := filepath.Abs("../config-nats.default.yaml")
 	require.NoError(t, err)
 	filename := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(filename, []byte("connector:\n  natsConfigFile: "+defaultsFile+"\n"), 0600))
+	require.NoError(t, os.WriteFile(filename, []byte("nats:\n  configFile: "+defaultsFile+"\n"), 0600))
 	cfg, err := LoadConfigFile(filename)
 	require.NoError(t, err)
 	defaults, err := LoadConfigFile("../config.yaml")
 	require.NoError(t, err)
-	require.Equal(t, defaults.Connector.Nats, cfg.Connector.Nats)
+	defaults.Nats.ConfigFile = defaultsFile
+	require.Equal(t, defaults.Nats, cfg.Nats)
 }
 
 func TestConfigMarshalOmitsSecrets(t *testing.T) {
@@ -117,179 +139,68 @@ func TestConfigMarshalOmitsSecrets(t *testing.T) {
 	cfg.API.BasicAuth.Password = "pass"
 	cfg.DB.Mysql.Password = "mysql-pass"
 	cfg.DB.Sqlite.FilePath = "tio.sqlite"
-	cfg.Connector.MqttClient.Password = "mqtt-pass"
-	cfg.Connector.Emqx.ApiPassword = "emqx-pass"
 	cfg.Connector.MqttBroker.SuperUsers = []UserPassword{{Name: "root", Password: "root-pass"}}
+	cfg.Nats.AppClient = NatsClientConfig{User: "app", Password: "app-secret"}
+	cfg.Nats.SystemClient = NatsClientConfig{User: "sys", Password: "sys-secret"}
+	cfg.Nats.Server.ClusterPassword = "route-secret"
 
 	b, err := json.Marshal(cfg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
-	if err != nil {
-		t.Fatalf("marshal config: %v", err)
-	}
-
+	require.NoError(t, err)
 	got := string(b)
-	if strings.Contains(got, "super-secret") {
-		t.Fatalf("provision secret should not be marshaled: %s", got)
+	for _, secret := range []string{"super-secret", "pass", "mysql-pass", "root-pass", "app-secret", "sys-secret", "route-secret"} {
+		require.NotContains(t, got, secret)
 	}
-	if strings.Contains(got, "pass") {
-		t.Fatalf("password fields should not be marshaled: %s", got)
-	}
-	if strings.Contains(got, "ProvisionSecret") {
-		t.Fatalf("provision secret field name should not be marshaled: %s", got)
-	}
-}
-
-func TestNatsConfigMarshalOmitsSecrets(t *testing.T) {
-	cfg := NatsConfig{
-		Server: NatsServerConfig{
-			ClusterPassword: "route-secret",
-		},
-		AppClient:     NatsClientConfig{User: "app", Password: "app-secret"},
-		SystemClient:  NatsClientConfig{User: "sys", Password: "sys-secret"},
-		MqttPublisher: NatsClientConfig{User: "pub", Password: "pub-secret"},
-	}
-
-	b, err := json.Marshal(cfg, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
-	if err != nil {
-		t.Fatalf("marshal nats config: %v", err)
-	}
-
-	got := string(b)
-	for _, secret := range []string{"route-secret", "app-secret", "sys-secret", "pub-secret"} {
-		if strings.Contains(got, secret) {
-			t.Fatalf("nats secret %q should not be marshaled: %s", secret, got)
-		}
-	}
+	require.NotContains(t, got, "ProvisionSecret")
 }
 
 func validSingleNatsConfig() NatsConfig {
 	return NatsConfig{
+		Enabled: true,
+		Mode:    "embedded",
 		Server: NatsServerConfig{
-			ServerName:         "tio-node-1",
-			ClusterName:        "tio",
-			Port:               4222,
-			ClusterPort:        6222,
-			MqttPort:           1883,
-			WsPort:             8083,
-			StoreDir:           "./data/nats/tio-node-1",
-			JetStreamMaxMemory: 268435456,
-			JetStreamMaxStore:  1073741824,
-			MqttStreamReplicas: 1,
-			PresenceReplicas:   1,
-			ClusterUser:        "$tio-route",
-			ClusterPassword:    "public",
+			ServerName:      "tio-node-1",
+			ClusterName:     "tio",
+			Port:            4222,
+			MonitorPort:     0,
+			ClusterUser:     "$tio-route",
+			ClusterPassword: "public",
 		},
-		AppClient:     NatsClientConfig{User: "$tio-app", Password: "public"},
-		SystemClient:  NatsClientConfig{User: "$tio-sys", Password: "public"},
-		MqttPublisher: NatsClientConfig{User: "$tio-pub", Password: "public"},
+		AppClient:    NatsClientConfig{User: "$tio-app", Password: "public"},
+		SystemClient: NatsClientConfig{User: "$tio-sys", Password: "public"},
+		JetStream:    NatsJetStreamConfig{Enabled: true, StoreDir: "./data/nats"},
 	}
 }
 
 func TestValidateNatsConfig_ValidSingleNode(t *testing.T) {
-	cfg := validSingleNatsConfig()
-	if err := ValidateNatsConfig(cfg, DBSqlite); err != nil {
-		t.Fatalf("expected valid single-node config, got: %v", err)
-	}
+	require.NoError(t, ValidateNatsConfig(validSingleNatsConfig(), DBSqlite))
 }
 
 func TestValidateNatsConfig_ValidMultiNodeWithMySQL(t *testing.T) {
 	cfg := validSingleNatsConfig()
 	cfg.Server.Routes = []string{"nats://node-2:6222", "nats://node-3:6222"}
-	cfg.Server.MqttStreamReplicas = 3
-	cfg.Server.PresenceReplicas = 3
-
-	if err := ValidateNatsConfig(cfg, DBMySQL); err != nil {
-		t.Fatalf("expected valid multi-node config with mysql, got: %v", err)
-	}
+	require.NoError(t, ValidateNatsConfig(cfg, DBMySQL))
 }
 
 func TestValidateNatsConfig_EmptyServerName(t *testing.T) {
 	cfg := validSingleNatsConfig()
 	cfg.Server.ServerName = ""
-
 	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for empty serverName")
-	}
-	if !strings.Contains(err.Error(), "serverName") {
-		t.Fatalf("expected serverName in error, got: %v", err)
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "serverName")
 }
 
 func TestValidateNatsConfig_EmptyClusterName(t *testing.T) {
 	cfg := validSingleNatsConfig()
 	cfg.Server.ClusterName = ""
-
-	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for empty clusterName")
-	}
-}
-
-func TestValidateNatsConfig_MultiNodeWithSQLite(t *testing.T) {
-	cfg := validSingleNatsConfig()
-	cfg.Server.Routes = []string{"nats://node-2:6222"}
-	cfg.Server.MqttStreamReplicas = 3
-	cfg.Server.PresenceReplicas = 3
-
-	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for multi-node with sqlite")
-	}
-	if !strings.Contains(err.Error(), "sqlite") {
-		t.Fatalf("expected sqlite in error, got: %v", err)
-	}
-}
-
-func TestValidateNatsConfig_InvalidReplicaCountSingleNode(t *testing.T) {
-	cfg := validSingleNatsConfig()
-	cfg.Server.MqttStreamReplicas = 3
-
-	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for invalid mqttStreamReplicas on single node")
-	}
-}
-
-func TestValidateNatsConfig_InvalidReplicaCountMultiNode(t *testing.T) {
-	cfg := validSingleNatsConfig()
-	cfg.Server.Routes = []string{"nats://node-2:6222"}
-	cfg.Server.MqttStreamReplicas = 1
-	cfg.Server.PresenceReplicas = 3
-
-	err := ValidateNatsConfig(cfg, DBMySQL)
-	if err == nil {
-		t.Fatal("expected error for invalid mqttStreamReplicas on multi-node")
-	}
-}
-
-func TestValidateNatsConfig_TLSUsesConfiguredMqttPort(t *testing.T) {
-	cfg := validSingleNatsConfig()
-	cfg.Server.MqttPort = 1883
-	cfg.Server.MqttTLS = NatsTLSConfig{
-		CertFile: "/path/cert.pem",
-		KeyFile:  "/path/key.pem",
-		CAFile:   "/path/ca.pem",
-	}
-
-	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err != nil {
-		t.Fatalf("expected MQTT TLS on the configured listener port to be valid: %v", err)
-	}
+	require.Error(t, ValidateNatsConfig(cfg, DBSqlite))
 }
 
 func TestValidateNatsConfig_IncompleteRouteTLS(t *testing.T) {
 	cfg := validSingleNatsConfig()
-	cfg.Server.RouteTLS = NatsTLSConfig{
-		CertFile: "/path/cert.pem",
-	}
-
+	cfg.Server.RouteTLS = NatsTLSConfig{CertFile: "/path/cert.pem"}
 	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for incomplete route TLS")
-	}
-	if !strings.Contains(err.Error(), "routeTls") {
-		t.Fatalf("expected routeTls in error, got: %v", err)
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "routeTls")
 }
 
 func TestValidateNatsConfig_EmptyClientUser(t *testing.T) {
@@ -300,31 +211,24 @@ func TestValidateNatsConfig_EmptyClientUser(t *testing.T) {
 	}{
 		{"empty appClient user", func(c *NatsConfig) { c.AppClient.User = "" }, "appClient"},
 		{"empty systemClient user", func(c *NatsConfig) { c.SystemClient.User = "" }, "systemClient"},
-		{"empty mqttPublisher user", func(c *NatsConfig) { c.MqttPublisher.User = "" }, "mqttPublisher"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validSingleNatsConfig()
 			tt.mutate(&cfg)
 			err := ValidateNatsConfig(cfg, DBSqlite)
-			if err == nil {
-				t.Fatalf("expected error for %s", tt.field)
-			}
-			if !strings.Contains(err.Error(), tt.field) {
-				t.Fatalf("expected %s in error, got: %v", tt.field, err)
-			}
+			require.Error(t, err)
+			require.ErrorContains(t, err, tt.field)
 		})
 	}
 }
 
-func TestValidateNatsConfig_EmptyStoreDir(t *testing.T) {
+func TestValidateNatsConfig_EmptyJetStreamStoreDir(t *testing.T) {
 	cfg := validSingleNatsConfig()
-	cfg.Server.StoreDir = ""
-
+	cfg.JetStream.StoreDir = ""
 	err := ValidateNatsConfig(cfg, DBSqlite)
-	if err == nil {
-		t.Fatal("expected error for empty storeDir")
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "storeDir")
 }
 
 func TestProtocolValidate(t *testing.T) {
@@ -361,21 +265,17 @@ func TestProtocolValidate(t *testing.T) {
 func TestValidateNatsConfigRejectsEmptyPasswords(t *testing.T) {
 	cfg, err := LoadConfigFile("../config.yaml")
 	require.NoError(t, err)
-	n := cfg.Connector.Nats
+	n := cfg.Nats
+	n.Enabled = true
+	n.JetStream.Enabled = true
+	n.JetStream.StoreDir = "./data/nats"
 	require.NoError(t, ValidateNatsConfig(n, DBMySQL))
 
-	n.SuperUsers = append(n.SuperUsers, UserPassword{Name: "empty", Password: ""})
-	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+	n2 := n
+	n2.AppClient.Password = ""
+	require.Error(t, ValidateNatsConfig(n2, DBMySQL))
 
-	n = cfg.Connector.Nats
-	n.AppClient.Password = ""
-	require.Error(t, ValidateNatsConfig(n, DBMySQL))
-
-	n = cfg.Connector.Nats
-	n.SystemClient.Password = ""
-	require.Error(t, ValidateNatsConfig(n, DBMySQL))
-
-	n = cfg.Connector.Nats
-	n.MqttPublisher.Password = ""
-	require.Error(t, ValidateNatsConfig(n, DBMySQL))
+	n3 := n
+	n3.SystemClient.Password = ""
+	require.Error(t, ValidateNatsConfig(n3, DBMySQL))
 }

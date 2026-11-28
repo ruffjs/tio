@@ -1,6 +1,6 @@
 # Tio IoT Hub Configuration
 # Optional application overrides for the embedded defaults.
-# NATS settings belong in the file referenced by connector.natsConfigFile.
+# NATS settings belong in the nats: block or the file referenced by nats.configFile.
 
 api:
   # HTTP REST API port
@@ -8,7 +8,6 @@ api:
   # Enable CORS (Cross-Origin Resource Sharing) for web frontend
   cors: true
   # Basic authentication for HTTP API
-  # If there is no configuration, there is no authentication
   basicAuth:
     name: admin
     password: public
@@ -17,9 +16,7 @@ db:
   # Database type: "sqlite" or "mysql"
   type: sqlite
   sqlite:
-    # SQLite database file path, or ":memory:" for in-memory database
     filePath: tio.sqlite
-    # Print SQL statements in log (for debugging)
     showSql: true
   mysql:
     host: 127.0.0.1
@@ -28,45 +25,43 @@ db:
     password: public
     db: tio
     charset: utf8
-    # Timezone for MySQL connection (URL-encoded)
     timezone: Asia%2FShanghai
-    # Maximum number of idle connections in the connection pool
     maxIdleConns: 4
-    # Maximum number of open connections to the database
     maxOpenConns: 50
-    # Maximum amount of time (seconds) a connection may be reused
     connMaxLifetime: 60
     showSql: true
 
 connector:
-  # Connector type: "nats" (embedded NATS server with MQTT gateway)
-  type: nats
-  # Optional advanced NATS settings; omit to use the embedded single-node defaults.
-  # The path is relative to this config file. See config-nats.default.yaml.
-  # natsConfigFile: ./nats.yaml
+  mqttBroker:
+    tcpPort: 1883
+    wsPort: 8083
+    storage:
+      type: file
+      filePath: ./data/mqtt/comqtt.db
+    superUsers:
+      - name: $biz
+        password: public
+      - name: $tio
+        password: public
+
+# Optional NATS egress bridge. Disabled by default; tio runs on the embedded
+# comqtt broker alone. See config-nats.default.yaml for all options.
+# nats:
+#   enabled: true
+#   configFile: ./nats.yaml
 
 protocol:
-  # Default device control-message encoding: "json" or "cbor"; Thing.payloadEncoding overrides it in every mode
+  # Default device control-message encoding: "json" or "cbor"
   # defaultEncoding: cbor
-  # Device protocol mode: "legacy", "simple", or "dual" (both, selected per Thing)
+  # Device protocol mode: "legacy", "simple", or "dual"
   mode: dual
 
-# Shadow (device state) configuration
 shadow:
-  # List of shadow topics that should NOT include metadata in responses
-  # Metadata includes timestamps and version information
-  # Valid values: "/get/accepted", "/update/accepted", "/update/delta", "/update/documents"
-  # Example: To exclude metadata from delta messages (for bandwidth optimization):
-  #   ignoreMetadataFor: ["/update/delta"]
   ignoreMetadataFor: []
 
-# Profiling configuration (for performance debugging)
 pprof:
-  # HTTP port for pprof endpoints (e.g., /debug/pprof/)
   port: 6060
-  # Enable or disable pprof
   enabled: false
 
 log:
-  # Log level: "debug", "info", "warn", "error"
   level: debug

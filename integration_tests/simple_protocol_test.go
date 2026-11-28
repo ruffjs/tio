@@ -645,7 +645,7 @@ func TestSimpleProtocol_EventDataTransparent(t *testing.T) {
 	defer deviceClient.Disconnect()
 	waitConnected(t, thingId)
 
-	nc := natsConnector.AppConn()
+	nc := natsBrg.AppConn()
 
 	eventSubj := "tio." + thingId + ".event"
 	dataSubj := "tio." + thingId + ".data"

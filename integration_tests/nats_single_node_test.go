@@ -25,12 +25,11 @@ import (
 )
 
 func newSuperClient(ctx context.Context, name string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	return mq.NewDeviceClient(
-		fmt.Sprintf("tcp://127.0.0.1:%d", port),
+		fmt.Sprintf("tcp://127.0.0.1:%d", mqttPort()),
 		name,
-		cfg.Connector.Nats.SuperUsers[0].Name,
-		cfg.Connector.Nats.SuperUsers[0].Password,
+		cfg.Connector.MqttBroker.SuperUsers[0].Name,
+		cfg.Connector.MqttBroker.SuperUsers[0].Password,
 	)
 }
 
@@ -94,7 +93,7 @@ func TestCrossThingAccessDenied(t *testing.T) {
 		Version: 1,
 		State:   shadow.StateValue{"on": true},
 	}, json.Deterministic(true), json.FormatNilMapAsNull(true), json.FormatNilSliceAsNull(true))
-	require.NoError(t, natsConnector.PublishReliable(topic, payload))
+	require.NoError(t, mqttBroker.PublishReliable(topic, payload))
 
 	time.Sleep(500 * time.Millisecond)
 	require.Equal(t, int32(0), atomic.LoadInt32(&received), "thing A should not receive thing B's messages")
@@ -122,7 +121,7 @@ func TestQoS1Delivery(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	payload := []byte(`{"hello":"qos1"}`)
-	require.NoError(t, natsConnector.PublishReliable(topic, payload))
+	require.NoError(t, mqttBroker.PublishReliable(topic, payload))
 
 	select {
 	case msg := <-received:
@@ -141,7 +140,7 @@ func TestRetainedDelivery(t *testing.T) {
 
 	topic := deviceDownTopic(thingId, "test/retained")
 	payload := []byte(`{"retained":true}`)
-	require.NoError(t, natsConnector.PublishRetained(topic, payload))
+	require.NoError(t, mqttBroker.PublishRetained(topic, payload))
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -173,10 +172,10 @@ func TestRetainedClear(t *testing.T) {
 
 	topic := deviceDownTopic(thingId, "test/retained-clear")
 	payload := []byte(`{"retained":true}`)
-	require.NoError(t, natsConnector.PublishRetained(topic, payload))
+	require.NoError(t, mqttBroker.PublishRetained(topic, payload))
 	time.Sleep(100 * time.Millisecond)
 
-	require.NoError(t, natsConnector.PublishRetained(topic, []byte{}))
+	require.NoError(t, mqttBroker.PublishRetained(topic, []byte{}))
 	time.Sleep(200 * time.Millisecond)
 
 	client := newThingMqttClient(ctx, thingId, "test-password")
@@ -233,7 +232,7 @@ func TestBroadcastSubscribe(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	payload := []byte(`{"broadcast":true}`)
-	require.NoError(t, natsConnector.PublishReliable(topic, payload))
+	require.NoError(t, mqttBroker.PublishReliable(topic, payload))
 
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&receivedA) >= 1
@@ -267,7 +266,7 @@ func TestQueueSubscribe(t *testing.T) {
 
 	for i := range 5 {
 		payload := []byte(fmt.Sprintf(`{"msg":%d}`, i))
-		require.NoError(t, natsConnector.PublishReliable(topic, payload))
+		require.NoError(t, mqttBroker.PublishReliable(topic, payload))
 	}
 
 	require.Eventually(t, func() bool {
@@ -531,8 +530,8 @@ func TestWildcardSubscription(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	payload := []byte(`{"test":true}`)
-	require.NoError(t, natsConnector.Publish("$iothub/things/"+thingId+"/wildcard-test", payload))
-	require.NoError(t, natsConnector.Publish("$iothub/things/"+thingId+"/wildcard-test/sub", payload))
+	require.NoError(t, mqttBroker.Publish("$iothub/things/"+thingId+"/wildcard-test", payload))
+	require.NoError(t, mqttBroker.Publish("$iothub/things/"+thingId+"/wildcard-test/sub", payload))
 
 	require.Eventually(t, func() bool {
 		mu.Lock()
@@ -543,10 +542,10 @@ func TestWildcardSubscription(t *testing.T) {
 }
 
 func TestInvalidPublishTopic(t *testing.T) {
-	err := natsConnector.Publish("foo/#/bar", []byte("test"))
+	err := mqttBroker.Publish("foo/#/bar", []byte("test"))
 	require.Error(t, err, "publishing with wildcard # should return error")
 
-	err = natsConnector.Publish("foo/+/bar", []byte("test"))
+	err = mqttBroker.Publish("foo/+/bar", []byte("test"))
 	require.Error(t, err, "publishing with wildcard + should return error")
 }
 

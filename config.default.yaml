@@ -45,8 +45,32 @@ protocol:
   mode: legacy
 
 connector:
-  # Connector type: "nats" (embedded NATS server with MQTT gateway)
-  type: nats
+  # The embedded comqtt MQTT broker: tio's single MQTT entry point.
+  mqttBroker:
+    # Plain TCP MQTT port (device connections).
+    tcpPort: 1883
+    # TCP TLS/mTLS MQTT port; 0 disables it.
+    tcpSslPort: 0
+    # WebSocket MQTT port; 0 disables it.
+    wsPort: 8083
+    # WebSocket over TLS port; 0 disables it.
+    wssPort: 0
+    # TLS server certificate/key for tcpSslPort/wssPort.
+    certFile: ""
+    keyFile: ""
+    # mTLS client CA; when set, tcpSslPort requests a client certificate.
+    clientCaFile: ""
+    requireClientCert: false
+    # Message persistence: "file" (badger), "redis", or empty for none.
+    storage:
+      type: file
+      filePath: ./data/mqtt/comqtt.db
+    # Device/business super users (also valid for the optional NATS bridge).
+    superUsers:
+      - name: $biz
+        password: public
+      - name: $tio
+        password: public
 
 # Shadow (device state) configuration
 shadow:

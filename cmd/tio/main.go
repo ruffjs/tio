@@ -12,34 +12,33 @@ import (
 	"syscall"
 	"time"
 
+	"ruff.io/tio"
+	"ruff.io/tio/api"
 	"ruff.io/tio/auth"
+	"ruff.io/tio/broker"
+	natsbridge "ruff.io/tio/bridge/nats"
+	"ruff.io/tio/config"
+	"ruff.io/tio/connector"
+	"ruff.io/tio/connector/mqtt/embed"
+	mqtthttp "ruff.io/tio/connector/mqtt"
+	"ruff.io/tio/db/mysql"
+	"ruff.io/tio/db/sqlite"
 	"ruff.io/tio/metrics"
 	"ruff.io/tio/ntp"
 	"ruff.io/tio/pkg/codec"
 	"ruff.io/tio/pkg/protocol"
 	"ruff.io/tio/rule"
-
-	"ruff.io/tio"
-	"ruff.io/tio/api"
-	"ruff.io/tio/broker"
-	"ruff.io/tio/connector"
-	natsConn "ruff.io/tio/connector/nats"
+	ruleApi "ruff.io/tio/rule/api"
+	"ruff.io/tio/shadow"
+	shadowApi "ruff.io/tio/shadow/api"
+	shadowWire "ruff.io/tio/shadow/wire"
+	"ruff.io/tio/thing"
+	thingApi "ruff.io/tio/thing/api"
+	thingWire "ruff.io/tio/thing/wire"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"gorm.io/gorm"
-	"ruff.io/tio/config"
-	"ruff.io/tio/db/mysql"
-	"ruff.io/tio/db/sqlite"
-
-	"ruff.io/tio/shadow"
-	shadowWire "ruff.io/tio/shadow/wire"
-
-	ruleApi "ruff.io/tio/rule/api"
-	shadowApi "ruff.io/tio/shadow/api"
-	"ruff.io/tio/thing"
-	thingApi "ruff.io/tio/thing/api"
-	thingWire "ruff.io/tio/thing/wire"
 )
 
 var (
@@ -82,6 +81,7 @@ func main() {
 	slog.Info("Config",
 		"apiPort", cfg.API.Port,
 		"dbType", cfg.DB.Typ,
+		"natsEnabled", cfg.Nats.Enabled,
 		"pprofEnabled", cfg.Pprof.Enabled)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -120,50 +120,75 @@ func main() {
 		log.Fatalf("Create codec error: %v", err)
 	}
 
-	natsConnector, err := natsConn.NewConnector(cfg.Connector.Nats, deviceCodec, cfg.Protocol.Mode)
+	brg, err := natsbridge.New(natsbridge.FromConfig(cfg.Nats), cfg.Connector.MqttBroker.SuperUsers)
 	if err != nil {
-		log.Fatalf("Create NATS connector error: %v", err)
+		log.Fatalf("Create NATS bridge error: %v", err)
 	}
-	var conn connector.Connector = natsConnector
 
-	shadowSvc := shadowWire.InitSvc(dbConn, natsConnector, cfg.Shadow)
-	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, natsConnector)
+	conn := embed.InitBroker(embed.Options{
+		TcpPort:           cfg.Connector.MqttBroker.TcpPort,
+		TcpSslPort:        cfg.Connector.MqttBroker.TcpSslPort,
+		WsPort:            cfg.Connector.MqttBroker.WsPort,
+		WssPort:           cfg.Connector.MqttBroker.WssPort,
+		CertFile:          cfg.Connector.MqttBroker.CertFile,
+		KeyFile:           cfg.Connector.MqttBroker.KeyFile,
+		ClientCAFile:      cfg.Connector.MqttBroker.ClientCAFile,
+		RequireClientCert: cfg.Connector.MqttBroker.RequireClientCert,
+		Storage:           cfg.Connector.MqttBroker.Storage,
+		Codec:             deviceCodec,
+		ProtocolMode:      cfg.Protocol.Mode,
+		Bridge:            brg,
+	})
+
+	shadowSvc := shadowWire.InitSvc(dbConn, conn, cfg.Shadow)
+	thingSvc := thingWire.InitSvc(ctx, dbConn, shadowSvc, conn)
 
 	provisionSvc := thing.NewProvision(thingSvc, cfg.ProvisionSecret)
 	if cfg.ProvisionSecret == "" {
 		provisionSvc = nil
 	}
-	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.Nats.SuperUsers, thingSvc, provisionSvc,
+	authzFn := auth.AuthzMqttClient(ctx, cfg.Connector.MqttBroker.SuperUsers, thingSvc, provisionSvc,
 		cfg.Auth.AllowPasswordBootstrap)
-
-	if err := natsConnector.ConfigureAuth(authzFn, thingSvc); err != nil {
-		log.Fatalf("Configure NATS auth error: %v", err)
+	aclFn := auth.TopicAcl(thingSvc, cfg.Connector.MqttBroker.SuperUsers, cfg.Protocol.Mode)
+	if err := conn.ConfigureAuth(authzFn, aclFn); err != nil {
+		log.Fatalf("Configure MQTT broker auth error: %v", err)
 	}
-	natsConnector.OnLocalPresence(func(ci connector.ClientInfo) {
+
+	conn.OnLocalPresence(func(ci connector.ClientInfo) {
 		go shadowSvc.HandleLocalPresence(ctx, ci)
 	})
-	if err := natsConnector.Start(ctx); err != nil {
-		log.Fatalf("NATS connector start error: %v", err)
-	}
-	brokerMonitor := broker.New(natsConnector.Server().Server(), natsConnector.JetStream(), broker.Options{
-		ServerDefaultMaxConsumers: cfg.Connector.Nats.Server.JetStreamDefaultMaxConsumers,
-	})
-	brokerMonitor.Start(ctx)
-	if cfg.Connector.NatsConfigFile != "" {
-		slog.Info("NATS configuration", "file", cfg.Connector.NatsConfigFile)
-	} else {
-		slog.Info("NATS configuration", "source", "embedded defaults")
+
+	if err := brg.Start(ctx); err != nil {
+		log.Fatalf("NATS bridge start error: %v", err)
 	}
 	defer func() {
-		if err := natsConnector.Shutdown(); err != nil {
-			slog.Error("NATS connector shutdown error", "error", err)
+		if err := brg.Shutdown(); err != nil {
+			slog.Error("NATS bridge shutdown error", "error", err)
 		}
 	}()
+
+	if err := conn.Start(ctx); err != nil {
+		log.Fatalf("MQTT broker start error: %v", err)
+	}
+	defer func() {
+		if err := conn.CloseAll(""); err != nil {
+			slog.Debug("MQTT broker close-all on shutdown", "error", err)
+		}
+		_ = conn
+	}()
+
+	var brokerMonitor *broker.Monitor
+	if cfg.Nats.Enabled && cfg.Nats.Mode == "embedded" && brg.Server() != nil {
+		brokerMonitor = broker.New(brg.Server().Server(), brg.JetStream(), broker.Options{
+			ServerDefaultMaxConsumers: cfg.Nats.JetStream.DefaultMaxConsumers,
+		})
+		brokerMonitor.Start(ctx)
+	}
 
 	shadowSvc.Init(ctx)
 
 	ruleMgr := rule.NewRuleMgr()
-	ruleMgr.Boot(ctx, shadowSvc, natsConnector)
+	ruleMgr.Boot(ctx, shadowSvc, conn)
 
 	var methodHandler shadow.MethodHandler
 	profiles := thing.DeviceProfiles{Service: thingSvc, DefaultCodec: cfg.Protocol.DefaultEncoding, Mode: cfg.Protocol.Mode}
@@ -220,7 +245,8 @@ func main() {
 	metricsWs := metrics.Service()
 
 	httpCon.Add(thingWs)
-	httpCon.Add(api.MQTTBrokerService(natsConnector.CloseAll, thingSvc, brokerMonitor).Filter(api.LoggingMiddleware).Filter(azf))
+	httpCon.Add(api.MQTTBrokerService(conn.CloseAll, thingSvc, brokerMonitor).Filter(api.LoggingMiddleware).Filter(azf))
+	httpCon.Add(mqtthttp.Service(ctx, conn))
 	httpCon.Add(cfgWs)
 	httpCon.Add(ruleWs)
 	httpCon.Add(metricsWs)

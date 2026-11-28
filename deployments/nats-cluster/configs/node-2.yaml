@@ -21,7 +21,19 @@ db:
     showSql: false
 
 connector:
-  type: nats
-  natsConfigFile: ./nats-node-2.yaml
+  mqttBroker:
+    tcpPort: 1883
+    wsPort: 8083
+    superUsers:
+      - name: $biz
+        password: public
+      - name: $tio
+        password: public
+
+nats:
+  enabled: true
+  mode: embedded
+  configFile: ./nats-node-2.yaml
+
 log:
   level: info

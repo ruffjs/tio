@@ -392,6 +392,9 @@ func (b *Broker) publishPresence(ci connector.ClientInfo) {
 }
 
 func (b *Broker) AllClients() []Client {
+	if b.svr == nil {
+		return nil
+	}
 	l := b.svr.Clients.GetAll()
 	rl := make([]Client, 0, len(l))
 	for _, c := range l {
@@ -421,6 +424,9 @@ func (b *Broker) AllClients() []Client {
 }
 
 func (b *Broker) StatsInfo() *system.Info {
+	if b.svr == nil {
+		return nil
+	}
 	return b.svr.Info
 }
 

@@ -14,7 +14,7 @@ var mtlsConnector = &testConnectorWrapper{}
 
 func requireMTLSFixture(t *testing.T) {
 	t.Helper()
-	if cfg.Connector.Nats.Server.MqttTLS.CertFile == "" {
+	if cfg.Connector.MqttBroker.CertFile == "" {
 		t.Skip("set TIO_TEST_MQTT_TLS=1 to run mTLS integration tests")
 	}
 }
@@ -22,25 +22,24 @@ func requireMTLSFixture(t *testing.T) {
 type testConnectorWrapper struct{}
 
 func (w *testConnectorWrapper) IsConnected(thingId string) (bool, error) {
-	return natsConnector.IsConnected(thingId)
+	return mqttBroker.IsConnected(thingId)
 }
 
 func (w *testConnectorWrapper) ClientInfo(thingId string) (tioconnector.ClientInfo, error) {
-	return natsConnector.ClientInfo(thingId)
+	return mqttBroker.ClientInfo(thingId)
 }
 
 func (w *testConnectorWrapper) Publish(topic string, qos byte, retained bool, payload []byte) error {
 	if retained {
-		return natsConnector.PublishRetained(topic, payload)
+		return mqttBroker.PublishRetained(topic, payload)
 	}
-	return natsConnector.PublishReliable(topic, payload)
+	return mqttBroker.PublishReliable(topic, payload)
 }
 
 func newThingMTLSClient(thingID string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	certDir := "../demos/mtls/certs"
 	c, err := mq.NewDeviceClientWithTLS(
-		fmt.Sprintf("tls://127.0.0.1:%d", port),
+		fmt.Sprintf("tls://127.0.0.1:%d", cfg.Connector.MqttBroker.TcpSslPort),
 		thingID, thingID, "",
 		certDir+"/ca.pem",
 		certDir+"/client-cert.pem",
@@ -54,9 +53,8 @@ func newThingMTLSClient(thingID string) *mq.DeviceClient {
 }
 
 func newThingTLSClientWithoutCertificate(thingID string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	c, err := mq.NewDeviceClientWithTLS(
-		fmt.Sprintf("tls://127.0.0.1:%d", port),
+		fmt.Sprintf("tls://127.0.0.1:%d", cfg.Connector.MqttBroker.TcpSslPort),
 		thingID, thingID, "test-password",
 		"", "", "", "localhost",
 	)
@@ -67,9 +65,8 @@ func newThingTLSClientWithoutCertificate(thingID string) *mq.DeviceClient {
 }
 
 func newThingMTLSClientWithUsername(thingID, username, certFile, keyFile, caFile, serverName string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	c, err := mq.NewDeviceClientWithTLS(
-		fmt.Sprintf("tls://127.0.0.1:%d", port),
+		fmt.Sprintf("tls://127.0.0.1:%d", cfg.Connector.MqttBroker.TcpSslPort),
 		thingID, username, "",
 		caFile, certFile, keyFile, serverName,
 	)
@@ -80,9 +77,8 @@ func newThingMTLSClientWithUsername(thingID, username, certFile, keyFile, caFile
 }
 
 func newThingMTLSClientWithCertFiles(thingID, certFile, keyFile, caFile, serverName string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	c, err := mq.NewDeviceClientWithTLS(
-		fmt.Sprintf("tls://127.0.0.1:%d", port),
+		fmt.Sprintf("tls://127.0.0.1:%d", cfg.Connector.MqttBroker.TcpSslPort),
 		thingID, thingID, "",
 		caFile, certFile, keyFile, serverName,
 	)
@@ -93,9 +89,8 @@ func newThingMTLSClientWithCertFiles(thingID, certFile, keyFile, caFile, serverN
 }
 
 func newThingMTLSClientWithServerName(thingID, serverName string) *mq.DeviceClient {
-	port := natsConnector.Server().MqttPort()
 	c, err := mq.NewDeviceClientWithTLS(
-		fmt.Sprintf("tls://127.0.0.1:%d", port),
+		fmt.Sprintf("tls://127.0.0.1:%d", cfg.Connector.MqttBroker.TcpSslPort),
 		thingID, thingID, "",
 		"../demos/mtls/certs/ca.pem",
 		"../demos/mtls/certs/client-cert.pem",

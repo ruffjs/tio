@@ -33,15 +33,6 @@ const (
 	// DBSqlite DB type
 	DBSqlite = "sqlite"
 	DBMySQL  = "mysql"
-
-	// Connector type
-
-	// ConnectorEmqx EMQX MQTT broker
-	ConnectorEmqx = "emqx"
-	// ConnectorMqttEmbed MQTT broker embedded in tio
-	ConnectorMqttEmbed = "embed"
-	// ConnectorNats NATS connector
-	ConnectorNats = "nats"
 )
 
 type UserPassword struct {
@@ -128,6 +119,9 @@ type Config struct {
 		Port    int  `json:"port"`
 		Enabled bool `json:"enabled"`
 	} `json:"pprof"`
+	// Nats is decoded separately from config-nats.default.yaml and the main
+	// config's nats block; see loadNats.
+	Nats NatsConfig `json:"nats" mapstructure:"-"`
 }
 
 func ReadConfig() Config {
@@ -157,9 +151,6 @@ func loadConfig(main *viper.Viper) (Config, error) {
 			return Config{}, fmt.Errorf("read main config: %w", err)
 		}
 	}
-	if main.InConfig("connector.nats") {
-		return Config{}, fmt.Errorf("move connector.nats to a separate YAML file and reference it with connector.natsConfigFile")
-	}
 	if main.InConfig("protocol.encoding") {
 		return Config{}, fmt.Errorf("rename protocol.encoding to protocol.defaultEncoding; Thing.payloadEncoding takes precedence in every mode")
 	}
@@ -169,11 +160,6 @@ func loadConfig(main *viper.Viper) (Config, error) {
 	if err := v.ReadConfig(bytes.NewReader(defaultConfigYaml)); err != nil {
 		return Config{}, fmt.Errorf("read defaults: %w", err)
 	}
-	nats := viper.New()
-	nats.SetConfigType("yaml")
-	if err := nats.ReadConfig(bytes.NewReader(tio.DefaultNatsConfigYaml)); err != nil {
-		return Config{}, fmt.Errorf("read NATS defaults: %w", err)
-	}
 	if err := v.MergeConfigMap(main.AllSettings()); err != nil {
 		return Config{}, fmt.Errorf("merge main config: %w", err)
 	}
@@ -181,96 +167,113 @@ func loadConfig(main *viper.Viper) (Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return Config{}, fmt.Errorf("decode main config: %w", err)
 	}
-	if filename := cfg.Connector.NatsConfigFile; filename != "" {
+
+	if err := loadNats(main, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// loadNats decodes the NATS config by merging, in order: the embedded NATS
+// defaults, the main config's nats block, then (optionally) the file referenced
+// by nats.configFile (resolved relative to the main config file).
+func loadNats(main *viper.Viper, cfg *Config) error {
+	nats := viper.New()
+	nats.SetConfigType("yaml")
+	if err := nats.ReadConfig(bytes.NewReader(tio.DefaultNatsConfigYaml)); err != nil {
+		return fmt.Errorf("read NATS defaults: %w", err)
+	}
+	// The defaults are wrapped under a top-level "nats" key, mirroring the main
+	// config's nats section.
+	if sub := nats.Sub("nats"); sub != nil {
+		nats = sub
+	} else {
+		return fmt.Errorf("NATS defaults missing top-level nats key")
+	}
+
+	if sub := main.Sub("nats"); sub != nil {
+		if err := nats.MergeConfigMap(sub.AllSettings()); err != nil {
+			return fmt.Errorf("merge nats config: %w", err)
+		}
+	}
+
+	if err := nats.UnmarshalExact(&cfg.Nats); err != nil {
+		return fmt.Errorf("decode NATS config: %w", err)
+	}
+
+	if filename := cfg.Nats.ConfigFile; filename != "" {
 		if !filepath.IsAbs(filename) {
 			filename = filepath.Join(filepath.Dir(main.ConfigFileUsed()), filename)
 		}
 		data, err := os.ReadFile(filename)
 		if err != nil {
-			return Config{}, fmt.Errorf("read NATS config %q: %w", filename, err)
+			return fmt.Errorf("read NATS config %q: %w", filename, err)
 		}
-		if err := nats.MergeConfig(bytes.NewReader(data)); err != nil {
-			return Config{}, fmt.Errorf("read NATS config %q: %w", filename, err)
+		// The referenced file uses the same wrapped shape as the defaults.
+		file := viper.New()
+		file.SetConfigType("yaml")
+		if err := file.ReadConfig(bytes.NewReader(data)); err != nil {
+			return fmt.Errorf("read NATS config %q: %w", filename, err)
 		}
-		cfg.Connector.NatsConfigFile = filename
+		if sub := file.Sub("nats"); sub != nil {
+			if err := nats.MergeConfigMap(sub.AllSettings()); err != nil {
+				return fmt.Errorf("read NATS config %q: %w", filename, err)
+			}
+		} else {
+			return fmt.Errorf("read NATS config %q: missing top-level nats key", filename)
+		}
+		if err := nats.UnmarshalExact(&cfg.Nats); err != nil {
+			return fmt.Errorf("decode NATS config: %w", err)
+		}
+		cfg.Nats.ConfigFile = filename
 	}
-	if err := nats.UnmarshalExact(&cfg.Connector.Nats); err != nil {
-		return Config{}, fmt.Errorf("decode NATS config: %w", err)
-	}
-	if cfg.Connector.Typ == ConnectorNats {
-		if err := ValidateNatsConfig(cfg.Connector.Nats, cfg.DB.Typ); err != nil {
-			return Config{}, err
+
+	if cfg.Nats.Enabled {
+		if err := ValidateNatsConfig(cfg.Nats, cfg.DB.Typ); err != nil {
+			return err
 		}
 	}
-	return cfg, nil
+	return nil
 }
 
 type Connector struct {
-	Typ            string            `json:"type" mapstructure:"type"`
-	MqttClient     MqttClientConfig  `json:"mqttClient"`
-	MqttBroker     InnerMqttBroker   `json:"mqttBroker"`
-	Emqx           EmqxAdapterConfig `json:"emqx"`
-	NatsConfigFile string            `json:"natsConfigFile"`
-	Nats           NatsConfig        `json:"nats" mapstructure:"-"`
-}
-
-type MqttClientConfig struct {
-	ClientId     string     `json:"clientId"`
-	Host         string     `json:"host"`
-	Port         int        `json:"port"`
-	User         string     `json:"user"`
-	Password     string     `json:"-"`
-	WillTopic    string     `json:"WillTopic"`
-	WillPayload  string     `json:"willPayload"`
-	CleanSession *bool      `json:"cleanSession"`
-	TLS          *TLSConfig `json:"tls,omitzero"`
-}
-
-type TLSConfig struct {
-	CAFile             string `json:"caFile" mapstructure:"caFile"`
-	CertFile           string `json:"certFile" mapstructure:"certFile"`
-	KeyFile            string `json:"keyFile" mapstructure:"keyFile"`
-	ServerName         string `json:"serverName" mapstructure:"serverName"`
-	InsecureSkipVerify bool   `json:"insecureSkipVerify" mapstructure:"insecureSkipVerify"`
-}
-
-type EmqxAdapterConfig struct {
-	ApiPrefix   string `json:"apiPrefix"` // like http://localhost:18083
-	ApiUser     string `json:"apiUser"`
-	ApiPassword string `json:"-"`
+	MqttBroker InnerMqttBroker `json:"mqttBroker"`
 }
 
 type NatsConfig struct {
-	Server        NatsServerConfig `json:"server"`
-	AppClient     NatsClientConfig `json:"appClient"`
-	SystemClient  NatsClientConfig `json:"systemClient"`
-	MqttPublisher NatsClientConfig `json:"mqttPublisher"`
-	SuperUsers    []UserPassword   `json:"superUsers"`
+	Enabled      bool                `json:"enabled" mapstructure:"enabled"`
+	Mode         string              `json:"mode" mapstructure:"mode"`
+	URL          string              `json:"url" mapstructure:"url"`
+	ConfigFile   string              `json:"configFile" mapstructure:"configFile"`
+	Server       NatsServerConfig    `json:"server" mapstructure:"server"`
+	AppClient    NatsClientConfig    `json:"appClient" mapstructure:"appClient"`
+	SystemClient NatsClientConfig    `json:"systemClient" mapstructure:"systemClient"`
+	JetStream    NatsJetStreamConfig `json:"jetStream" mapstructure:"jetStream"`
+}
+
+type NatsJetStreamConfig struct {
+	Enabled             bool   `json:"enabled" mapstructure:"enabled"`
+	StoreDir            string `json:"storeDir" mapstructure:"storeDir"`
+	MaxMemory           int64  `json:"maxMemory" mapstructure:"maxMemory"`
+	MaxStore            int64  `json:"maxStore" mapstructure:"maxStore"`
+	MaxAgeSeconds       int64  `json:"maxAgeSeconds" mapstructure:"maxAgeSeconds"`
+	MaxMsgs             int64  `json:"maxMsgs" mapstructure:"maxMsgs"`
+	MaxBytes            int64  `json:"maxBytes" mapstructure:"maxBytes"`
+	DefaultMaxConsumers int    `json:"defaultMaxConsumers" mapstructure:"defaultMaxConsumers"`
 }
 
 type NatsServerConfig struct {
-	ServerName         string        `json:"serverName"`
-	ClusterName        string        `json:"clusterName"`
-	Port               int           `json:"port"`
-	ClusterPort        int           `json:"clusterPort"`
-	ClusterAdvertise   string        `json:"clusterAdvertise"`
-	Routes             []string      `json:"routes"`
-	MqttPort           int           `json:"mqttPort"`
-	WsPort             int           `json:"wsPort"`
-	MonitorPort        int           `json:"monitorPort"`
-	StoreDir           string        `json:"storeDir"`
-	JetStreamMaxMemory int64         `json:"jetStreamMaxMemory"`
-	JetStreamMaxStore  int64         `json:"jetStreamMaxStore"`
-	MqttStreamReplicas int           `json:"mqttStreamReplicas"`
-	PresenceReplicas   int           `json:"presenceReplicas"`
-	ClusterUser        string        `json:"clusterUser"`
-	ClusterPassword    string        `json:"-"`
-	ClientTLS          NatsTLSConfig `json:"clientTls"`
-	MqttTLS            NatsTLSConfig `json:"mqttTls"`
-	WebsocketTLS       NatsTLSConfig `json:"websocketTls"`
-	RouteTLS           NatsTLSConfig `json:"routeTls"`
-
-	JetStreamDefaultMaxConsumers int `json:"jetStreamDefaultMaxConsumers"`
+	ServerName       string        `json:"serverName"`
+	ClusterName      string        `json:"clusterName"`
+	Port             int           `json:"port"`
+	ClusterPort      int           `json:"clusterPort"`
+	ClusterAdvertise string        `json:"clusterAdvertise"`
+	Routes           []string      `json:"routes"`
+	MonitorPort      int           `json:"monitorPort"`
+	ClusterUser      string        `json:"clusterUser"`
+	ClusterPassword  string        `json:"-"`
+	ClientTLS        NatsTLSConfig `json:"clientTls"`
+	RouteTLS         NatsTLSConfig `json:"routeTls"`
 }
 
 type NatsTLSConfig struct {
@@ -293,6 +296,10 @@ type NatsTLSClientConfig struct {
 }
 
 func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
+	if !cfg.Enabled {
+		return nil
+	}
+
 	s := cfg.Server
 	isMultiNode := len(s.Routes) > 0
 
@@ -307,27 +314,11 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 		return fmt.Errorf("nats multi-node routes are not supported with sqlite database")
 	}
 
-	if s.StoreDir == "" {
-		return fmt.Errorf("nats server.storeDir must not be empty when JetStream is used")
+	if cfg.JetStream.Enabled && cfg.JetStream.StoreDir == "" {
+		return fmt.Errorf("nats jetStream.storeDir must not be empty when JetStream is enabled")
 	}
-	if s.JetStreamDefaultMaxConsumers < -1 {
-		return fmt.Errorf("nats server.jetStreamDefaultMaxConsumers must be -1, 0, or positive")
-	}
-
-	if !isMultiNode {
-		if s.MqttStreamReplicas != 1 {
-			return fmt.Errorf("nats single-node mqttStreamReplicas must be 1, got %d", s.MqttStreamReplicas)
-		}
-		if s.PresenceReplicas != 1 {
-			return fmt.Errorf("nats single-node presenceReplicas must be 1, got %d", s.PresenceReplicas)
-		}
-	} else {
-		if s.MqttStreamReplicas != 3 {
-			return fmt.Errorf("nats multi-node mqttStreamReplicas must be 3, got %d", s.MqttStreamReplicas)
-		}
-		if s.PresenceReplicas != 3 {
-			return fmt.Errorf("nats multi-node presenceReplicas must be 3, got %d", s.PresenceReplicas)
-		}
+	if cfg.JetStream.DefaultMaxConsumers < -1 {
+		return fmt.Errorf("nats jetStream.defaultMaxConsumers must be -1, 0, or positive")
 	}
 
 	if !natsTLSEmpty(s.RouteTLS) {
@@ -347,20 +338,6 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 	}
 	if cfg.SystemClient.Password == "" {
 		return fmt.Errorf("nats systemClient.password must not be empty")
-	}
-	if cfg.MqttPublisher.User == "" {
-		return fmt.Errorf("nats mqttPublisher.user must not be empty")
-	}
-	if cfg.MqttPublisher.Password == "" {
-		return fmt.Errorf("nats mqttPublisher.password must not be empty")
-	}
-	for _, u := range cfg.SuperUsers {
-		if u.Name == "" {
-			return fmt.Errorf("nats superUsers[].name must not be empty")
-		}
-		if u.Password == "" {
-			return fmt.Errorf("nats superUsers[%q].password must not be empty", u.Name)
-		}
 	}
 
 	return nil

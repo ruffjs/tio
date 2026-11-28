@@ -19,7 +19,7 @@ func TestKickOutMQTTClient(t *testing.T) {
 	crateThing(thingId)
 
 	client := mqtt.NewClient(mqtt.NewClientOptions().
-		AddBroker(fmt.Sprintf("ws://127.0.0.1:%d/mqtt", natsConnector.Server().WsPort())).
+		AddBroker(fmt.Sprintf("ws://127.0.0.1:%d/mqtt", wsPort())).
 		SetClientID("mqtt-" + thingId).
 		SetUsername(thingId).
 		SetPassword("test-password").

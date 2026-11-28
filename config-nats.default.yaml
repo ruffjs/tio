@@ -1,93 +1,67 @@
 # Tio NATS defaults, embedded into the binary at build time.
-# To customize, copy to nats.yaml and reference it with connector.natsConfigFile.
+# Override with a top-level nats: block in the main config, or reference a
+# separate file with nats.configFile (using this same nats: shape).
 # Only include fields you want to override; lists replace the complete default list.
-# This is Tio YAML, not a nats-server .conf file.
 # Relative storage and certificate paths are resolved from the process working directory.
-# Multi-node deployments require MySQL, unique server names and storage directories,
-# clusterPort/routes, and mqttStreamReplicas/presenceReplicas set to 3.
-
-server:
-  # Unique name for this NATS server node
-  serverName: tio-node-1
-  # Cluster name for NATS clustering (all nodes in the same cluster must share this name)
-  clusterName: tio
-  # NATS client connection port (for internal services like app client, system client)
-  port: 4222
-  # NATS cluster port for inter-node communication
-  # Set to 0 to disable cluster mode (single-node deployment)
-  # Set to a non-zero value (e.g., 6222) for multi-node cluster deployment
-  clusterPort: 0
-  # Address to advertise to other cluster members (useful behind NAT/load balancer)
-  # Leave empty to use the default bind address
-  clusterAdvertise: ""
-  # List of cluster routes to connect to (for multi-node deployment)
-  # Example: ["nats://node2:6222", "nats://node3:6222"]
-  routes: []
-  # MQTT gateway port for device connections
-  # Devices connect here using MQTT protocol
-  mqttPort: 1883
-  # WebSocket port for web-based MQTT clients (e.g., browser dashboard)
-  # Set to 0 to disable WebSocket
-  wsPort: 8083
-  # HTTP monitoring port for NATS server metrics
-  # Provides endpoints like /varz, /connz, /jsz for monitoring
-  # Set to 0 to disable
-  monitorPort: 8222
-  # Directory for JetStream persistent storage (messages, streams, consumers)
-  storeDir: ./data/nats/tio-node-1
-  # Maximum memory (bytes) for JetStream message storage
-  # Default: 256MB (268435456 bytes)
-  jetStreamMaxMemory: 268435456
-  # Maximum disk storage (bytes) for JetStream
-  # Default: 1GB (1073741824 bytes)
-  jetStreamMaxStore: 1073741824
-  # Default consumer limit per JetStream stream, including the MQTT message stream.
-  # At six consumers per device, a 10,000-device fleet leaves 20,000 slots of headroom.
-  # A stream or account can set its own limit. 0 uses the NATS default, -1 disables the default limit.
-  jetStreamDefaultMaxConsumers: 80000
-  # Number of stream replicas for MQTT message persistence
-  # For single-node: 1
-  # For cluster: 3 (recommended for high availability)
-  mqttStreamReplicas: 1
-  # Number of replicas for presence (device online/offline status) streams
-  # For single-node: 1
-  # For cluster: 3 (recommended for high availability)
-  presenceReplicas: 1
-  # Username for cluster route authentication
-  clusterUser: $tio-route
-  # Password for cluster route authentication
-  clusterPassword: public
-  # Client TLS configuration (for NATS app/system client listener on port 4222)
-  # When configured, internal clients must use TLS to connect
-  clientTls: {}
-  # MQTT device listener TLS configuration
-  # When configured, mqttPort uses TLS (e.g., for mTLS device authentication)
-  # Example: { certFile: "./certs/server.pem", keyFile: "./certs/server-key.pem", caFile: "./certs/ca.pem", requireClientCert: true }
-  mqttTls: {}
-  # WebSocket TLS configuration
-  # When empty, WebSocket runs in plaintext mode
-  # When configured, wsPort uses WSS (WebSocket Secure)
-  websocketTls: {}
-  # Cluster route TLS configuration
-  # Required when cluster nodes communicate over TLS
-  # Requires caFile, certFile, and keyFile
-  routeTls: {}
-# Internal app client credentials (used by tio for device-related operations)
-appClient:
-  user: $tio-app
-  password: public
-# Internal system client credentials (used by tio for system/monitoring operations)
-systemClient:
-  user: $tio-sys
-  password: public
-# Internal MQTT publisher credentials (used by tio to publish MQTT messages via NATS)
-mqttPublisher:
-  user: $tio-mqtt-publisher
-  password: public
-# Super users can publish/subscribe to all TIO_APP topics in every protocol mode
-# Typically used by business applications
-superUsers:
-  - name: $biz
+# NATS is optional: with enabled=false no NATS server is started and tio runs on
+# the embedded comqtt broker alone.
+nats:
+  # Whether to start the optional NATS egress bridge at all.
+  enabled: false
+  # "embedded" starts an in-process NATS server; "external" connects to url.
+  mode: embedded
+  # External NATS server URL (external mode only).
+  url: ""
+  # Optional YAML file overriding these defaults (same nats: shape, relative to
+  # the main config file).
+  configFile: ""
+  # JetStream persistence of the forwarded device uplinks and presence.
+  jetStream:
+    enabled: false
+    # Directory for JetStream persistent storage (messages, streams, consumers).
+    storeDir: ./data/nats
+    # Maximum memory (bytes) for JetStream message storage.
+    maxMemory: 268435456
+    # Maximum disk storage (bytes) for JetStream.
+    maxStore: 1073741824
+    # Maximum age (seconds) of a retained message; 0 means unlimited.
+    maxAgeSeconds: 0
+    # Maximum number of messages per stream; 0 means unlimited.
+    maxMsgs: 0
+    # Maximum bytes per stream; 0 means unlimited.
+    maxBytes: 0
+    # Default consumer limit per JetStream stream. 0 uses the NATS default,
+    # -1 disables the default limit.
+    defaultMaxConsumers: 80000
+  # Embedded NATS server settings (embedded mode).
+  server:
+    # Unique name for this NATS server node.
+    serverName: tio-node-1
+    # Cluster name shared by all nodes in the same cluster.
+    clusterName: tio
+    # NATS client connection port.
+    port: 4222
+    # NATS cluster port for inter-node communication; 0 disables clustering.
+    clusterPort: 0
+    # Address to advertise to other cluster members (empty = default bind).
+    clusterAdvertise: ""
+    # Cluster routes to connect to (multi-node deployments).
+    routes: []
+    # HTTP monitoring port for NATS server metrics; 0 disables it.
+    monitorPort: 0
+    # Username for cluster route authentication.
+    clusterUser: $tio-route
+    # Password for cluster route authentication.
+    clusterPassword: public
+    # Client TLS for the NATS client listener on port 4222.
+    clientTls: {}
+    # Cluster route TLS (requires caFile, certFile, and keyFile).
+    routeTls: {}
+  # Internal app client credentials (used by tio to publish to NATS).
+  appClient:
+    user: $tio-app
     password: public
-  - name: $tio
+  # Internal system client credentials.
+  systemClient:
+    user: $tio-sys
     password: public

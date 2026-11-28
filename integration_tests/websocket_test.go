@@ -13,8 +13,7 @@ import (
 
 // TestWebSocketMQTTConnection tests MQTT over WebSocket connection
 func TestWebSocketMQTTConnection(t *testing.T) {
-	// Get the WebSocket port from the NATS connector
-	wsPort := natsConnector.Server().WsPort()
+	wsPort := wsPort()
 	if wsPort == 0 {
 		t.Skip("WebSocket port not configured, skipping test")
 	}
@@ -65,7 +64,7 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 
 	// Publish a message
 	if cfg.Protocol.Mode == "simple" {
-		require.NoError(t, natsConnector.Publish(testTopic, []byte(`{"test":"data"}`)))
+		require.NoError(t, mqttBroker.Publish(testTopic, []byte(`{"test":"data"}`)))
 	} else {
 		pubToken := client.Publish(testTopic, 0, false, []byte(`{"test":"data"}`))
 		pubToken.Wait()
@@ -85,7 +84,7 @@ func TestWebSocketMQTTConnection(t *testing.T) {
 
 // TestWebSocketMQTTAuth tests that invalid credentials are rejected over WebSocket
 func TestWebSocketMQTTAuth(t *testing.T) {
-	wsPort := natsConnector.Server().WsPort()
+	wsPort := wsPort()
 	if wsPort == 0 {
 		t.Skip("WebSocket port not configured, skipping test")
 	}

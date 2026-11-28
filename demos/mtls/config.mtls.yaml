@@ -1,7 +1,4 @@
-# mTLS Demo 配置文件
-# 从仓库根目录复制本文件为 config.yaml，并复制 nats.mtls.yaml 到根目录后运行 tio。
-# 注意：启用 mTLS 后，所有 MQTT 连接都需要使用 TLS 和客户端证书
-
+# mTLS Demo configuration. Copy this and nats.mtls.yaml to the repo root.
 api:
   port: 9000
   basicAuth:
@@ -15,7 +12,25 @@ db:
     showSql: true
 
 connector:
-  type: nats
-  natsConfigFile: ./nats.mtls.yaml
+  mqttBroker:
+    tcpPort: 0
+    tcpSslPort: 8883
+    wsPort: 0
+    certFile: "./demos/mtls/certs/server-cert.pem"
+    keyFile: "./demos/mtls/certs/server-key.pem"
+    clientCaFile: "./demos/mtls/certs/ca.pem"
+    requireClientCert: true
+    storage:
+      type: file
+      filePath: ./data/mqtt/comqtt.db
+    superUsers:
+      - name: $biz
+        password: public
+      - name: $tio
+        password: public
+
+nats:
+  enabled: false
+
 log:
   level: debug

@@ -1,11 +1,19 @@
-api:
-  port: 0
-
+# Tio integration test main config (no NATS).
 db:
   type: sqlite
   sqlite:
     filePath: ":memory:"
-
 connector:
-  type: nats
-  natsConfigFile: ./nats-test.yaml
+  mqttBroker:
+    tcpPort: 0
+    wsPort: 0
+    storage:
+      type: file
+      filePath: ""
+    superUsers:
+      - name: $biz
+        password: test
+      - name: $tio
+        password: test
+nats:
+  enabled: false

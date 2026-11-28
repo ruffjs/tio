@@ -1,24 +1,18 @@
-server:
-  serverName: test-node
-  clusterName: test
-  port: -1
-  clusterPort: 0
-  mqttPort: -1
-  wsPort: 0
-  monitorPort: 0
-  jetStreamMaxMemory: 0
-  jetStreamMaxStore: 0
-  mqttStreamReplicas: 1
-  presenceReplicas: 1
-appClient:
-  user: $tio-app
-  password: test
-systemClient:
-  user: $tio-sys
-  password: test
-mqttPublisher:
-  user: $tio-mqtt-pub
-  password: test
-superUsers:
-  - name: $biz
+# NATS config for integration tests, referenced by config-test.yaml.
+# Disabled by default; setup_test.go turns embedded NATS on for the bridge path.
+nats:
+  enabled: false
+  mode: embedded
+  server:
+    serverName: test-node
+    clusterName: test
+    port: -1
+    monitorPort: 0
+  appClient:
+    user: $tio-app
     password: test
+  systemClient:
+    user: $tio-sys
+    password: test
+  jetStream:
+    enabled: false
