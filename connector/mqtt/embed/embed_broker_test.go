@@ -2,9 +2,12 @@ package embed
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -27,8 +30,8 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-func allowAllAuthzFn(_ connector.AuthContext) (connector.AuthResult, bool) {
-	return connector.AuthResult{}, true
+func allowAllAuthzFn(ctx connector.AuthContext) (connector.AuthResult, bool) {
+	return connector.AuthResult{Principal: ctx.Username}, true
 }
 
 func allowAllAclFn(clientId, username, topic string, write bool) bool {
@@ -331,6 +334,115 @@ func TestIsConnectedAnyLiveSession(t *testing.T) {
 	if ok, _ := b.IsConnected("shared-user"); ok {
 		t.Fatal("IsConnected(shared-user) after closing both = true; want false")
 	}
+}
+
+func TestBrokerAuthUsesPrincipal(t *testing.T) {
+	t.Run("password principal becomes username", func(t *testing.T) {
+		b := InitBroker(Options{TcpPort: freePort(t)})
+		if err := b.ConfigureAuth(
+			func(connector.AuthContext) (connector.AuthResult, bool) {
+				return connector.AuthResult{Principal: "thing-cn"}, true
+			},
+			allowAllAclFn,
+		); err != nil {
+			t.Fatalf("ConfigureAuth: %v", err)
+		}
+		if err := b.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		t.Cleanup(func() { _ = b.svr.Close() })
+
+		connectPahoAs(t, b.opt.TcpPort, "cid-wrong-user", "wrong")
+		waitConnected(t, b, "thing-cn")
+
+		raw, ok := b.svr.Clients.Get("cid-wrong-user")
+		if !ok {
+			t.Fatalf("client %q not in broker clients", "cid-wrong-user")
+		}
+		if got := string(raw.Properties.Username); got != "thing-cn" {
+			t.Fatalf("client username = %q, want %q", got, "thing-cn")
+		}
+		if got, _ := raw.Ext["tio.principal"].(string); got != "thing-cn" {
+			t.Fatalf("tio.principal = %q, want %q", got, "thing-cn")
+		}
+	})
+
+	t.Run("certificate principal via mTLS", func(t *testing.T) {
+		const certDir = "../../../demos/mtls/certs"
+		b := InitBroker(Options{
+			TcpSslPort:        freePort(t),
+			CertFile:          certDir + "/server-cert.pem",
+			KeyFile:           certDir + "/server-key.pem",
+			ClientCAFile:      certDir + "/ca.pem",
+			RequireClientCert: true,
+		})
+		if err := b.ConfigureAuth(
+			func(ctx connector.AuthContext) (connector.AuthResult, bool) {
+				if !ctx.HasClientCert || ctx.CertCN == "" {
+					return connector.AuthResult{}, false
+				}
+				return connector.AuthResult{Principal: ctx.CertCN}, true
+			},
+			allowAllAclFn,
+		); err != nil {
+			t.Fatalf("ConfigureAuth: %v", err)
+		}
+		if err := b.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		t.Cleanup(func() { _ = b.svr.Close() })
+
+		connectPahoMTLS(t, b.opt.TcpSslPort, "cid-mtls", certDir)
+		waitConnected(t, b, "mtls-client")
+
+		raw, ok := b.svr.Clients.Get("cid-mtls")
+		if !ok {
+			t.Fatalf("client %q not in broker clients", "cid-mtls")
+		}
+		if got := string(raw.Properties.Username); got != "mtls-client" {
+			t.Fatalf("client username = %q, want %q", got, "mtls-client")
+		}
+		if got, _ := raw.Ext["tio.principal"].(string); got != "mtls-client" {
+			t.Fatalf("tio.principal = %q, want %q", got, "mtls-client")
+		}
+	})
+}
+
+func connectPahoMTLS(t *testing.T, port int, clientID, certDir string) mqtt.Client {
+	t.Helper()
+	caBytes, err := os.ReadFile(certDir + "/ca.pem")
+	if err != nil {
+		t.Fatalf("read ca: %v", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caBytes) {
+		t.Fatalf("parse ca: %v", err)
+	}
+	cert, err := tls.LoadX509KeyPair(certDir+"/client-cert.pem", certDir+"/client-key.pem")
+	if err != nil {
+		t.Fatalf("load client cert: %v", err)
+	}
+
+	opts := mqtt.NewClientOptions().
+		AddBroker(fmt.Sprintf("ssl://127.0.0.1:%d", port)).
+		SetClientID(clientID).
+		SetCleanSession(true).
+		SetAutoReconnect(false).
+		SetTLSConfig(&tls.Config{
+			RootCAs:      pool,
+			Certificates: []tls.Certificate{cert},
+			ServerName:   "localhost",
+		})
+	c := mqtt.NewClient(opts)
+	tok := c.Connect()
+	if !tok.WaitTimeout(5 * time.Second) {
+		t.Fatalf("mtls connect %q: timeout", clientID)
+	}
+	if err := tok.Error(); err != nil {
+		t.Fatalf("mtls connect %q: %v", clientID, err)
+	}
+	t.Cleanup(func() { c.Disconnect(250) })
+	return c
 }
 
 func TestBrokerFileStorageSurvivesRestart(t *testing.T) {

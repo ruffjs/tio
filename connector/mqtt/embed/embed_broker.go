@@ -5,6 +5,7 @@ package embed
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -126,8 +127,20 @@ func (b *Broker) addListeners(svr *mqtt.Server) error {
 		if err != nil {
 			return fmt.Errorf("load tcp-ssl cert: %w", err)
 		}
+		tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
+		if b.opt.ClientCAFile != "" {
+			pool, err := readCACertPool(b.opt.ClientCAFile)
+			if err != nil {
+				return fmt.Errorf("load tcp-ssl client ca: %w", err)
+			}
+			tlsCfg.ClientCAs = pool
+			tlsCfg.ClientAuth = tls.RequestClientCert
+			if b.opt.RequireClientCert {
+				tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+			}
+		}
 		tcpSsl := listeners.NewTCP("tio-tcp-ssl", fmt.Sprintf(":%d", b.opt.TcpSslPort), &listeners.Config{
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+			TLSConfig: tlsCfg,
 		})
 		if err := svr.AddListener(tcpSsl); err != nil {
 			return fmt.Errorf("add tcp-ssl listener: %w", err)
@@ -166,11 +179,23 @@ func readCert(keyFile, certFile string) (tls.Certificate, error) {
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("read cert file %q: %w", certFile, err)
 	}
-	cert, err := tls.X509KeyPair(keyBytes, certBytes)
+	cert, err := tls.X509KeyPair(certBytes, keyBytes)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("parse cert/key pair: %w", err)
 	}
 	return cert, nil
+}
+
+func readCACertPool(caFile string) (*x509.CertPool, error) {
+	caBytes, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("read ca file %q: %w", caFile, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caBytes) {
+		return nil, fmt.Errorf("no certificates parsed from %q", caFile)
+	}
+	return pool, nil
 }
 
 func (b *Broker) Publish(topic string, payload []byte) error {
