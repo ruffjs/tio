@@ -121,15 +121,19 @@ func (c *mqttClient) Subscribe(ctx context.Context, topic string, qos byte, call
 		ts = &topicSub{}
 		c.topics[topic] = ts
 	}
+	prevQos := ts.qos
 	if qos > ts.qos {
 		ts.qos = qos
 	}
 	ts.handlers = append(ts.handlers, subscriber{ctx: ctx, callback: callback})
-	needSub := !ts.subscribed && c.conn.IsConnected()
+	connected := c.conn.IsConnected()
+	needSub := !ts.subscribed && connected
+	// An already-subscribed topic needs a broker SUBSCRIBE again to raise QoS.
+	upgradeQos := ts.subscribed && connected && qos > prevQos
 	subQos := ts.qos
 	c.mu.Unlock()
 
-	if needSub {
+	if needSub || upgradeQos {
 		if err := c.subscribeTopic(ctx, topic, subQos); err != nil {
 			return err
 		}
@@ -204,27 +208,36 @@ func (c *mqttClient) resubscribeAll() {
 	}
 }
 
-func (c *mqttClient) Unsubscribe(ctx context.Context, topic string) error {
+// removeSubscriber drops the handlers owned by ctx from topic. It reports how
+// many handlers remain and whether the broker subscription should be removed.
+func (c *mqttClient) removeSubscriber(topic string, ctx context.Context) (remaining int, unsubscribe bool) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	ts, ok := c.topics[topic]
-	if !ok || len(ts.handlers) == 0 {
-		c.mu.Unlock()
+	if !ok {
+		return 0, false
+	}
+	kept := ts.handlers[:0]
+	for _, h := range ts.handlers {
+		if h.ctx != ctx {
+			kept = append(kept, h)
+		}
+	}
+	ts.handlers = kept
+	remaining = len(kept)
+	if remaining > 0 {
+		return remaining, false
+	}
+	delete(c.topics, topic)
+	return 0, true
+}
+
+func (c *mqttClient) Unsubscribe(ctx context.Context, topic string) error {
+	_, unsubscribe := c.removeSubscriber(topic, ctx)
+	if !unsubscribe {
 		return nil
 	}
-	// remove handlers whose ctx is done, or all if called as full unsubscribe for topic
-	remaining := ts.handlers[:0]
-	for _, h := range ts.handlers {
-		if h.ctx != nil && h.ctx.Err() != nil {
-			continue
-		}
-		remaining = append(remaining, h)
-	}
-	// If caller wants full unsubscribe, drop all remaining handlers for this topic.
-	ts.handlers = nil
-	ts.subscribed = false
-	delete(c.topics, topic)
-	_ = remaining
-	c.mu.Unlock()
 
 	token := c.conn.Unsubscribe(topic)
 	select {

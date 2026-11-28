@@ -28,6 +28,8 @@ type MqttConfig struct {
 
 type mqttImpl struct {
 	ctx      context.Context
+	subCtx   context.Context
+	cancel   context.CancelFunc
 	name     string
 	config   MqttConfig
 	conn     *ruleconnector.Mqtt
@@ -68,8 +70,10 @@ func (m *mqttImpl) Start() error {
 		return nil
 	}
 	m.started = true
+	m.subCtx, m.cancel = context.WithCancel(m.ctx)
 	if err := m.subscribe(); err != nil {
 		m.started = false
+		m.cancel()
 		m.status = rmodel.StatusDisconnected("failed to subscribe: "+err.Error(), err)
 		return errors.WithMessagef(err, "failed to subscribe topic %q", m.config.Topic)
 	}
@@ -89,11 +93,13 @@ func (m *mqttImpl) Stop() {
 	}
 	m.started = false
 	m.status = rmodel.StatusNotStarted()
-	if err := m.conn.UnSubscribe(m.ctx, m.config.Topic); err != nil {
+	if err := m.conn.UnSubscribe(m.subCtx, m.config.Topic); err != nil {
 		slog.Error("Rule source mqtt stop, failed to unsubscribe", "name", m.name, "error", err)
-	} else {
-		slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
 	}
+	if m.cancel != nil {
+		m.cancel()
+	}
+	slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
 }
 
 func (m *mqttImpl) Status() rmodel.StatusInfo {
@@ -124,7 +130,7 @@ func (m *mqttImpl) OnMsg(ruleName string, h MsgHander) {
 }
 
 func (m *mqttImpl) subscribe() error {
-	return m.conn.Subscribe(m.ctx, m.config.Topic, m.config.Qos, func(_ mqtt.Client, msg mqtt.Message) {
+	return m.conn.Subscribe(m.subCtx, m.config.Topic, m.config.Qos, func(_ mqtt.Client, msg mqtt.Message) {
 		m.mu.RLock()
 		started := m.started
 		m.mu.RUnlock()
