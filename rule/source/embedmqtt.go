@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -95,8 +96,11 @@ func (m *embedMqttImpl) Stop() {
 }
 
 func (m *embedMqttImpl) Status() rmodel.StatusInfo {
-	m.status.Metric = Metric{Received: atomic.LoadInt64(&m.metric.Received)}
-	return m.status
+	m.mu.Lock()
+	st := m.status
+	m.mu.Unlock()
+	st.Metric = Metric{Received: atomic.LoadInt64(&m.metric.Received)}
+	return st
 }
 
 func (m *embedMqttImpl) Name() string { return m.name }
@@ -131,10 +135,12 @@ func (m *embedMqttImpl) subscribe() error {
 }
 
 func thingIdFromTopic(topic string) string {
-	if id, err := model.GetThingIdFromTopic(topic); err == nil {
-		return id
+	if strings.HasPrefix(topic, protocol.TopicSimplePrefix) {
+		if id, _, err := protocol.ParseTopicDir(topic); err == nil {
+			return id
+		}
 	}
-	if id, _, err := protocol.ParseTopicDir(topic); err == nil {
+	if id, err := model.GetThingIdFromTopic(topic); err == nil {
 		return id
 	}
 	return ""

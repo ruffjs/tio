@@ -237,7 +237,6 @@ export const sinkOptions = {
       options: [
         { value: 0, label: "At most once", labelLocale: "rules.atMostOnce" },
         { value: 1, label: "At least once", labelLocale: "rules.atLeastOnce" },
-        { value: 2, label: "Exactly once", labelLocale: "rules.exactlyOnce" },
       ],
     },
     retained: {

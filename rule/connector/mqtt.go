@@ -25,9 +25,11 @@ type Mqtt struct {
 	config config.MqttClientConfig
 	client client.Client
 
-	mu      sync.RWMutex
-	started bool
-	status  model.StatusInfo
+	mu          sync.RWMutex
+	started     bool
+	status      model.StatusInfo
+	startCtx    context.Context
+	startCancel context.CancelFunc
 }
 
 func newMqtt(ctx context.Context, name string, cfg map[string]any) (Conn, error) {
@@ -42,6 +44,20 @@ func newMqtt(ctx context.Context, name string, cfg map[string]any) (Conn, error)
 		client: client.NewClient(ac),
 		status: model.StatusNotStarted(),
 	}
+	c.client.OnConnect(func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.started {
+			c.status = model.StatusConnected()
+		}
+	})
+	c.client.OnConnectionLost(func(err error) {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.started {
+			c.status = model.StatusDisconnected(err.Error(), err)
+		}
+	})
 	slog.Info("Rule connector Mqtt inited", "name", name)
 	return c, nil
 }
@@ -52,34 +68,47 @@ func (*Mqtt) Type() string { return TypeMqtt }
 
 func (c *Mqtt) Start() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.started {
+		c.mu.Unlock()
 		return nil
 	}
 	c.started = true
 	c.status = model.StatusConnecting()
+	c.startCtx, c.startCancel = context.WithCancel(c.ctx)
+	startCtx := c.startCtx
+	c.mu.Unlock()
+
 	go func() {
-		if err := c.client.Connect(c.ctx); err != nil {
-			c.mu.Lock()
-			c.status = model.StatusDisconnected(err.Error(), err)
-			c.mu.Unlock()
-		} else {
-			c.mu.Lock()
-			c.status = model.StatusConnected()
-			c.mu.Unlock()
+		err := c.client.Connect(startCtx)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if !c.started || startCtx.Err() != nil {
+			c.client.Disconnect()
+			if c.started {
+				c.status = model.StatusNotStarted()
+			}
+			return
 		}
+		if err != nil {
+			c.status = model.StatusDisconnected(err.Error(), err)
+			return
+		}
+		c.status = model.StatusConnected()
 	}()
 	return nil
 }
 
 func (c *Mqtt) Stop() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.client.Disconnect()
+	if c.startCancel != nil {
+		c.startCancel()
+		c.startCancel = nil
+	}
 	c.started = false
 	c.status = model.StatusNotStarted()
+	c.mu.Unlock()
+
+	c.client.Disconnect()
 	return nil
 }
 

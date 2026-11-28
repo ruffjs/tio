@@ -31,6 +31,9 @@ func NewEmbedMqtt(_ context.Context, name string, cfg map[string]any, _ ruleconn
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, fmt.Errorf("decode config: %w", err)
 	}
+	if ac.Qos > 1 {
+		return nil, fmt.Errorf("embed-mqtt sink qos must be 0 or 1, got %d", ac.Qos)
+	}
 	a := &embedMqttImpl{
 		name: name,
 		cfg:  ac,

@@ -6,16 +6,60 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"ruff.io/tio/connector/mock"
+	connmock "ruff.io/tio/connector/mock"
+	sinkpkg "ruff.io/tio/rule/sink"
 )
 
 func TestEmbedMqttSourceSink(t *testing.T) {
-	// This is an integration-style check across source+sink packages via their registries.
-	// The actual source/sink behavior is validated below.
+	mc := connmock.NewMockConnector()
+	require.NoError(t, mc.Start(context.Background()))
+
+	src, err := New(context.Background(), Config{
+		Name:    "src1",
+		Type:    "embed-mqtt",
+		Enabled: true,
+		Options: map[string]any{"topic": "#"},
+	}, nil, mc)
+	require.NoError(t, err)
+
+	snk, err := sinkpkg.New(context.Background(), sinkpkg.Config{
+		Name:    "sink1",
+		Type:    "embed-mqtt",
+		Enabled: true,
+		Options: map[string]any{"topic": "out/${thingId}"},
+	}, nil, mc)
+	require.NoError(t, err)
+	require.NoError(t, snk.Start())
+
+	src.OnMsg("r1", func(msg Msg) {
+		snk.Publish(sinkpkg.Msg{ThingId: msg.ThingId, Topic: msg.Topic, Payload: msg.Payload})
+	})
+	require.NoError(t, src.Start())
+
+	cases := []struct {
+		topic   string
+		thingId string
+	}{
+		{"$iothub/things/dev1/property", "dev1"},
+		{"$iothub/user/things/dev3/custom", "dev3"},
+		{"tio/dev1/data", "dev1"},
+		{"tio/dev1/things/dev2/x", "dev1"},
+	}
+	for _, tc := range cases {
+		before := len(mc.PublishedMessages())
+		mc.SimulateMessage(tc.topic, []byte(`{"ok":true}`))
+		require.Eventually(t, func() bool { return len(mc.PublishedMessages()) > before }, time.Second, 10*time.Millisecond)
+		msgs := mc.PublishedMessages()
+		got := msgs[len(msgs)-1]
+		require.Equal(t, "out/"+tc.thingId, got.Topic, "topic=%s", tc.topic)
+	}
+
+	src.Stop()
+	require.NoError(t, snk.Stop())
 }
 
 func TestEmbedMqttSource_ThingIdParsing(t *testing.T) {
-	mc := mock.NewMockConnector()
+	mc := connmock.NewMockConnector()
 	require.NoError(t, mc.Start(context.Background()))
 
 	s, err := New(context.Background(), Config{
@@ -26,33 +70,28 @@ func TestEmbedMqttSource_ThingIdParsing(t *testing.T) {
 	}, nil, mc)
 	require.NoError(t, err)
 
-	got := make(chan Msg, 4)
+	got := make(chan Msg, 8)
 	s.OnMsg("r1", func(msg Msg) { got <- msg })
 	require.NoError(t, s.Start())
 
-	mc.SimulateMessage("tio/dev1/data", []byte(`{"v":1}`))
-	select {
-	case msg := <-got:
-		require.Equal(t, "dev1", msg.ThingId)
-		require.Equal(t, "tio/dev1/data", msg.Topic)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for simple topic message")
+	cases := []struct {
+		topic   string
+		thingId string
+	}{
+		{"tio/dev1/data", "dev1"},
+		{"$iothub/things/dev2/property", "dev2"},
+		{"$iothub/user/things/dev3/custom", "dev3"},
+		{"tio/dev1/things/dev2/x", "dev1"},
 	}
-
-	mc.SimulateMessage("$iothub/things/dev2/property", []byte(`{"v":2}`))
-	select {
-	case msg := <-got:
-		require.Equal(t, "dev2", msg.ThingId)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for legacy thing topic message")
-	}
-
-	mc.SimulateMessage("$iothub/user/things/dev3/custom", []byte(`{"v":3}`))
-	select {
-	case msg := <-got:
-		require.Equal(t, "dev3", msg.ThingId)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for legacy user topic message")
+	for _, tc := range cases {
+		mc.SimulateMessage(tc.topic, []byte(`{}`))
+		select {
+		case msg := <-got:
+			require.Equal(t, tc.thingId, msg.ThingId, "topic=%s", tc.topic)
+			require.Equal(t, tc.topic, msg.Topic)
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for %s", tc.topic)
+		}
 	}
 
 	s.Stop()

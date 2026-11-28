@@ -43,15 +43,17 @@ interface AmqpSinkOptions {
 
 interface MqttSinkOptions {
   topic: string;
+  qos?: number;
+  retained?: boolean;
 }
 
-type SinkOptions = AmqpSinkOptions | MqttSinkOptions;
+type SinkOptions = AmqpSinkOptions | MqttSinkOptions | Record<string, unknown>;
 
 // Sink type definition
 export interface Sink {
   name: string;
-  type: 'amqp' | 'mqtt';
-  connector: string;
+  type: 'amqp' | 'mqtt' | 'embed-mqtt' | 'http' | 'influxdb' | 'mysql' | 'redis' | 'tdengine' | 'log';
+  connector?: string;
   options: SinkOptions;
 }
 
