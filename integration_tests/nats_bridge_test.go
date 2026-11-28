@@ -189,13 +189,33 @@ func TestControlPlaneNotForwardedToNats(t *testing.T) {
 		t.Fatal("timed out waiting for the shadow delta downlink")
 	}
 
+	// Positive control: a forwardable device publish on the same wildcard family
+	// proves the recorder subscription and the bridge forward path are live, so
+	// the absence check below is meaningful.
+	controlTopic, controlSubject := "$iothub/things/"+thingId+"/property", "$iothub.things."+thingId+".property"
+	if cfg.Protocol.Mode == "simple" {
+		controlTopic, controlSubject = "tio/"+thingId+"/data", "tio."+thingId+".data"
+	}
+	require.NoError(t, device.Publish(controlTopic, 1, false, "forward-control"))
+	require.Eventually(t, func() bool {
+		for _, m := range r.all() {
+			if m.subject == controlSubject && string(m.data) == "forward-control" {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 20*time.Millisecond, "positive control was not forwarded to NATS")
+
 	var unexpected []string
 	require.Never(t, func() bool {
 		unexpected = unexpected[:0]
 		for _, m := range r.all() {
-			if m.subject != presenceSubject {
-				unexpected = append(unexpected, m.subject)
+			// presence is the one allowed forward; controlSubject is the
+			// positive control that proves the channel is live.
+			if m.subject == presenceSubject || m.subject == controlSubject {
+				continue
 			}
+			unexpected = append(unexpected, m.subject)
 		}
 		return len(unexpected) > 0
 	}, 300*time.Millisecond, 10*time.Millisecond, func() string {

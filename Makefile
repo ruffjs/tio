@@ -5,7 +5,7 @@ VERSION ?= dev
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 
 .PHONY: help run build test test-race fmt fix fix-diff mod-tidy mod-check vet lint check
-.PHONY: test-repeat test-integration test-protocols test-mtls
+.PHONY: test-repeat test-integration test-integration-dual test-protocols test-mtls
 .PHONY: preflight-demo-light test-demo-light preflight-demo-mtls test-demo-mtls
 .PHONY: web-install web-build web-dev docker-build
 .PHONY: nats-cluster-up nats-cluster-down
@@ -76,6 +76,10 @@ test-integration:
 	TIO_TEST_PROTOCOL=legacy TIO_TEST_ENCODING=json \
 		go test -tags=integration ./integration_tests -count=1
 
+test-integration-dual:
+	TIO_TEST_PROTOCOL=dual TIO_TEST_ENCODING=json \
+		go test -tags=integration ./integration_tests -count=1
+
 test-protocols:
 	TIO_TEST_PROTOCOL=legacy TIO_TEST_ENCODING=json \
 		go test -tags=integration ./integration_tests -count=1
@@ -84,6 +88,10 @@ test-protocols:
 	TIO_TEST_PROTOCOL=simple TIO_TEST_ENCODING=json \
 		go test -tags=integration ./integration_tests -count=1
 	TIO_TEST_PROTOCOL=simple TIO_TEST_ENCODING=cbor \
+		go test -tags=integration ./integration_tests -count=1
+	TIO_TEST_PROTOCOL=dual TIO_TEST_ENCODING=json \
+		go test -tags=integration ./integration_tests -count=1
+	TIO_TEST_PROTOCOL=dual TIO_TEST_ENCODING=cbor \
 		go test -tags=integration ./integration_tests -count=1
 
 test-mtls:

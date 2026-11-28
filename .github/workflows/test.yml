@@ -32,3 +32,5 @@ jobs:
         run: make test-repeat
       - name: Integration
         run: make test-integration
+      - name: Integration (dual)
+        run: make test-integration-dual
