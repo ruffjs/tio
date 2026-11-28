@@ -51,7 +51,7 @@ func BrokerInstance() *Broker {
 // InitBroker creates a new Broker and records it as the package singleton.
 // Each call returns a fresh instance (no sync.Once) so tests can create many.
 func InitBroker(opt Options) *Broker {
-	b := &Broker{opt: opt}
+	b := &Broker{opt: opt, codec: opt.Codec, bridge: opt.Bridge}
 	brokerInstance.Store(b)
 	return b
 }

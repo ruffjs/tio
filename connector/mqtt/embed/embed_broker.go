@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 
 	redisv9 "github.com/redis/go-redis/v9"
 	mqtt "github.com/wind-c/comqtt/v2/mqtt"
@@ -36,12 +37,18 @@ type Broker struct {
 	authzFn AuthzFn
 	aclFn   AclFn
 
+	codec  codec.Codec
+	bridge Bridge
+
 	// clients caches connector.ClientInfo keyed by thingId. Populated by the
-	// presence hook (Task 3); Connected is always refreshed from the live client.
+	// presence hook; Connected is always refreshed from the live client.
 	clients sync.Map
 
 	presenceHandlers []connector.PresenceHandler
 	presenceMu       sync.Mutex
+
+	presenceEpoch    int64
+	presenceRevision atomic.Uint64
 
 	subId atomic.Int32
 }
@@ -63,9 +70,13 @@ func (b *Broker) Start(ctx context.Context) error {
 		Logger:                 slog.Default(),
 	})
 	b.svr = svr
+	b.presenceEpoch = time.Now().UnixMicro()
 
 	if err := svr.AddHook(&authHook{authzFn: b.authzFn, aclFn: b.aclFn}, nil); err != nil {
 		return fmt.Errorf("add auth hook: %w", err)
+	}
+	if err := svr.AddHook(&presenceHook{b: b}, nil); err != nil {
+		return fmt.Errorf("add presence hook: %w", err)
 	}
 
 	// Listeners before storage: a bad cert fails here and leaves nothing open,
@@ -242,37 +253,34 @@ func (b *Broker) QueueSubscribe(ctx context.Context, topic, queue string, cb fun
 // principal (username). Several clients may share a username and a closed client
 // can remain in svr.Clients briefly, so every match is checked for liveness.
 func (b *Broker) IsConnected(thingId string) (bool, error) {
+	return b.anyLiveClient(thingId), nil
+}
+
+// anyLiveClient reports whether any live client has thingId as its
+// authenticated principal (username).
+func (b *Broker) anyLiveClient(thingId string) bool {
 	for _, cl := range b.svr.Clients.GetAll() {
 		if string(cl.Properties.Username) == thingId && !cl.Closed() {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 func (b *Broker) ClientInfo(thingId string) (connector.ClientInfo, error) {
 	if c, ok := b.clients.Load(thingId); ok {
 		ci := c.(connector.ClientInfo)
-		if cl, ok := b.svr.Clients.Get(thingId); ok {
-			ci.Connected = !cl.Closed()
-		} else {
-			ci.Connected = false
-		}
+		ci.Connected = b.anyLiveClient(thingId)
 		return ci, nil
 	}
-	return connector.ClientInfo{ClientId: thingId}, errors.New("not found")
+	return connector.ClientInfo{ClientId: thingId}, fmt.Errorf("%w for %q", connector.ErrConnectionNotFound, thingId)
 }
 
 func (b *Broker) AllClientInfo() ([]connector.ClientInfo, error) {
 	clients := make([]connector.ClientInfo, 0)
-	mqttClients := b.svr.Clients.GetAll()
-	b.clients.Range(func(key, value any) bool {
+	b.clients.Range(func(_, value any) bool {
 		ci := value.(connector.ClientInfo)
-		if cl, ok := mqttClients[ci.ClientId]; ok {
-			ci.Connected = !cl.Closed()
-		} else {
-			ci.Connected = false
-		}
+		ci.Connected = b.anyLiveClient(ci.Username)
 		clients = append(clients, ci)
 		return true
 	})
@@ -320,6 +328,64 @@ func (b *Broker) OnLocalPresence(h connector.PresenceHandler) {
 	b.presenceMu.Lock()
 	defer b.presenceMu.Unlock()
 	b.presenceHandlers = append(b.presenceHandlers, h)
+}
+
+// publishPresence records the client's presence in the local cache and emits
+// the presence event to MQTT, local handlers and (if enabled) the bridge.
+func (b *Broker) publishPresence(ci connector.ClientInfo) {
+	if !isPublishPresent(ci.Username) {
+		return
+	}
+	ci.PresenceEpoch = b.presenceEpoch
+	ci.PresenceRevision = b.presenceRevision.Add(1)
+	b.clients.Store(ci.Username, ci)
+
+	evt := connector.PresenceEvent{
+		ThingId:          ci.Username,
+		ClientId:         ci.ClientId,
+		RemoteAddr:       ci.RemoteAddr,
+		DisconnectReason: ci.DisconnectReason,
+	}
+	var ts *time.Time
+	if ci.Connected {
+		evt.EventType = connector.EventConnected
+		ts = ci.ConnectedAt
+	} else {
+		evt.EventType = connector.EventDisconnected
+		ts = ci.DisconnectedAt
+	}
+	if ts != nil {
+		evt.Timestamp = ts.UnixMilli()
+		evt.TimestampUs = ts.UnixMicro()
+	}
+
+	var payload []byte
+	if b.codec != nil {
+		var err error
+		payload, err = b.codec.Marshal(evt)
+		if err != nil {
+			slog.Error("marshal presence event", "thingId", ci.Username, "error", err)
+			return
+		}
+	}
+
+	if err := b.svr.Publish(connector.TopicPresence(ci.Username), payload, true, 1); err != nil {
+		slog.Error("publish retained presence", "thingId", ci.Username, "error", err)
+	}
+	if err := b.svr.Publish(connector.TopicPresenceEvent(ci.Username), payload, false, 1); err != nil {
+		slog.Error("publish presence event", "thingId", ci.Username, "error", err)
+	}
+
+	b.presenceMu.Lock()
+	handlers := append([]connector.PresenceHandler(nil), b.presenceHandlers...)
+	b.presenceMu.Unlock()
+	for _, h := range handlers {
+		h(ci)
+	}
+
+	if b.bridge != nil {
+		b.bridge.ForwardPresence(evt, payload)
+	}
 }
 
 func (b *Broker) AllClients() []Client {

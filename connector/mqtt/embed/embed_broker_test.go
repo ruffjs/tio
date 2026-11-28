@@ -13,6 +13,7 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/codec"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -476,4 +477,185 @@ func TestBrokerFileStorageSurvivesRestart(t *testing.T) {
 	c.Disconnect(250)
 	waitDisconnected(t, c)
 	waitBrokerDisconnected(t, b2, "dev-persist")
+}
+
+func newPresenceBroker(t *testing.T) *Broker {
+	t.Helper()
+	b := InitBroker(Options{TcpPort: freePort(t), Codec: mustJSONCodec(t)})
+	if err := b.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err != nil {
+		t.Fatalf("ConfigureAuth: %v", err)
+	}
+	if err := b.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = b.svr.Close() })
+	return b
+}
+
+func waitClientInfo(t *testing.T, b *Broker, id string, wantConnected bool) connector.ClientInfo {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		ci, err := b.ClientInfo(id)
+		if err == nil && ci.Connected == wantConnected {
+			return ci
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timeout waiting for ClientInfo(%q).Connected=%v", id, wantConnected)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func waitPresenceEvent(t *testing.T, ch <-chan connector.ClientInfo) connector.ClientInfo {
+	t.Helper()
+	select {
+	case ci := <-ch:
+		return ci
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for presence event")
+		return connector.ClientInfo{}
+	}
+}
+
+func waitMessage(t *testing.T, ch <-chan string) string {
+	t.Helper()
+	select {
+	case m := <-ch:
+		return m
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for MQTT message")
+		return ""
+	}
+}
+
+func parsePresence(t *testing.T, c codec.Codec, payload string) connector.PresenceEvent {
+	t.Helper()
+	var evt connector.PresenceEvent
+	if err := c.Unmarshal([]byte(payload), &evt); err != nil {
+		t.Fatalf("unmarshal presence payload %q: %v", payload, err)
+	}
+	return evt
+}
+
+type testBridge struct {
+	presence chan connector.PresenceEvent
+}
+
+func (tb testBridge) Forward(topic string, payload []byte) {}
+
+func (tb testBridge) ForwardPresence(evt connector.PresenceEvent, payload []byte) {
+	tb.presence <- evt
+}
+
+func TestBrokerPresenceLifecycle(t *testing.T) {
+	jc := mustJSONCodec(t)
+	fwd := make(chan connector.PresenceEvent, 8)
+	b := InitBroker(Options{TcpPort: freePort(t), Codec: jc, Bridge: testBridge{presence: fwd}})
+	if err := b.ConfigureAuth(allowAllAuthzFn, allowAllAclFn); err != nil {
+		t.Fatalf("ConfigureAuth: %v", err)
+	}
+	if err := b.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = b.svr.Close() })
+
+	// inline subscribers observe the two presence topics before the device connects
+	presenceCh := make(chan string, 8)
+	if err := b.Subscribe(context.Background(), connector.TopicPresence("dev-presence"), func(m connector.Message) {
+		presenceCh <- string(m.Payload())
+	}); err != nil {
+		t.Fatalf("subscribe presence: %v", err)
+	}
+	eventCh := make(chan string, 8)
+	if err := b.Subscribe(context.Background(), connector.TopicPresenceEvent("dev-presence"), func(m connector.Message) {
+		eventCh <- string(m.Payload())
+	}); err != nil {
+		t.Fatalf("subscribe presence event: %v", err)
+	}
+
+	// two local presence handlers
+	eventsA := make(chan connector.ClientInfo, 8)
+	b.OnLocalPresence(func(ci connector.ClientInfo) { eventsA <- ci })
+	eventsB := make(chan connector.ClientInfo, 8)
+	b.OnLocalPresence(func(ci connector.ClientInfo) { eventsB <- ci })
+
+	// device connects
+	dev := connectPaho(t, b.opt.TcpPort, "dev-presence")
+	waitClientInfo(t, b, "dev-presence", true)
+
+	// retained snapshot and event are both parseable PresenceEvents
+	snap := parsePresence(t, jc, waitMessage(t, presenceCh))
+	evt := parsePresence(t, jc, waitMessage(t, eventCh))
+	if snap.EventType != connector.EventConnected || evt.EventType != connector.EventConnected {
+		t.Fatalf("connect presence types = %q/%q, want connected", snap.EventType, evt.EventType)
+	}
+	if snap.ThingId != "dev-presence" || snap.TimestampUs == 0 {
+		t.Fatalf("presence snapshot = %+v, want thingId and non-zero TimestampUs", snap)
+	}
+
+	// device disconnects
+	dev.Disconnect(250)
+	waitDisconnected(t, dev)
+	waitClientInfo(t, b, "dev-presence", false)
+
+	// each handler saw connect then disconnect, with a shared epoch and
+	// increasing revision
+	for _, ch := range []<-chan connector.ClientInfo{eventsA, eventsB} {
+		on := waitPresenceEvent(t, ch)
+		off := waitPresenceEvent(t, ch)
+		if !on.Connected || off.Connected {
+			t.Fatalf("handler events = %+v then %+v, want connect then disconnect", on, off)
+		}
+		if on.PresenceEpoch == 0 || on.PresenceEpoch != off.PresenceEpoch {
+			t.Fatalf("presence epoch = connect %d / disconnect %d, want equal non-zero", on.PresenceEpoch, off.PresenceEpoch)
+		}
+		if off.PresenceRevision <= on.PresenceRevision {
+			t.Fatalf("presence revision = connect %d / disconnect %d, want increasing", on.PresenceRevision, off.PresenceRevision)
+		}
+	}
+
+	// the bridge received both presence events
+	for i := 0; i < 2; i++ {
+		f := <-fwd
+		if f.ThingId != "dev-presence" {
+			t.Fatalf("forwarded presence = %+v, want dev-presence", f)
+		}
+	}
+}
+
+func TestBrokerPresenceTakeover(t *testing.T) {
+	b := newPresenceBroker(t)
+
+	c1 := connectPaho(t, b.opt.TcpPort, "dev-takeover")
+	waitClientInfo(t, b, "dev-takeover", true)
+
+	// a second connection with the same client id takes over the first
+	c2 := connectPaho(t, b.opt.TcpPort, "dev-takeover")
+	waitClientInfo(t, b, "dev-takeover", true)
+	waitDisconnected(t, c1)
+
+	// the broker's stale disconnect of c1 must not mark the reconnected client
+	// offline: ClientInfo still reports connected for the live c2 session.
+	if ci, err := b.ClientInfo("dev-takeover"); err != nil || !ci.Connected {
+		t.Fatalf("ClientInfo after takeover = %+v, %v; want connected", ci, err)
+	}
+
+	// after the live connection drops, presence goes offline (no stale online)
+	c2.Disconnect(250)
+	waitDisconnected(t, c2)
+	waitBrokerDisconnected(t, b, "dev-takeover")
+	if ci, err := b.ClientInfo("dev-takeover"); err != nil || ci.Connected {
+		t.Fatalf("ClientInfo after final disconnect = %+v, %v; want offline", ci, err)
+	}
+}
+
+func mustJSONCodec(t *testing.T) codec.Codec {
+	t.Helper()
+	c, err := codec.New("json")
+	if err != nil {
+		t.Fatalf("codec.New: %v", err)
+	}
+	return c
 }
