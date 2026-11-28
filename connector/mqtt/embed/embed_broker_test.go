@@ -71,12 +71,16 @@ func connectPaho(t *testing.T, port int, clientID string) mqtt.Client {
 }
 
 func connectPahoAs(t *testing.T, port int, clientID, username string) mqtt.Client {
+	return connectPahoClean(t, port, clientID, username, true)
+}
+
+func connectPahoClean(t *testing.T, port int, clientID, username string, clean bool) mqtt.Client {
 	t.Helper()
 	opts := mqtt.NewClientOptions().
 		AddBroker(fmt.Sprintf("tcp://127.0.0.1:%d", port)).
 		SetClientID(clientID).
 		SetUsername(username).
-		SetCleanSession(true).
+		SetCleanSession(clean).
 		SetAutoReconnect(false)
 	c := mqtt.NewClient(opts)
 	tok := c.Connect()
@@ -142,6 +146,21 @@ func waitBrokerDisconnected(t *testing.T, b *Broker, thingId string) {
 		select {
 		case <-deadline:
 			t.Fatalf("timeout waiting for broker to drop %q", thingId)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func waitClientClosed(t *testing.T, b *Broker, clientID string) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		if cl, ok := b.svr.Clients.Get(clientID); ok && cl.Closed() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timeout waiting for client %q to close", clientID)
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
@@ -285,6 +304,33 @@ func TestIsConnectedMatchesUsername(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 	waitDisconnected(t, c)
+}
+
+func TestIsConnectedAnyLiveSession(t *testing.T) {
+	b := newTestBroker(t)
+
+	// Two clients share one username but have different client IDs. c1 keeps a
+	// persistent session, so after it disconnects it stays in svr.Clients with
+	// Closed()==true: IsConnected must still find c2's live session.
+	c1 := connectPahoClean(t, b.opt.TcpPort, "cid-1", "shared-user", false)
+	c2 := connectPahoClean(t, b.opt.TcpPort, "cid-2", "shared-user", true)
+	waitConnected(t, b, "shared-user")
+
+	c1.Disconnect(250)
+	waitDisconnected(t, c1)
+	waitClientClosed(t, b, "cid-1")
+
+	if ok, err := b.IsConnected("shared-user"); err != nil || !ok {
+		t.Fatalf("IsConnected(shared-user) after closing one = %v, %v; want true (c2 live)", ok, err)
+	}
+
+	c2.Disconnect(250)
+	waitDisconnected(t, c2)
+	waitBrokerDisconnected(t, b, "cid-2")
+
+	if ok, _ := b.IsConnected("shared-user"); ok {
+		t.Fatal("IsConnected(shared-user) after closing both = true; want false")
+	}
 }
 
 func TestBrokerFileStorageSurvivesRestart(t *testing.T) {

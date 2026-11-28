@@ -67,11 +67,14 @@ func (b *Broker) Start(ctx context.Context) error {
 		return fmt.Errorf("add auth hook: %w", err)
 	}
 
-	if err := b.addStorageHook(svr); err != nil {
+	// Listeners before storage: a bad cert fails here and leaves nothing open,
+	// whereas a badger/redis store opened first would leak on that error.
+	if err := b.addListeners(svr); err != nil {
 		return err
 	}
 
-	if err := b.addListeners(svr); err != nil {
+	if err := b.addStorageHook(svr); err != nil {
+		_ = svr.Close() // release listeners bound before the store failed
 		return err
 	}
 
@@ -210,23 +213,16 @@ func (b *Broker) QueueSubscribe(ctx context.Context, topic, queue string, cb fun
 	return b.Subscribe(ctx, topic, cb)
 }
 
+// IsConnected reports true if any live client has thingId as its authenticated
+// principal (username). Several clients may share a username and a closed client
+// can remain in svr.Clients briefly, so every match is checked for liveness.
 func (b *Broker) IsConnected(thingId string) (bool, error) {
-	cl, ok := b.liveClientByUsername(thingId)
-	if !ok {
-		return false, nil
-	}
-	return !cl.Closed(), nil
-}
-
-// liveClientByUsername returns a live client whose authenticated principal
-// (username) is thingId. The MQTT client ID may differ, so it is not used here.
-func (b *Broker) liveClientByUsername(thingId string) (*mqtt.Client, bool) {
 	for _, cl := range b.svr.Clients.GetAll() {
-		if string(cl.Properties.Username) == thingId {
-			return cl, true
+		if string(cl.Properties.Username) == thingId && !cl.Closed() {
+			return true, nil
 		}
 	}
-	return nil, false
+	return false, nil
 }
 
 func (b *Broker) ClientInfo(thingId string) (connector.ClientInfo, error) {
