@@ -3,33 +3,34 @@ package source
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/pkg/errors"
 	"ruff.io/tio/connector"
+	"ruff.io/tio/pkg/model"
+	"ruff.io/tio/pkg/protocol"
 	ruleconnector "ruff.io/tio/rule/connector"
 	rmodel "ruff.io/tio/rule/model"
 )
 
-const TypeMqtt = "mqtt"
+const TypeEmbedMqtt = "embed-mqtt"
 
 func init() {
-	Register(TypeMqtt, newMqtt)
+	Register(TypeEmbedMqtt, newEmbedMqtt)
 }
 
-type MqttConfig struct {
+type EmbedMqttConfig struct {
 	Topic string `json:"topic"`
 }
 
-type mqttImpl struct {
+type embedMqttImpl struct {
 	parent   context.Context
 	ctx      context.Context
 	cancel   context.CancelFunc
 	name     string
-	config   MqttConfig
+	config   EmbedMqttConfig
 	conn     connector.Connector
 	handlers sync.Map
 
@@ -39,31 +40,29 @@ type mqttImpl struct {
 	metric  Metric
 }
 
-func newMqtt(ctx context.Context, name string, cfg map[string]any, _ ruleconnector.Conn, mainConn connector.Connector) (Source, error) {
-	var ac MqttConfig
+func newEmbedMqtt(ctx context.Context, name string, cfg map[string]any, _ ruleconnector.Conn, mainConn connector.Connector) (Source, error) {
+	var ac EmbedMqttConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, errors.WithMessage(err, "decode config")
 	}
-	m := &mqttImpl{
+	m := &embedMqttImpl{
 		parent: ctx,
 		name:   name,
 		config: ac,
 		conn:   mainConn,
 		status: rmodel.StatusNotStarted(),
 	}
-
 	return m, nil
 }
 
-func (m *mqttImpl) Start() error {
+func (m *embedMqttImpl) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.started.Load() {
-		slog.Info("Rule skip starting source (already started)", "type", TypeMqtt, "name", m.name)
+		slog.Info("Rule skip starting source (already started)", "type", TypeEmbedMqtt, "name", m.name)
 		return nil
 	}
-	// A stopped source has a cancelled ctx: rebuild it so Start works again.
 	m.ctx, m.cancel = context.WithCancel(m.parent)
 	m.started.Store(true)
 
@@ -74,16 +73,17 @@ func (m *mqttImpl) Start() error {
 		return errors.WithMessagef(err, "failed to subscribe topic %q", m.config.Topic)
 	}
 
-	slog.Info("Rule started source", "type", TypeMqtt, "name", m.name)
+	m.status = rmodel.StatusConnected()
+	slog.Info("Rule started source", "type", TypeEmbedMqtt, "name", m.name)
 	return nil
 }
 
-func (m *mqttImpl) Stop() {
+func (m *embedMqttImpl) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if !m.started.Load() {
-		slog.Info("Rule skip stopping source (not started)", "type", TypeMqtt, "name", m.name)
+		slog.Info("Rule skip stopping source (not started)", "type", TypeEmbedMqtt, "name", m.name)
 		return
 	}
 	m.started.Store(false)
@@ -91,61 +91,51 @@ func (m *mqttImpl) Stop() {
 		m.cancel()
 	}
 	m.status = rmodel.StatusNotStarted()
-	slog.Info("Rule stopped source", "type", TypeMqtt, "name", m.name)
+	slog.Info("Rule stopped source", "type", TypeEmbedMqtt, "name", m.name)
 }
 
-func (m *mqttImpl) Status() rmodel.StatusInfo {
+func (m *embedMqttImpl) Status() rmodel.StatusInfo {
 	m.status.Metric = Metric{Received: atomic.LoadInt64(&m.metric.Received)}
 	return m.status
 }
 
-func (m *mqttImpl) Name() string {
-	return m.name
-}
+func (m *embedMqttImpl) Name() string { return m.name }
 
-func (*mqttImpl) Type() string {
-	return TypeMqtt
-}
+func (*embedMqttImpl) Type() string { return TypeEmbedMqtt }
 
-func (m *mqttImpl) OnMsg(ruleName string, h MsgHander) {
+func (m *embedMqttImpl) OnMsg(ruleName string, h MsgHander) {
 	m.handlers.Store(ruleName, h)
 	if h == nil {
 		m.handlers.Delete(ruleName)
 	}
 }
 
-func (m *mqttImpl) subscribe() error {
-	queueName := "tio-rule-" + m.name
-	return m.conn.QueueSubscribe(m.ctx, m.config.Topic, queueName, func(msg connector.Message) {
+func (m *embedMqttImpl) subscribe() error {
+	return m.conn.Subscribe(m.ctx, m.config.Topic, func(msg connector.Message) {
 		if !m.started.Load() {
 			return
 		}
-
 		atomic.AddInt64(&m.metric.Received, 1)
 
 		topic := msg.Topic()
-		thingId := extractThingIdFromTopic(topic)
-
 		mm := Msg{
-			ThingId: thingId,
+			ThingId: thingIdFromTopic(topic),
 			Topic:   topic,
 			Payload: string(msg.Payload()),
 		}
-
-		m.handlers.Range(func(key, value any) bool {
+		m.handlers.Range(func(_, value any) bool {
 			value.(MsgHander)(mm)
 			return true
 		})
 	})
 }
 
-func extractThingIdFromTopic(topic string) string {
-	parts := strings.Split(topic, "/")
-	if len(parts) >= 3 && parts[0] == "$iothub" && parts[1] == "things" {
-		return parts[2]
+func thingIdFromTopic(topic string) string {
+	if id, err := model.GetThingIdFromTopic(topic); err == nil {
+		return id
 	}
-	if len(parts) >= 4 && parts[0] == "$iothub" && parts[1] == "user" && parts[2] == "things" {
-		return parts[3]
+	if id, _, err := protocol.ParseTopicDir(topic); err == nil {
+		return id
 	}
 	return ""
 }

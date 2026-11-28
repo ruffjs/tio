@@ -14,25 +14,24 @@ import (
 	"ruff.io/tio/rule/model"
 )
 
-const TypeMqtt = "mqtt"
+const TypeEmbedMqtt = "embed-mqtt"
 
 func init() {
-	Register(TypeMqtt, NewNats)
+	Register(TypeEmbedMqtt, NewEmbedMqtt)
 }
 
-type NatsConfig struct {
+type EmbedMqttConfig struct {
 	Topic    string `json:"topic"`
 	Qos      byte   `json:"qos"`
 	Retained bool   `json:"retained"`
 }
 
-func NewNats(_ context.Context, name string, cfg map[string]any, _ ruleconnector.Conn, mainConn connector.Connector) (Sink, error) {
-	var ac NatsConfig
+func NewEmbedMqtt(_ context.Context, name string, cfg map[string]any, _ ruleconnector.Conn, mainConn connector.Connector) (Sink, error) {
+	var ac EmbedMqttConfig
 	if err := mapstructure.Decode(cfg, &ac); err != nil {
 		return nil, fmt.Errorf("decode config: %w", err)
 	}
-
-	a := &natsImpl{
+	a := &embedMqttImpl{
 		name: name,
 		cfg:  ac,
 		conn: mainConn,
@@ -40,9 +39,9 @@ func NewNats(_ context.Context, name string, cfg map[string]any, _ ruleconnector
 	return a, nil
 }
 
-type natsImpl struct {
+type embedMqttImpl struct {
 	name string
-	cfg  NatsConfig
+	cfg  EmbedMqttConfig
 	conn connector.Connector
 	ch   chan *Msg
 	done chan struct{}
@@ -51,14 +50,12 @@ type natsImpl struct {
 	mu      sync.Mutex
 }
 
-func (s *natsImpl) Start() error {
+func (s *embedMqttImpl) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.started.Load() {
 		return nil
 	}
-	// Rebuild both channels: a new loop over the old queue would replay
-	// messages that were queued before Stop.
 	s.ch = make(chan *Msg, 10000)
 	s.done = make(chan struct{})
 	s.started.Store(true)
@@ -67,7 +64,7 @@ func (s *natsImpl) Start() error {
 	return nil
 }
 
-func (s *natsImpl) Stop() error {
+func (s *embedMqttImpl) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.started.Load() {
@@ -79,26 +76,21 @@ func (s *natsImpl) Stop() error {
 	return nil
 }
 
-func (s *natsImpl) Status() model.StatusInfo {
+func (s *embedMqttImpl) Status() model.StatusInfo {
 	if !s.started.Load() {
 		return model.StatusNotStarted()
 	}
 	return model.StatusConnected()
 }
 
-func (s *natsImpl) Name() string {
-	return s.name
-}
+func (s *embedMqttImpl) Name() string { return s.name }
 
-func (*natsImpl) Type() string {
-	return TypeMqtt
-}
+func (*embedMqttImpl) Type() string { return TypeEmbedMqtt }
 
-func (s *natsImpl) Publish(msg Msg) {
+func (s *embedMqttImpl) Publish(msg Msg) {
 	if !s.started.Load() {
 		return
 	}
-	// Snapshot under the lock: Start/Stop replace these fields.
 	s.mu.Lock()
 	ch, done := s.ch, s.done
 	s.mu.Unlock()
@@ -108,7 +100,7 @@ func (s *natsImpl) Publish(msg Msg) {
 	}
 }
 
-func (s *natsImpl) publishLoop(ch chan *Msg, done chan struct{}) {
+func (s *embedMqttImpl) publishLoop(ch chan *Msg, done chan struct{}) {
 	for {
 		select {
 		case msg := <-ch:
@@ -119,11 +111,11 @@ func (s *natsImpl) publishLoop(ch chan *Msg, done chan struct{}) {
 	}
 }
 
-func (s *natsImpl) publish(msg *Msg) {
+func (s *embedMqttImpl) publish(msg *Msg) {
 	topic := s.cfg.Topic
 	if strings.Contains(topic, "${thingId}") {
 		if msg.ThingId == "" {
-			slog.Error("NATS sink topic contains ${thingId} but msg.ThingId is empty", "name", s.name, "topic", topic)
+			slog.Error("Rule sink embed-mqtt topic contains ${thingId} but msg.ThingId is empty", "name", s.name, "topic", topic)
 			return
 		}
 		topic = strings.ReplaceAll(topic, "${thingId}", msg.ThingId)
@@ -140,8 +132,6 @@ func (s *natsImpl) publish(msg *Msg) {
 		err = s.conn.Publish(topic, payload)
 	}
 	if err != nil {
-		slog.Error("NATS sink publish failed", "name", s.name, "topic", topic, "error", err)
-	} else {
-		slog.Debug("NATS sink published", "name", s.name, "topic", topic)
+		slog.Error("Rule sink embed-mqtt publish failed", "name", s.name, "topic", topic, "error", err)
 	}
 }

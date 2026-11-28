@@ -298,6 +298,17 @@ type NatsTLSClientConfig struct {
 	KeyFile  string `json:"keyFile"`
 }
 
+type MqttClientConfig struct {
+	ClientId     string `json:"clientId"`
+	Host         string `json:"host"`
+	Port         int    `json:"port"`
+	User         string `json:"user"`
+	Password     string `json:"-"`
+	WillTopic    string `json:"WillTopic"`
+	WillPayload  string `json:"willPayload"`
+	CleanSession *bool  `json:"cleanSession"`
+}
+
 func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 	if !cfg.Enabled {
 		return nil
