@@ -171,6 +171,9 @@ func loadConfig(main *viper.Viper) (Config, error) {
 	if err := loadNats(main, &cfg); err != nil {
 		return Config{}, err
 	}
+	if err := validateMqttBrokerSuperUsers(cfg.Connector.MqttBroker.SuperUsers); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -345,6 +348,18 @@ func ValidateNatsConfig(cfg NatsConfig, dbType string) error {
 
 func natsTLSEmpty(t NatsTLSConfig) bool {
 	return t.CertFile == "" && t.KeyFile == "" && t.CAFile == ""
+}
+
+func validateMqttBrokerSuperUsers(users []UserPassword) error {
+	for _, u := range users {
+		if u.Name == "" {
+			return fmt.Errorf("connector.mqttBroker.superUsers[].name must not be empty")
+		}
+		if u.Password == "" {
+			return fmt.Errorf("connector.mqttBroker.superUsers[%q].password must not be empty", u.Name)
+		}
+	}
+	return nil
 }
 
 var GlobalCtxCancel context.CancelFunc

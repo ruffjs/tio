@@ -161,28 +161,26 @@ func main() {
 	if err := brg.Start(ctx); err != nil {
 		log.Fatalf("NATS bridge start error: %v", err)
 	}
-	defer func() {
-		if err := brg.Shutdown(); err != nil {
-			slog.Error("NATS bridge shutdown error", "error", err)
-		}
-	}()
 
 	if err := conn.Start(ctx); err != nil {
 		log.Fatalf("MQTT broker start error: %v", err)
 	}
 	defer func() {
-		if err := conn.CloseAll(""); err != nil {
-			slog.Debug("MQTT broker close-all on shutdown", "error", err)
+		if err := brg.Shutdown(); err != nil {
+			slog.Error("NATS bridge shutdown error", "error", err)
 		}
-		_ = conn
+		if err := conn.Shutdown(); err != nil {
+			slog.Error("MQTT broker shutdown error", "error", err)
+		}
 	}()
 
-	var brokerMonitor *broker.Monitor
+	var brokerMonitor api.BrokerMonitor
 	if cfg.Nats.Enabled && cfg.Nats.Mode == "embedded" && brg.Server() != nil {
-		brokerMonitor = broker.New(brg.Server().Server(), brg.JetStream(), broker.Options{
+		m := broker.New(brg.Server().Server(), brg.JetStream(), broker.Options{
 			ServerDefaultMaxConsumers: cfg.Nats.JetStream.DefaultMaxConsumers,
 		})
-		brokerMonitor.Start(ctx)
+		m.Start(ctx)
+		brokerMonitor = m
 	}
 
 	shadowSvc.Init(ctx)
@@ -246,7 +244,7 @@ func main() {
 
 	httpCon.Add(thingWs)
 	httpCon.Add(api.MQTTBrokerService(conn.CloseAll, thingSvc, brokerMonitor).Filter(api.LoggingMiddleware).Filter(azf))
-	httpCon.Add(mqtthttp.Service(ctx, conn))
+	httpCon.Add(mqtthttp.Service(ctx, conn).Filter(api.LoggingMiddleware).Filter(azf))
 	httpCon.Add(cfgWs)
 	httpCon.Add(ruleWs)
 	httpCon.Add(metricsWs)

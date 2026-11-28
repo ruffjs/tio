@@ -315,6 +315,16 @@ func (b *Broker) CloseAll(thingId string) error {
 	return nil
 }
 
+// Shutdown closes the embedded comqtt server. It is idempotent.
+func (b *Broker) Shutdown() error {
+	if b.svr == nil {
+		return nil
+	}
+	err := b.svr.Close()
+	b.svr = nil
+	return err
+}
+
 func (b *Broker) Remove(thingId string) error {
 	if err := b.Close(thingId); err != nil && !errors.Is(err, connector.ErrConnectionNotFound) {
 		return err

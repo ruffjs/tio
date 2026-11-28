@@ -102,6 +102,25 @@ func TestValidateNatsConfig_MultiNodeWithSQLite(t *testing.T) {
 	require.ErrorContains(t, err, "sqlite")
 }
 
+func TestLoadConfigRejectsEmptyMqttBrokerSuperUser(t *testing.T) {
+	cases := []struct {
+		name, yaml, want string
+	}{
+		{"empty name", "connector:\n  mqttBroker:\n    superUsers:\n      - name: \"\"\n        password: x\n", "superUsers[].name"},
+		{"empty password", "connector:\n  mqttBroker:\n    superUsers:\n      - name: biz\n        password: \"\"\n", "superUsers[\"biz\"].password"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			filename := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(filename, []byte(tc.yaml), 0600))
+			_, err := LoadConfigFile(filename)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestShippedConfigs(t *testing.T) {
 	for _, filename := range []string{
 		"../config.yaml",

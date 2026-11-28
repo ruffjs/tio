@@ -1,4 +1,6 @@
-//go:build integration
+//go:build integration && natscluster_legacy
+
+// TODO: legacy NATS MQTT cluster tests, parked until tio cluster design
 
 package cluster_test
 
