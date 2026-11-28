@@ -7,7 +7,6 @@ import (
 
 	"ruff.io/tio/config"
 	"ruff.io/tio/connector"
-	"ruff.io/tio/pkg/model"
 	"ruff.io/tio/pkg/protocol"
 	"ruff.io/tio/shadow"
 )
@@ -17,7 +16,7 @@ type AclFn = func(clientId, username string, topic string, write bool) bool
 // TODO Optimize: Prevent device connection if it has exceeded the maximum number of allowed operations without an Access Control List (ACL)
 func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, protocolMode string) AclFn {
 	return func(clientId, username string, topic string, write bool) bool {
-		// Embeded MQTT inline client username is empty
+		// Inline (server-side) clients and empty usernames are allow-all.
 		if username == "" {
 			slog.Warn("Unexpected username is empty", "clientId", clientId, "topic", topic, "write", write)
 			return true
@@ -28,83 +27,88 @@ func TopicAcl(bg connector.BindingGetter, superUsers []config.UserPassword, prot
 			}
 		}
 
-		// Check if it's a simple protocol topic
-		if strings.HasPrefix(topic, protocol.TopicSimplePrefix) {
-			if protocolMode == "legacy" {
-				slog.Warn("MQTT ACL denied", "reason", "simple topic in legacy mode", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
-				return false
-			}
-
-			thingId, direction, err := protocol.ParseTopicDir(topic)
+		pubAllow, pubDeny, subAllow, subDeny := thingTopicPermissions(protocolMode, username)
+		if bg != nil {
+			boundIds, err := bg.GetBoundThingIds(context.Background(), username)
 			if err != nil {
-				slog.Warn("MQTT ACL denied", "reason", "invalid simple topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "error", err)
-				return false
-			}
-
-			// Check if thing matches username or is bound to gateway
-			if thingId != username {
-				if bound, err := bg.IsBoundGateway(context.Background(), thingId, username); err != nil || !bound {
-					slog.Warn("MQTT ACL denied", "reason", "topic belongs to another thing", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "targetThingId", thingId, "error", err)
-					return false
-				}
-			}
-
-			// Deny-list: only restrict known directions, allow everything else
-			// under tio/{thingId}/# for free messaging via NATS.
-			if write {
-				if direction == protocol.LevelDown {
-					slog.Warn("MQTT ACL denied", "reason", "device cannot publish to down topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
-					return false
-				}
+				slog.Error("get bound things for gateway ACL", "gateway", username, "error", err)
 			} else {
-				if direction == protocol.LevelUp {
-					slog.Warn("MQTT ACL denied", "reason", "device cannot subscribe to up topic", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
-					return false
+				for _, bid := range boundIds {
+					pa, pd, sa, sd := thingTopicPermissions(protocolMode, bid)
+					pubAllow = append(pubAllow, pa...)
+					pubDeny = append(pubDeny, pd...)
+					subAllow = append(subAllow, sa...)
+					subDeny = append(subDeny, sd...)
 				}
 			}
-
-			return true
 		}
 
-		// Legacy protocol topics
-		if protocolMode == "simple" {
-			// Reject legacy topics in simple mode
-			if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
-				slog.Warn("MQTT ACL denied", "reason", "legacy topic in simple mode", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write))
-				return false
-			}
-		}
-
-		thingTopicPrefix := shadow.TopicThingsPrefix + username + "/"
-		userThingTopicPrefix := shadow.TopicUserThingsPrefix + username + "/"
-
-		// For thing's self reserved topics
-		if strings.HasPrefix(topic, thingTopicPrefix) || strings.HasPrefix(topic, userThingTopicPrefix) {
-			return true
-		}
-		// For other reserved topics
-		if strings.HasPrefix(topic, shadow.TopicThingsPrefix) || strings.HasPrefix(topic, shadow.TopicUserThingsPrefix) {
-			tingId, err := model.GetThingIdFromTopic(topic)
-			if err != nil {
-				slog.Warn("MQTT ACL denied", "reason", "cannot parse target thing id", "clientId", clientId, "username", username, "topic", topic, "operation", aclOperation(write), "error", err)
-				return false
-			}
-			// Check whether the current thing is bound to the gateway
-			if bound, err := bg.IsBoundGateway(context.Background(), tingId, username); err == nil && bound {
-				return true
-			}
-
-			op := "subscribe"
-			if write {
-				op = "publish"
-			}
-			slog.Warn("MQTT ACL denied", "reason", "target thing is not bound to gateway", "clientId", clientId, "username", username, "topic", topic, "operation", op, "targetThingId", tingId, "error", err)
+		op := aclOperation(write)
+		if write && !filterAllowed(topic, pubAllow, pubDeny) {
+			slog.Warn("MQTT ACL denied", "reason", "not in publish allow-list", "clientId", clientId, "username", username, "topic", topic, "operation", op)
 			return false
-		} else {
-			// Non-reserved topics
+		}
+		if !write && !filterAllowed(topic, subAllow, subDeny) {
+			slog.Warn("MQTT ACL denied", "reason", "not in subscribe allow-list", "clientId", clientId, "username", username, "topic", topic, "operation", op)
+			return false
+		}
+		return true
+	}
+}
+
+// thingTopicPermissions returns the device topics for one thing in the given
+// mode, mirroring the NATS branch permission matrix. Dual mode is the union of
+// legacy and simple topics.
+func thingTopicPermissions(mode, thingId string) (pubAllow, pubDeny, subAllow, subDeny []string) {
+	if mode == "simple" || mode == "dual" {
+		prefix := protocol.TopicSimplePrefix + thingId
+		pubAllow = append(pubAllow, prefix+"/#")
+		pubDeny = append(pubDeny, prefix+"/"+protocol.LevelDown+"/#")
+		subAllow = append(subAllow, prefix+"/#")
+		subDeny = append(subDeny, prefix+"/"+protocol.LevelUp+"/#")
+	}
+	if mode == "legacy" || mode == "dual" {
+		thingPrefix := shadow.TopicThingsPrefix + thingId
+		userPrefix := shadow.TopicUserThingsPrefix + thingId
+		pubAllow = append(pubAllow, thingPrefix+"/#", userPrefix+"/#")
+		subAllow = append(subAllow, thingPrefix+"/#", userPrefix+"/#",
+			connector.TopicPresenceEvent(thingId))
+	}
+	return
+}
+
+// filterAllowed reports whether filter is covered by an allow entry and not by
+// any deny entry. A `+`/`#` in the filter only matches an entry with a wildcard
+// at the same level, so a root `#` or a wildcard at the thingId position never
+// matches a concrete allow prefix.
+func filterAllowed(filter string, allow, deny []string) bool {
+	for _, d := range deny {
+		if filterMatches(filter, d) {
+			return false
+		}
+	}
+	for _, a := range allow {
+		if filterMatches(filter, a) {
 			return true
 		}
 	}
+	return false
+}
+
+// filterMatches reports whether every topic matched by filter is also matched
+// by pattern. Entries are concrete prefixes with an optional trailing `/#`.
+func filterMatches(filter, pattern string) bool {
+	fp := strings.Split(filter, "/")
+	pp := strings.Split(pattern, "/")
+	for i := 0; i < len(pp); i++ {
+		if pp[i] == "#" {
+			return true
+		}
+		if i >= len(fp) || fp[i] == "+" || fp[i] == "#" || fp[i] != pp[i] {
+			return false
+		}
+	}
+	return len(fp) == len(pp)
 }
 
 func aclOperation(write bool) string {
