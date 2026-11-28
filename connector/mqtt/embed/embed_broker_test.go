@@ -539,6 +539,22 @@ func parsePresence(t *testing.T, c codec.Codec, payload string) connector.Presen
 	return evt
 }
 
+// collectEvents drains events until a settle window passes with no new event,
+// returning everything received.
+func collectEvents(t *testing.T, ch <-chan connector.ClientInfo, settle time.Duration) []connector.ClientInfo {
+	t.Helper()
+	var events []connector.ClientInfo
+	timeout := time.After(settle)
+	for {
+		select {
+		case e := <-ch:
+			events = append(events, e)
+		case <-timeout:
+			return events
+		}
+	}
+}
+
 type testBridge struct {
 	presence chan connector.PresenceEvent
 }
@@ -628,24 +644,42 @@ func TestBrokerPresenceLifecycle(t *testing.T) {
 func TestBrokerPresenceTakeover(t *testing.T) {
 	b := newPresenceBroker(t)
 
+	events := make(chan connector.ClientInfo, 16)
+	b.OnLocalPresence(func(ci connector.ClientInfo) { events <- ci })
+
 	c1 := connectPaho(t, b.opt.TcpPort, "dev-takeover")
 	waitClientInfo(t, b, "dev-takeover", true)
+	if e := waitPresenceEvent(t, events); !e.Connected {
+		t.Fatalf("first presence event = %+v, want connected", e)
+	}
 
 	// a second connection with the same client id takes over the first
 	c2 := connectPaho(t, b.opt.TcpPort, "dev-takeover")
 	waitClientInfo(t, b, "dev-takeover", true)
 	waitDisconnected(t, c1)
 
-	// the broker's stale disconnect of c1 must not mark the reconnected client
-	// offline: ClientInfo still reports connected for the live c2 session.
+	// the reconnected session emits a connected event and no spurious
+	// disconnect from the taken-over session while the new one is live.
+	reconnected := waitPresenceEvent(t, events)
+	if !reconnected.Connected {
+		t.Fatalf("reconnect presence event = %+v, want connected", reconnected)
+	}
+	for _, ci := range collectEvents(t, events, 300*time.Millisecond) {
+		if !ci.Connected {
+			t.Fatalf("spurious disconnect during takeover: %+v", ci)
+		}
+	}
 	if ci, err := b.ClientInfo("dev-takeover"); err != nil || !ci.Connected {
 		t.Fatalf("ClientInfo after takeover = %+v, %v; want connected", ci, err)
 	}
 
-	// after the live connection drops, presence goes offline (no stale online)
+	// disconnecting the live session emits exactly one disconnect, then offline
 	c2.Disconnect(250)
 	waitDisconnected(t, c2)
 	waitBrokerDisconnected(t, b, "dev-takeover")
+	if off := waitPresenceEvent(t, events); off.Connected {
+		t.Fatalf("final presence event = %+v, want disconnected", off)
+	}
 	if ci, err := b.ClientInfo("dev-takeover"); err != nil || ci.Connected {
 		t.Fatalf("ClientInfo after final disconnect = %+v, %v; want offline", ci, err)
 	}

@@ -2,6 +2,7 @@ package embed
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"strings"
 	"time"
@@ -54,6 +55,14 @@ func (h *presenceHook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) 
 
 func (h *presenceHook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 	username := string(cl.Properties.Username)
+	// A session taken over by a newer connection with the same client id must
+	// not emit a spurious disconnect: comqtt stops the old client before adding
+	// the new one, so the live-client guard below cannot see the successor yet.
+	// Stop records only the first cause, so StopCause() retains
+	// ErrSessionTakenOver even though the read loop later stops with a net error.
+	if errors.Is(cl.StopCause(), packets.ErrSessionTakenOver) {
+		return
+	}
 	// Ignore a stale disconnect when a newer connection with the same id is live.
 	if existing, ok := h.b.svr.Clients.Get(cl.ID); ok && !existing.Closed() {
 		return
