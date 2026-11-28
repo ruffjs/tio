@@ -137,7 +137,7 @@ preflight-demo-mtls:
 	}
 	@nc -z -w 3 localhost 8883 || { \
 		echo "error: MQTT TLS port is not ready at localhost:8883"; \
-		echo "hint: config.yaml must enable mqttTls and mqttPort 8883 before make run"; \
+		echo "hint: config.yaml must set connector.mqttBroker.tcpSslPort 8883 with certFile/keyFile before make run"; \
 		exit 1; \
 	}
 	@echo "mTLS demo prerequisites passed; certificate authentication will be verified by the test."

@@ -36,10 +36,10 @@ tio/{thingId}/event          设备 -> 消费者
 tio/{thingId}/data           设备 -> 消费者
 ```
 
-| 方向 | MQTT Topic | QoS | NATS Subject |
+| 方向 | MQTT Topic | QoS | NATS Subject（仅启用 bridge 时） |
 |---|---|---:|---|
-| 设备 -> Tio | `tio/{thingId}/up/{type}` | 1 | `tio.{thingId}.up.{type}` |
-| Tio -> 设备 | `tio/{thingId}/down/{type}` | 1 | `tio.{thingId}.down.{type}` |
+| 设备 -> Tio | `tio/{thingId}/up/{type}` | 1 | 仅非控制面 type（如 `ota_status`）转发为 `tio.{thingId}.up.{type}`；`shadow_get`/`shadow_update`/`method_resp`/`ntp_req` 不转发 |
+| Tio -> 设备 | `tio/{thingId}/down/{type}` | 1 | 无，下行只走 MQTT |
 | 设备 -> 消费者 | `tio/{thingId}/event` | 1 | `tio.{thingId}.event` |
 | 设备 -> 消费者 | `tio/{thingId}/data` | 0 | `tio.{thingId}.data` |
 
@@ -59,7 +59,7 @@ subscribe:
 
 控制消息使用 QoS 1，不使用 Retain；`{type}` 使用小写下划线命名，每种类型对应固定的 Payload 格式。转发、存储和诊断时应同时保留 Topic 或 type 与 Payload。
 
-表中的 NATS Subject 仅在启用可选 NATS bridge（`nats.enabled: true`）时存在；设备消息统一经内嵌 comqtt 接入。
+NATS bridge 是单向出口：`nats.enabled: true` 时只转发白名单内的设备上行（`up/` 中非控制面 type、`event`、`data`、`custom/#`）和一条 `tio.{thingId}.presence`。设备下行、控制面消息和 MQTT retained 状态都只留在 comqtt，且没有 NATS → MQTT 回灌路径。设备消息始终经内嵌 comqtt 接入。
 
 ## Presence
 
@@ -271,12 +271,12 @@ Data 适用于高频、允许少量丢失的数据，使用 QoS 0，格式由业
 
 业务服务负责创建 OTA 任务、下发任务和记录状态，设备负责执行并上报状态。Tio 按 Topic 和 ACL 原样转发 Payload，消息编码由业务服务和设备约定。以下是推荐的 Topic 和 JSON 格式。
 
-| 方向 | MQTT Topic | NATS Subject |
+| 方向 | MQTT Topic | NATS Subject（仅启用 bridge 时） |
 |---|---|---|
-| OTA 服务 → 设备 | `tio/{thingId}/down/ota_task` | `tio.{thingId}.down.ota_task` |
+| OTA 服务 → 设备 | `tio/{thingId}/down/ota_task` | 无，下行只走 MQTT |
 | 设备 → OTA 服务 | `tio/{thingId}/up/ota_status` | `tio.{thingId}.up.ota_status` |
 
-MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，例如 `tio/{thingId}/custom/ota/task` 和 `tio/{thingId}/custom/ota/status`。设备可以发布和订阅自己名下的这两个自定义 Topic。需要沿用 ACL 的发布和订阅方向限制时，使用上表的 `down` 和 `up` 路径。
+MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，例如 `tio/{thingId}/custom/ota/task` 和 `tio/{thingId}/custom/ota/status`。设备可以发布和订阅自己名下的这两个自定义 Topic。需要沿用 ACL 的发布和订阅方向限制时，使用上表的 `down` 和 `up` 路径。启用 NATS bridge 时，设备上报的 `custom/**` 会转发到对应 subject，服务端下发的 `down/**` 不会出现在 NATS。
 
 ### 下发任务
 
@@ -346,7 +346,7 @@ MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，
 
 ## 业务服务订阅 Data/Event
 
-data 和 event 消息不被 Tio 处理，启用 NATS bridge 时直接透传到对应 NATS subject。业务服务可通过 JetStream durable consumer 可靠消费，支持离线消息保留和多消费者独立消费。
+data 和 event 消息不被 Tio 处理，启用 NATS bridge 时直接透传到对应 NATS subject。`nats.jetStream.enabled: true` 时消息保留在 Tio 创建的 `TIO_MQTT` stream 中，业务服务通过 durable consumer 消费；未启用 JetStream 时消息即发即弃，没有离线保留。
 
 ### 连接
 
@@ -357,22 +357,11 @@ nc, _ := nats.Connect("nats://host:port", nats.UserInfo("$biz", "password"))
 js, _ := nc.JetStream()
 ```
 
-### 创建 Stream
+### 消费 TIO_MQTT Stream
 
-业务服务自行创建 JetStream stream，按需选择 subjects、retention 和 MaxAge：
+启用 `nats.jetStream.enabled: true` 时，Tio 在 bridge 启动时创建 stream `TIO_MQTT`，subjects 为 `$iothub.>` 和 `tio.>`，保留上限来自 `nats.jetStream.maxAgeSeconds`/`maxMsgs`/`maxBytes`。业务服务直接在该 stream 上创建 durable consumer，不要另建 subjects 与之重叠的 stream（NATS 会拒绝重叠定义）。
 
-```go
-js.AddStream(&nats.StreamConfig{
-    Name:      "BIZ_DATA",
-    Subjects:  []string{"tio.*.data", "tio.*.event"},
-    Retention: nats.LimitsPolicy,
-    MaxAge:    7 * 24 * time.Hour,
-    Storage:   nats.FileStorage,
-    Replicas:  3, // 集群节点数
-})
-```
-
-Stream 必须在设备开始发布消息**之前**创建，否则之前的消息不会被捕获。`AddStream` 是幂等的，多节点同时创建不会冲突。
+未启用 JetStream 时没有 stream 可消费，消息也不保留。
 
 ### Durable Consumer
 

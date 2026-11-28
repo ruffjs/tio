@@ -80,7 +80,7 @@ Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 S
 - 支持 MQTT v3.1.1 协议接入（TCP、TLS/mTLS、WS/WSS）
 - 支持密码、客户端证书、provision 和网关绑定认证
 - 设备协议可在启动时选择 `legacy` 或 [Simple 协议](docs/simple-protocol.md)，并全局选择 JSON/CBOR 编码
-- 单节点接入；NATS 只是可选的出口 bridge，不是设备入口
+- 无跨节点设备会话；NATS 只是可选的出口 bridge，不是设备入口
 
 ## 支持的数据库
 
@@ -103,7 +103,7 @@ SQLite 只有一条连接，所有读写串行执行：设备数或写入频率�
 - 替换默认凭证：API `basicAuth`、MySQL、`connector.mqttBroker.superUsers`，以及启用 NATS 时的 `nats.appClient`/`nats.systemClient`（见 `config-nats.default.yaml`）。NATS 内部账号密码为空时启动直接报错。
 - 关闭调试：`log.level: info`，SQLite/MySQL 的 `showSql: false`，`pprof.enabled: false`。
 - 不要把 `/docs`、`/metrics`、pprof 暴露到公网。
-- NATS 凭证必须显式改成非空值；省略字段会沿用内置默认值（`public`），不会清除。不需要超级用户时写 `superUsers: []`。
+- NATS 凭证必须显式改成非空值；省略字段会沿用内置默认值（`public`），不会清除。不需要超级用户时写 `connector.mqttBroker.superUsers: []`。
 - 请求体上限：普通接口 1 MiB，批量导入与规则配置 8 MiB；方法调用的 `data` 也受 1 MiB 限制。
 
 **升级说明**：`auth.allowPasswordBootstrap` 默认关闭。之前依赖“设备首次连接时用上报密码写入 authValue”的部署，升级后空 authValue 的设备会认证失败。升级前请批量设置 authValue；或临时把 `auth.allowPasswordBootstrap` 设为 `true` 完成一轮接入，再改回 `false`。

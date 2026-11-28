@@ -1,7 +1,11 @@
 # tio NATS Cluster Deployment
 
-Three-node tio cluster with embedded NATS clustering and a shared MySQL database.
-All nodes use JetStream replicas (R=3) for MQTT streams and presence KV.
+Three-node tio deployment with embedded NATS clustering and a shared MySQL database.
+Each node runs its own comqtt MQTT ingress; device sessions are not shared across nodes.
+NATS is the optional egress bridge: it carries whitelisted device uplinks and a single
+`tio.{thingId}.presence` message per presence change. With JetStream enabled the bridge
+creates one `TIO_MQTT` stream (subjects `$iothub.>`, `tio.>`) without an explicit replica
+setting; there is no presence KV.
 Each `configs/node-N.yaml` references `configs/nats-node-N.yaml`; Compose mounts both files. Application settings belong in the former, and all NATS settings belong in the latter.
 
 ## Architecture
@@ -76,13 +80,15 @@ volumes:
 
 ## Testing
 
-Run the in-process cluster acceptance tests:
+The legacy MQTT cluster tests in `integration_tests/cluster` are parked behind the
+`integration && natscluster_legacy` build tag until the multi-node device design lands, so
+the normal integration suite skips them. Run them explicitly only when revisiting that work:
 
 ```bash
-go test -tags=integration ./integration_tests/cluster -run 'Cluster' -count=1 -v
+go test -tags='integration natscluster_legacy' ./integration_tests/cluster -run 'Cluster' -count=1 -v
 ```
 
-Manual smoke test with nats client:
+Manual smoke test of the NATS bus:
 
 ```bash
 # subscribe on node 2

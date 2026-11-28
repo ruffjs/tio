@@ -55,7 +55,7 @@ Built on the embedded [comqtt](https://github.com/wind-c/comqtt) MQTT broker —
 
 - MQTT v3.1.1 over TCP, TLS/mTLS and WS/WSS
 - Password, client-certificate, provision and gateway-binding authentication
-- Single-node ingress; NATS is an optional egress bridge, not a device entry point
+- No cross-node device sessions; NATS is an optional egress bridge, not a device entry point
 
 ## Optional NATS bridge
 
@@ -96,7 +96,7 @@ SQLite uses a single connection, so all reads and writes are serialized: as devi
 The default configuration is for local development. Before going live:
 
 - Replace every default credential: API `basicAuth`, MySQL, `connector.mqttBroker.superUsers`, and `nats.appClient`/`nats.systemClient` when NATS is enabled (see `config-nats.default.yaml`). NATS internal accounts fail startup when their password is empty.
-- NATS credentials must be set to non-empty values explicitly. Omitting a field keeps the embedded default (`public`) instead of clearing it; use `superUsers: []` when no super user is needed.
+- NATS credentials must be set to non-empty values explicitly. Omitting a field keeps the embedded default (`public`) instead of clearing it; use `connector.mqttBroker.superUsers: []` when no super user is needed.
 - Turn debugging off: `log.level: info`, `showSql: false` for SQLite/MySQL, `pprof.enabled: false`.
 - Do not expose `/docs`, `/metrics` or pprof to the public internet.
 - Request bodies are capped at 1 MiB (8 MiB for batch import and rule config); direct-method `data` also counts against the 1 MiB limit.
