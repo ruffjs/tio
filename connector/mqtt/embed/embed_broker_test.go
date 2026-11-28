@@ -67,11 +67,15 @@ func newTestBrokerWithStorage(t *testing.T, storage config.InnerMqttStorage) *Br
 }
 
 func connectPaho(t *testing.T, port int, clientID string) mqtt.Client {
+	return connectPahoAs(t, port, clientID, clientID)
+}
+
+func connectPahoAs(t *testing.T, port int, clientID, username string) mqtt.Client {
 	t.Helper()
 	opts := mqtt.NewClientOptions().
 		AddBroker(fmt.Sprintf("tcp://127.0.0.1:%d", port)).
 		SetClientID(clientID).
-		SetUsername(clientID).
+		SetUsername(username).
 		SetCleanSession(true).
 		SetAutoReconnect(false)
 	c := mqtt.NewClient(opts)
@@ -260,6 +264,27 @@ func TestBrokerConnectivity(t *testing.T) {
 	if err := b.CloseAll("dev-conn"); err != nil {
 		t.Fatalf("CloseAll: %v", err)
 	}
+}
+
+func TestIsConnectedMatchesUsername(t *testing.T) {
+	b := newTestBroker(t)
+
+	// client ID differs from username: thingId is the authenticated principal
+	// (username), so connectivity must key on it, not the MQTT client ID.
+	c := connectPahoAs(t, b.opt.TcpPort, "client-id-x", "thing-user")
+	waitConnected(t, b, "thing-user")
+
+	if ok, err := b.IsConnected("thing-user"); err != nil || !ok {
+		t.Fatalf("IsConnected(thing-user) = %v, %v", ok, err)
+	}
+	if ok, err := b.IsConnected("client-id-x"); err != nil || ok {
+		t.Fatalf("IsConnected(client-id-x) = %v, %v, want false (matched by username)", ok, err)
+	}
+
+	if err := b.Close("thing-user"); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	waitDisconnected(t, c)
 }
 
 func TestBrokerFileStorageSurvivesRestart(t *testing.T) {

@@ -119,7 +119,10 @@ func (b *Broker) addListeners(svr *mqtt.Server) error {
 	}
 
 	if b.opt.TcpSslPort > 0 && b.opt.KeyFile != "" && b.opt.CertFile != "" {
-		cert := readCert(b.opt.KeyFile, b.opt.CertFile)
+		cert, err := readCert(b.opt.KeyFile, b.opt.CertFile)
+		if err != nil {
+			return fmt.Errorf("load tcp-ssl cert: %w", err)
+		}
 		tcpSsl := listeners.NewTCP("tio-tcp-ssl", fmt.Sprintf(":%d", b.opt.TcpSslPort), &listeners.Config{
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
 		})
@@ -136,7 +139,10 @@ func (b *Broker) addListeners(svr *mqtt.Server) error {
 	}
 
 	if b.opt.WssPort > 0 && b.opt.KeyFile != "" && b.opt.CertFile != "" {
-		cert := readCert(b.opt.KeyFile, b.opt.CertFile)
+		cert, err := readCert(b.opt.KeyFile, b.opt.CertFile)
+		if err != nil {
+			return fmt.Errorf("load wss cert: %w", err)
+		}
 		wss := listeners.NewWebsocket("tio-wss", fmt.Sprintf(":%d", b.opt.WssPort), &listeners.Config{
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
 		})
@@ -148,23 +154,20 @@ func (b *Broker) addListeners(svr *mqtt.Server) error {
 	return nil
 }
 
-func readCert(keyFile, certFile string) tls.Certificate {
+func readCert(keyFile, certFile string) (tls.Certificate, error) {
 	keyBytes, err := os.ReadFile(keyFile)
 	if err != nil {
-		slog.Error("read key file", "error", err)
-		os.Exit(1)
+		return tls.Certificate{}, fmt.Errorf("read key file %q: %w", keyFile, err)
 	}
 	certBytes, err := os.ReadFile(certFile)
 	if err != nil {
-		slog.Error("read cert file", "error", err)
-		os.Exit(1)
+		return tls.Certificate{}, fmt.Errorf("read cert file %q: %w", certFile, err)
 	}
 	cert, err := tls.X509KeyPair(keyBytes, certBytes)
 	if err != nil {
-		slog.Error("wrong cert or key file", "error", err)
-		os.Exit(1)
+		return tls.Certificate{}, fmt.Errorf("parse cert/key pair: %w", err)
 	}
-	return cert
+	return cert, nil
 }
 
 func (b *Broker) Publish(topic string, payload []byte) error {
@@ -208,11 +211,22 @@ func (b *Broker) QueueSubscribe(ctx context.Context, topic, queue string, cb fun
 }
 
 func (b *Broker) IsConnected(thingId string) (bool, error) {
-	c, ok := b.svr.Clients.Get(thingId)
+	cl, ok := b.liveClientByUsername(thingId)
 	if !ok {
 		return false, nil
 	}
-	return !c.Closed(), nil
+	return !cl.Closed(), nil
+}
+
+// liveClientByUsername returns a live client whose authenticated principal
+// (username) is thingId. The MQTT client ID may differ, so it is not used here.
+func (b *Broker) liveClientByUsername(thingId string) (*mqtt.Client, bool) {
+	for _, cl := range b.svr.Clients.GetAll() {
+		if string(cl.Properties.Username) == thingId {
+			return cl, true
+		}
+	}
+	return nil, false
 }
 
 func (b *Broker) ClientInfo(thingId string) (connector.ClientInfo, error) {
