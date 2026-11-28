@@ -78,6 +78,9 @@ func (b *Broker) Start(ctx context.Context) error {
 	if err := svr.AddHook(&presenceHook{b: b}, nil); err != nil {
 		return fmt.Errorf("add presence hook: %w", err)
 	}
+	if err := svr.AddHook(&publishHook{b: b}, nil); err != nil {
+		return fmt.Errorf("add publish hook: %w", err)
+	}
 
 	// Listeners before storage: a bad cert fails here and leaves nothing open,
 	// whereas a badger/redis store opened first would leak on that error.
