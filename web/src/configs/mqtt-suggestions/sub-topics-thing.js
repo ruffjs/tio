@@ -41,11 +41,11 @@ export const ntp = {
   topics: [
     {
       name: "Request NTP",
-      code: "$iothub/things/{thingId}/req",
+      code: "$iothub/things/{thingId}/ntp/req",
       forServer: true,
       suggested: false,
       topicResolver: (params) => {
-        return `$iothub/things/${params.thingId}/req`;
+        return `$iothub/things/${params.thingId}/ntp/req`;
       },
     },
     {

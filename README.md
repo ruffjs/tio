@@ -40,7 +40,7 @@
 ## 主要组件
 
 - Thing：用于设备的基本管理，例如：CRUD、授权认证
-- Connector：设备连接层，基于内置 NATS Server，支持 MQTT 协议接入，支持集群部署
+- Connector：设备连接层，基于内嵌 comqtt MQTT Broker，支持 MQTT/TLS/mTLS/WS 接入；NATS 是可选的出口
 - Shadow：设备影子，类似于 [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[阿里云设备影子](https://help.aliyun.com/document_detail/53930.html)，各大公有云厂商都有设备影子（名称各有不同）的抽象，且其内涵都高度一致，在我们实际的项目开发中确实是非常有用的工具，极大地减少上层业务系统和设备交互的复杂度和心智负担
 - 设备直接方法（Direct Method）：服务端对设备的方法调用，采用“请求-响应”模式，类似于 HTTP 请求。参考了 [Azure Direct method](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-direct-methods) 的设计
 - Job: 任务管理。通过批量、定时地将任务发送给设备执行，并管理任务的状态和生命周期，任务操作可以是设备直接方法调用、 Shadow 更新、自定义操作等 —— 一方面，加强了设备直接方法调用、 Shadow 更新的功能性和易用性，批量定时异步执行这些操作、并且有操作记录（即 Job 和 Task 的记录）；另一方面，自定义 Job 提供了一个通用的机制方便在设备上执行各类远程操作。
@@ -75,13 +75,12 @@ Shadow 查询接口采用类 SQL 的方式查询，配合上灵活可扩展的 S
 
 ## 连接层（Connector）
 
-基于 [NATS](https://nats.io/) 实现，内置 NATS Server，无需额外部署消息中间件。
+基于内嵌的 [comqtt](https://github.com/wind-c/comqtt) MQTT Broker，无需额外部署消息中间件。
 
-- 支持 MQTT v3.1.1 协议接入
-- 支持 MQTT over WebSocket
-- 支持 SSL/TLS
-- 支持集群部署（NATS 原生集群）
+- 支持 MQTT v3.1.1 协议接入（TCP、TLS/mTLS、WS/WSS）
+- 支持密码、客户端证书、provision 和网关绑定认证
 - 设备协议可在启动时选择 `legacy` 或 [Simple 协议](docs/simple-protocol.md)，并全局选择 JSON/CBOR 编码
+- 单节点接入；NATS 只是可选的出口 bridge，不是设备入口
 
 ## 支持的数据库
 
@@ -101,7 +100,7 @@ SQLite 只有一条连接，所有读写串行执行：设备数或写入频率�
 
 默认配置面向本机开发，上线前至少确认：
 
-- 替换默认凭证：API `basicAuth`、MySQL、NATS `appClient`/`systemClient`/`mqttPublisher`/`superUsers`（见 `config-nats.default.yaml`）。NATS 内部账号密码为空时启动直接报错。
+- 替换默认凭证：API `basicAuth`、MySQL、`connector.mqttBroker.superUsers`，以及启用 NATS 时的 `nats.appClient`/`nats.systemClient`（见 `config-nats.default.yaml`）。NATS 内部账号密码为空时启动直接报错。
 - 关闭调试：`log.level: info`，SQLite/MySQL 的 `showSql: false`，`pprof.enabled: false`。
 - 不要把 `/docs`、`/metrics`、pprof 暴露到公网。
 - NATS 凭证必须显式改成非空值；省略字段会沿用内置默认值（`public`），不会清除。不需要超级用户时写 `superUsers: []`。
@@ -109,7 +108,11 @@ SQLite 只有一条连接，所有读写串行执行：设备数或写入频率�
 
 **升级说明**：`auth.allowPasswordBootstrap` 默认关闭。之前依赖“设备首次连接时用上报密码写入 authValue”的部署，升级后空 authValue 的设备会认证失败。升级前请批量设置 authValue；或临时把 `auth.allowPasswordBootstrap` 设为 `true` 完成一轮接入，再改回 `false`。
 
-### NATS 配置
+### NATS 桥接（可选）
+
+NATS 是可选的出口，不参与设备接入、认证、presence 或会话。`nats.enabled: false`（默认）时 tio 只运行内嵌 comqtt，全部 MQTT 功能正常。
+
+启用后，bridge 只把白名单内的设备上报和一条 presence（`tio.{thingId}.presence`）转发到 NATS；Shadow、Method、NTP、Job 等控制面消息不会出现在 NATS。`nats.jetStream.enabled: false` 时消息即发即弃；启用后按 `maxAgeSeconds`/`maxMsgs`/`maxBytes` 保留，外部消费者可 replay。MQTT retained 状态始终由 comqtt 的 `storage` 保存，与 JetStream 无关。
 
 单机部署直接使用默认 NATS 配置；需要修改端口、存储、TLS 或集群设置时，再创建独立配置文件。完整默认值及选项注释见 [config-nats.default.yaml](config-nats.default.yaml)，该文件在构建时嵌入程序。实际端口、TLS、数据目录和集群状态可查看 Info 日志 `NATS ready`。
 
@@ -119,17 +122,21 @@ SQLite 只有一条连接，所有读写串行执行：设备数或写入频率�
 cp config-nats.default.yaml nats.yaml
 ```
 
-在 `config.yaml` 中引用：
+在 `config.yaml` 中引用（也可以直接内联 `nats:` 块）：
 
 ```yaml
-connector:
-  type: nats
-  natsConfigFile: ./nats.yaml
+nats:
+  enabled: true
+  mode: embedded            # embedded | external
+  url: ""                   # external 模式
+  configFile: ./nats.yaml
 ```
+
+`embedded` 启动内嵌 NATS Server（端口、集群、TLS 见 `nats.server`）；`external` 用 `url` 和 `appClient` 凭据连接外部 NATS。`appClient`/`systemClient` 是 tio 内部账号，与设备认证无关。
 
 `nats.yaml` 只需保留要覆盖的字段，列表整体替换。文件引用路径相对于主配置；存储和证书路径相对于进程工作目录。修改源码中的默认文件需重新构建；日常定制使用 `nats.yaml` 后重启即可。
 
-已有内联 `connector.nats` 配置需移到独立文件，去掉外层 `connector.nats`，再填写上述引用路径。
+从旧版本迁移：`connector.type`、`connector.nats`、`connector.natsConfigFile` 已移除，NATS 配置改为顶层 `nats`；`nats.server.mqttPort`/`mqttTls` 改为 `connector.mqttBroker` 的端口和 TLS 字段；`nats.superUsers` 移到 `connector.mqttBroker.superUsers`；`nats.mqttPublisher` 已删除。旧的 NATS MQTT 会话/retained 数据和 JetStream stream 与新 bridge 不兼容，建议更换或清理 `jetStream.storeDir`。
 
 ### 设备协议与编码
 
@@ -205,7 +212,8 @@ git config core.hooksPath githooks
 ├── thing         # thing 基本的 CRUD
 ├── job           # 任务管理。任务操作含设备直接方法调用、更新Shadow、自定义操作等
 ├── ntp           # 设备 ntp 服务
-├── connector     # connector 实现（基于 NATS）
+├── connector     # 设备连接层（comqtt MQTT Broker）
+├── bridge        # 可选 NATS 出口
 ├── cmd           # main 入口代码
 │   └── tio
 ├── web           # 调试管理后台
@@ -232,7 +240,7 @@ git config core.hooksPath githooks
 
 ### 技术栈
 
-golang + sqlite/mysql + NATS
+golang + sqlite/mysql + comqtt（可选 NATS）
 
 前端（调试管理后台）：vue3 + element-plus
 

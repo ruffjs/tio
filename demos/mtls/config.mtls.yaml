@@ -1,4 +1,4 @@
-# mTLS Demo configuration. Copy this and nats.mtls.yaml to the repo root.
+# mTLS Demo configuration. Copy this to the repo root as config.yaml.
 api:
   port: 9000
   basicAuth:

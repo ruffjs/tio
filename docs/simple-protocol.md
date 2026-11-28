@@ -59,6 +59,8 @@ subscribe:
 
 控制消息使用 QoS 1，不使用 Retain；`{type}` 使用小写下划线命名，每种类型对应固定的 Payload 格式。转发、存储和诊断时应同时保留 Topic 或 type 与 Payload。
 
+表中的 NATS Subject 仅在启用可选 NATS bridge（`nats.enabled: true`）时存在；设备消息统一经内嵌 comqtt 接入。
+
 ## Presence
 
 三种模式都会为所有 Thing 发布在线状态，供后端服务对接：
@@ -71,6 +73,8 @@ subscribe:
 两个 Topic 的消息都包含 `timestamp`（Unix 毫秒）和 `timestampUs`（Unix 微秒），表示 Tio 观测到状态变更的同一时刻。需要微秒精度的消费者优先读取 `timestampUs`，处理旧消息时读取 `timestamp`。
 
 Payload 编码统一使用部署的 `protocol.defaultEncoding`，不随 Thing 配置变化。Simple 模式的普通设备没有这些 Topic 的权限；Legacy/Dual 模式的设备沿用原有 `$iothub` 权限，可以订阅自己的 Presence 和事件流。使用超级用户凭证的后端服务在所有模式下均可订阅。
+
+启用 NATS bridge 时，Tio 额外发布一条 `tio.{thingId}.presence`（payload 为 presence 事件），作为 NATS 侧唯一的 presence 消息；两条 MQTT Topic 保持不变。
 
 超级用户可通过 MQTT 或 NATS 发布、订阅 `TIO_APP` 账号内的全部 Topic/Subject，不受部署 `mode` 限制；MQTT 支持 `#` 订阅，NATS 支持 `>` 订阅。
 
@@ -255,7 +259,7 @@ Topic：`tio/{thingId}/down/ntp_resp`
 - Event 和 Data 由 Tio 原字节透传，不解码、不重新编码；
 - CBOR 解码后的对象使用字符串键。
 
-HTTP API、数据库 JSON、OpenAPI、connector 内部 NATS/KV 记录以及 Rule source/sink Payload 不会因该配置自动转换。
+HTTP API、数据库 JSON、OpenAPI、connector 内部记录以及 Rule source/sink Payload 不会因该配置自动转换。
 
 ## Event 和 Data 约定
 
@@ -342,11 +346,11 @@ MQTT 建议使用 QoS 1、Retain=false。业务也可以约定自定义 Topic，
 
 ## 业务服务订阅 Data/Event
 
-data 和 event 消息不被 Tio 处理，直接透传到 NATS subject。业务服务可通过 JetStream durable consumer 可靠消费，支持离线消息保留和多消费者独立消费。
+data 和 event 消息不被 Tio 处理，启用 NATS bridge 时直接透传到对应 NATS subject。业务服务可通过 JetStream durable consumer 可靠消费，支持离线消息保留和多消费者独立消费。
 
 ### 连接
 
-使用 super-user 凭证通过 **NATS 协议**连接（非 MQTT），默认端口为 `4222`，可在主配置引用的 NATS YAML 中设置 `server.port`：
+使用 super-user 凭证通过 **NATS 协议**连接（非 MQTT），默认端口为 `4222`，可在 `nats.server.port` 中设置：
 
 ```go
 nc, _ := nats.Connect("nats://host:port", nats.UserInfo("$biz", "password"))

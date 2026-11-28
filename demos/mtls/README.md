@@ -45,33 +45,25 @@ cd demos/mtls/certs
 
 ### 2. 配置 tio 服务器
 
-tio 使用 NATS 作为 MQTT 网关。NATS 的 MQTT 端口只有一个，配置 TLS 后该端口即使用 TLS。
+tio 的 MQTT 入口是内嵌 comqtt broker。mTLS 使用 `connector.mqttBroker.tcpSslPort`，TLS 端口与明文端口相互独立。
 
 **方式一：使用仓库提供的 mTLS 配置文件**（推荐）
 
-将 `demos/mtls/config.mtls.yaml` 复制到根目录的 `config.yaml`，将 `demos/mtls/nats.mtls.yaml` 复制到根目录。主配置引用：
+将 `demos/mtls/config.mtls.yaml` 复制到根目录的 `config.yaml`。
+
+**方式二：在现有 `config.yaml` 的 `mqttBroker` 中启用 mTLS**
 
 ```yaml
 connector:
-  type: nats
-  natsConfigFile: ./nats.mtls.yaml
-```
-
-**方式二：定制独立 NATS 配置文件**
-
-在主配置引用的 NATS YAML 中设置 MQTT 端口与证书：
-
-```yaml
-server:
-  mqttPort: 8883
-  mqttTls:
+  mqttBroker:
+    tcpSslPort: 8883
     certFile: "./demos/mtls/certs/server-cert.pem"
     keyFile: "./demos/mtls/certs/server-key.pem"
-    caFile: "./demos/mtls/certs/ca.pem"
+    clientCaFile: "./demos/mtls/certs/ca.pem"
     requireClientCert: true
 ```
 
-文件引用路径相对于主配置；证书路径相对于进程工作目录。启用 mTLS 后，MQTT 客户端需要使用 TLS 和客户端证书。
+证书路径相对于进程工作目录。启用 mTLS 后，MQTT 客户端需要使用 TLS 和客户端证书。
 
 ### 3. 创建证书设备
 
@@ -111,7 +103,6 @@ cp config.yaml config.yaml.bak
 
 # 使用仓库提供的 mTLS 配置
 cp demos/mtls/config.mtls.yaml config.yaml
-cp demos/mtls/nats.mtls.yaml nats.mtls.yaml
 
 # 启动 tio
 make run

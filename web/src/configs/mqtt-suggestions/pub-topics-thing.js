@@ -49,10 +49,10 @@ export default [
   },
   {
     name: "Request NTP",
-    code: "$iothub/things/{thingId}/req",
+    code: "$iothub/things/{thingId}/ntp/req",
     forThing: true,
     topicResolver: (params) => {
-      return `$iothub/things/${params.thingId}/req`;
+      return `$iothub/things/${params.thingId}/ntp/req`;
     },
     payloadType: "JSON",
     payloadResolver: (params) => {
@@ -67,10 +67,10 @@ export default [
   },
   {
     name: "Response NTP",
-    code: "$iothub/things/{thingId}/resp",
+    code: "$iothub/things/{thingId}/ntp/resp",
     forServer: true,
     topicResolver: (params) => {
-      return `$iothub/things/+/resp`;
+      return `$iothub/things/+/ntp/resp`;
     },
     payloadType: "JSON",
     payloadResolver: (params) => {

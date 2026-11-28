@@ -18,7 +18,7 @@
 ## Main Components
 
 - Thing: The basic management for thing, eg: CRUD, authz
-- Connector: Device connectivity layer based on built-in NATS Server with MQTT protocol support and cluster capability
+- Connector: Device connectivity layer based on the embedded comqtt MQTT broker, with MQTT/TLS/mTLS/WS support; NATS is an optional egress
 - Shadow：Like [AWS IoT Shadow](https://docs.aws.amazon.com/iot/latest/developerguide/device-shadow-document.html)、[Azure Device Twin](https://learn.microsoft.com/zh-cn/azure/iot-hub/iot-hub-devguide-device-twins)、[Aliyun Device Shadow](https://www.alibabacloud.com/help/en/iot-platform/latest/78e011). Major public cloud vendors all have an abstraction of device shadows (with different names), and their connotations are highly consistent. In practical project development, they are indeed very useful tools, greatly reducing the complexity and cognitive burden of interactions between upper-layer business systems and devices.
 - Direct Method: The server uses a "request-response" mode for calling methods on the device, similar to an HTTP request. This implementation is based on [Azure Direct method](https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-devguide-direct-methods).
 - Job: Job management. By sending tasks to devices in bulk and scheduling them, and managing the status and lifecycle of tasks, task operations can include direct-method invocation, Shadow updates, custom operations, etc. On one hand, it strengthens the functionality and usability of direct-method invocation and Shadow updates by allowing batched, scheduled, and asynchronous execution of these operations, with operation records (i.e., Job and Task records). On the other hand, custom Jobs provide a general mechanism for executing various types of remote operations on devices conveniently.
@@ -51,12 +51,31 @@ The Shadow Query interface adopts a SQL-like approach for querying, coupled with
 
 ## Connector
 
-Built on [NATS](https://nats.io/) with an embedded NATS Server — no external message broker required.
+Built on the embedded [comqtt](https://github.com/wind-c/comqtt) MQTT broker — no external message broker required.
 
-- MQTT v3.1.1 protocol support
-- MQTT over WebSocket
-- SSL/TLS support
-- Cluster deployment (NATS native clustering)
+- MQTT v3.1.1 over TCP, TLS/mTLS and WS/WSS
+- Password, client-certificate, provision and gateway-binding authentication
+- Single-node ingress; NATS is an optional egress bridge, not a device entry point
+
+## Optional NATS bridge
+
+NATS does not take part in device ingress, authentication, presence or sessions. With `nats.enabled: false` (the default) tio runs on the embedded comqtt broker alone and every MQTT feature works.
+
+When enabled, the bridge forwards only whitelisted device uplinks plus one presence message (`tio.{thingId}.presence`). Shadow, Method, NTP and Job control-plane messages never appear in NATS. With `nats.jetStream.enabled: false` messages are fire-and-forget; when enabled they are retained according to `maxAgeSeconds`/`maxMsgs`/`maxBytes` and can be replayed by external consumers. MQTT retained state always lives in the comqtt `storage`, independent of JetStream.
+
+Configure it with a top-level `nats:` block in `config.yaml`, or point `nats.configFile` at a separate file (see [config-nats.default.yaml](config-nats.default.yaml) for every option):
+
+```yaml
+nats:
+  enabled: true
+  mode: embedded            # embedded | external
+  url: ""                   # external mode
+  configFile: ./nats.yaml
+```
+
+`embedded` starts an in-process NATS server (`nats.server` holds port, cluster and TLS settings); `external` connects to `url` with the `appClient` credentials. `appClient`/`systemClient` are internal tio accounts, unrelated to device authentication.
+
+Migrating from the old layout: `connector.type`, `connector.nats` and `connector.natsConfigFile` are gone — NATS is the top-level `nats` block; `nats.server.mqttPort`/`mqttTls` become `connector.mqttBroker` port/TLS fields; `nats.superUsers` moves to `connector.mqttBroker.superUsers`; `nats.mqttPublisher` is removed. Old NATS MQTT sessions/retained data and JetStream streams are not compatible with the new bridge; use a new or cleaned `jetStream.storeDir`.
 
 ## Supported DB
 
@@ -76,7 +95,7 @@ SQLite uses a single connection, so all reads and writes are serialized: as devi
 
 The default configuration is for local development. Before going live:
 
-- Replace every default credential: API `basicAuth`, MySQL, and NATS `appClient`/`systemClient`/`mqttPublisher`/`superUsers` (see `config-nats.default.yaml`). NATS internal accounts fail startup when their password is empty.
+- Replace every default credential: API `basicAuth`, MySQL, `connector.mqttBroker.superUsers`, and `nats.appClient`/`nats.systemClient` when NATS is enabled (see `config-nats.default.yaml`). NATS internal accounts fail startup when their password is empty.
 - NATS credentials must be set to non-empty values explicitly. Omitting a field keeps the embedded default (`public`) instead of clearing it; use `superUsers: []` when no super user is needed.
 - Turn debugging off: `log.level: info`, `showSql: false` for SQLite/MySQL, `pprof.enabled: false`.
 - Do not expose `/docs`, `/metrics` or pprof to the public internet.
@@ -132,7 +151,8 @@ git config core.hooksPath githooks
 ├── thing         # basic CRUD for Thing
 ├── job           # job management. Job operations include direct-method invocation, shadow updates, custom operations, etc.
 ├── ntp           # device NTP service
-├── connector     # connector implementation (NATS-based)
+├── connector     # device connectivity (comqtt MQTT broker)
+├── bridge        # optional NATS egress
 ├── cmd           # main entry code
 │   └── tio
 └── web           # debugging management background
@@ -149,7 +169,7 @@ git config core.hooksPath githooks
 
 ### tech stack
 
-golang + sqlite/mysql + NATS
+golang + sqlite/mysql + comqtt (optional NATS)
 
 web：vue3 + element-plus
 
